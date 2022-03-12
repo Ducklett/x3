@@ -1,2 +1,5 @@
 bak/
 out/
+test.c
+*.asm
+*.o

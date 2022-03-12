@@ -26,9 +26,10 @@ const api = {
         stderr: 2,
     },
 
-    fn: (name, instructions) => ({ kind: 'function', name, instructions }),
-    call: (name, ...args) => ({ kind: 'call', name, args }),
+    fn: (name, params, instructions) => ({ kind: 'function', name, params, instructions }),
+    call: (def, ...args) => ({ kind: 'call', def, args }),
     syscall: (name, ...args) => ({ kind: 'syscall', name, args }),
+    param: (name) => ({ kind: 'param', name }),
     declareVar: (name) => ({ kind: 'declareVar', name }),
     assignVar: (varDec, expr) => ({ kind: 'assignVar', varDec, expr }),
     readVar: (varDec) => ({ kind: 'readVar', varDec }),
@@ -55,10 +56,13 @@ const api = {
         };
         const lines = [];
         let hasMain = false;
+        function emitVar(node) {
+            assert(node.kind == 'declareVar')
+            return `[rsp+${locals.get(node)}]`
+        }
         function emitTop(node) {
             switch (node.kind) {
                 case 'function': {
-                    global.varIndex = 0;
                     locals = new Map();
                     // TODO: maybe some kind of mangling so we can also have a function called start?
                     let name = node.name;
@@ -68,12 +72,43 @@ const api = {
                         name = 'start'
                     }
 
+                    const vars = node.instructions.filter(n => n.kind === 'declareVar')
+                    const exprs = node.instructions.filter(n => n.kind !== 'declareVar')
 
                     lines.push(`_${name}:`);
-                    for (let expr of node.instructions)
+
+                    const localSize = vars.length * 8
+                    let varOffset = localSize;
+
+                    lines.push(`; prologue`);
+                    lines.push(`push rbp`);
+                    lines.push(`mov rbp, rsp`);
+                    lines.push(`sub rsp, ${localSize}\n`);
+
+                    let paramOffset = 16 + localSize + (node.params.length * 8);
+                    for (let param of node.params) {
+                        paramOffset -= 8
+                        locals.set(param, paramOffset);
+                        console.log(`param ${param.name} = [rsp+${paramOffset}]`)
+                    }
+
+                    for (let vr of vars) {
+                        // const varRegisters = ['rbx', 'rcx', 'r11', 'r12', 'r13', 'r14', 'r15'];
+                        if (global.varIndex === undefined) global.varIndex = 0;
+                        varOffset -= 8;
+                        locals.set(vr, varOffset);
+                        console.log(`var ${vr.name} = ${emitVar(vr)}`)
+                    }
+
+                    lines.push(`; body`);
+                    for (let expr of exprs) {
                         emitExpr(expr);
-                    if (!isMain)
-                        lines.push('ret');
+                    }
+
+                    lines.push(`; epilogue`);
+                    lines.push(`mov rsp, rbp`);
+                    lines.push(`pop rbp`);
+                    lines.push('ret');
                     return;
                 }
                 default: assert(false, `unexpected top level kind ${node.kind}`);
@@ -98,7 +133,7 @@ const api = {
                         else {
                             assert(typeof arg === 'object', 'must be object');
                             assert(arg.kind === 'readVar', ' only var is supported');
-                            lines.push(`mov ${argRegisters[i]}, ${locals.get(arg.varDec)}`);
+                            lines.push(`mov ${argRegisters[i]}, ${emitVar(arg.varDec)}`);
                         }
                     }
                     lines.push('syscall');
@@ -106,15 +141,23 @@ const api = {
                     return;
                 }
                 case 'call': {
-                    assert(!node.args || node.args.length === 0, 'function arguments not supported');
-                    lines.push(`call _${node.name}`);
-                    return;
-                }
-                case 'declareVar': {
-                    const varRegisters = ['rbx', 'rcx', 'r11', 'r12', 'r13', 'r14', 'r15'];
-                    if (global.varIndex === undefined)
-                        global.varIndex = 0;
-                    locals.set(node, varRegisters[global.varIndex++]);
+                    lines.push(`; ${node.def.name}(${node.def.params.map(n => n.name).join(', ')})`);
+                    const args = node.args
+                    const argSize = args.length * 8;
+                    if (argSize) {
+                        lines.push(`sub rsp, ${argSize}`)
+                        let off = argSize
+                        for (let arg of args) {
+                            assert(arg.kind === 'numberLiteral');
+                            off -= 8
+                            lines.push(`mov qword [rsp+${off}], ${arg.n}`)
+                            console.log(`arg [rsp+${off}] = ${arg.n}`)
+                        }
+                    }
+                    lines.push(`call _${node.def.name}`);
+                    if (argSize) {
+                        lines.push(`add rsp, ${argSize}\n`)
+                    }
                     return;
                 }
                 case 'add': {
@@ -122,9 +165,9 @@ const api = {
                     assert(node.b.kind == 'readVar', 'add rhs is var');
                     // by storing the result in rax we preseve the values of the variables
                     // move a into rax
-                    lines.push(`mov rax, ${locals.get(node.a.varDec)}`);
+                    lines.push(`mov rax, [rsp+${locals.get(node.a.varDec)}]`);
                     // add b into rax
-                    lines.push(`add rax, ${locals.get(node.b.varDec)}`);
+                    lines.push(`add rax, [rsp+${locals.get(node.b.varDec)}]`);
                     return;
                 }
                 case 'numberLiteral': {
@@ -134,15 +177,18 @@ const api = {
                 }
                 case 'assignVar': {
                     console.assert(typeof node.varDec === 'object', 'vardef must be object');
+
                     const theVar = locals.get(node.varDec);
                     assert(theVar !== undefined, `the variable ${node.varDec.name} has been declared`);
                     if (node.expr.kind == 'numberLiteral') {
+                        lines.push(`; ${node.varDec.name} = ${node.expr.n}`)
                         lines.push(`mov ${theVar}, ${node.expr.n}`);
                     }
                     else {
                         emitExpr(node.expr);
                         // TODO: get the register of the expression and use that instead of rax
-                        lines.push(`mov ${theVar}, rax`);
+                        lines.push(`; ${node.varDec.name} = rax`)
+                        lines.push(`mov [rsp+${theVar}], rax\n`);
                     }
                     return;
                 }
