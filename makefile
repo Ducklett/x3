@@ -9,6 +9,17 @@ testc:
 	objconv -fnasm testc.o
 	cat ./testc.asm
 compile:
+	rm -f ./out/out
+	rm -f ./out/out.asm
+
+	node compiler
+	mkdir -p out
+	nasm -f elf64 out/out.asm -o out/out.o
+	ld out/out.o -o out/out
+run:
+	rm -f ./out/out
+	rm -f ./out/out.asm
+
 	node compiler
 	mkdir -p out
 	nasm -f elf64 out/out.asm -o out/out.o

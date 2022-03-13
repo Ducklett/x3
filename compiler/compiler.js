@@ -1,5 +1,6 @@
 const path = require('path')
-const fs = require('fs')
+const fs = require('fs');
+const { off } = require('process');
 
 function read(filename) { return fs.readFileSync(filename, 'utf-8') }
 function write(filename, content) { return fs.writeFileSync(filename, content) }
@@ -33,7 +34,8 @@ const api = {
     declareVar: (name) => ({ kind: 'declareVar', name }),
     assignVar: (varDec, expr) => ({ kind: 'assignVar', varDec, expr }),
     readVar: (varDec) => ({ kind: 'readVar', varDec }),
-    add: (a, b) => ({ kind: 'add', a, b }),
+    binary: (op, a, b) => ({ kind: 'binary', op, a, b }),
+    unary: (op, a) => ({ kind: 'unary', op, a }),
     num: (n) => ({ kind: 'numberLiteral', n }),
 
     emitAsm(ast, dest = 'out/out.asm') {
@@ -57,8 +59,11 @@ const api = {
         const lines = [];
         let hasMain = false;
         function emitVar(node) {
-            assert(node.kind == 'declareVar')
-            return `[rsp+${locals.get(node)}]`
+            assert(node.kind == 'declareVar' || node.kind == 'param', `expected declareVar, got ${node.kind}`)
+            const offset = locals.get(node)
+            assert(offset !== undefined)
+            if (offset == 0) return '[rbp]'
+            return `[rbp${offset > 0 ? '+' : ''}${offset}]`
         }
         function emitTop(node) {
             switch (node.kind) {
@@ -78,23 +83,22 @@ const api = {
                     lines.push(`_${name}:`);
 
                     const localSize = vars.length * 8
-                    let varOffset = localSize;
 
                     lines.push(`; prologue`);
                     lines.push(`push rbp`);
                     lines.push(`mov rbp, rsp`);
                     lines.push(`sub rsp, ${localSize}\n`);
 
-                    let paramOffset = 16 + localSize + (node.params.length * 8);
+                    let paramOffset = 16 + (node.params.length * 8)
                     for (let param of node.params) {
                         paramOffset -= 8
                         locals.set(param, paramOffset);
-                        console.log(`param ${param.name} = [rsp+${paramOffset}]`)
+                        console.log(`param ${param.name} = [rbp+${paramOffset}]`)
                     }
 
+                    let varOffset = 0;
                     for (let vr of vars) {
                         // const varRegisters = ['rbx', 'rcx', 'r11', 'r12', 'r13', 'r14', 'r15'];
-                        if (global.varIndex === undefined) global.varIndex = 0;
                         varOffset -= 8;
                         locals.set(vr, varOffset);
                         console.log(`var ${vr.name} = ${emitVar(vr)}`)
@@ -102,7 +106,7 @@ const api = {
 
                     lines.push(`; body`);
                     for (let expr of exprs) {
-                        emitExpr(expr);
+                        emitExpr(expr, false);
                     }
 
                     lines.push(`; epilogue`);
@@ -114,13 +118,12 @@ const api = {
                 default: assert(false, `unexpected top level kind ${node.kind}`);
             }
         }
-        function emitExpr(node) {
+        function emitExpr(node, shouldReturn = true) {
             switch (node.kind) {
                 case 'syscall': {
                     const nr = syscalls[node.name];
                     assert(nr !== undefined, 'must be a linux syscall');
                     lines.push(`; ${node.name} syscall`);
-                    lines.push(`mov rax, ${nr}`);
                     const argRegisters = ['rdi', 'rsi', 'rdx', 'r10', 'r8', 'r9'];
                     for (let i = 0; i < node.args.length; i++) {
                         const arg = node.args[i];
@@ -132,11 +135,14 @@ const api = {
                         }
                         else {
                             assert(typeof arg === 'object', 'must be object');
-                            assert(arg.kind === 'readVar', ' only var is supported');
-                            lines.push(`mov ${argRegisters[i]}, ${emitVar(arg.varDec)}`);
+                            emitExpr(arg)
+                            lines.push(`pop ${argRegisters[i]}`);
+                            // lines.push(`mov ${argRegisters[i]}, ${emitVar(arg.varDec)}`);
                         }
                     }
+                    lines.push(`mov rax, ${nr}`);
                     lines.push('syscall');
+                    if (shouldReturn) lines.push('push rax');
                     lines.push('');
                     return;
                 }
@@ -156,40 +162,83 @@ const api = {
                     }
                     lines.push(`call _${node.def.name}`);
                     if (argSize) {
-                        lines.push(`add rsp, ${argSize}\n`)
+                        lines.push(`add rsp, ${argSize}`)
                     }
+                    if (shouldReturn) lines.push(`push rax`)
+                    lines.push(``)
                     return;
                 }
-                case 'add': {
-                    assert(node.a.kind == 'readVar', 'add lhs is var');
-                    assert(node.b.kind == 'readVar', 'add rhs is var');
-                    // by storing the result in rax we preseve the values of the variables
-                    // move a into rax
-                    lines.push(`mov rax, [rsp+${locals.get(node.a.varDec)}]`);
-                    // add b into rax
-                    lines.push(`add rax, [rsp+${locals.get(node.b.varDec)}]`);
+                case 'readVar': {
+                    assert(shouldReturn, 'readVar should not be called at top level')
+                    lines.push(`push qword ${emitVar(node.varDec)}`);
+                    return
+                }
+                case 'binary': {
+                    const ops = {
+                        '+': 'add',
+                        '-': 'sub',
+                        '*': 'imul',
+                        '/': 'idiv',
+                        '%': 'idiv',
+                    }
+
+                    const op = ops[node.op]
+                    assert(op, `illegal binary operator ${node.op}`)
+
+                    emitExpr(node.a)
+                    emitExpr(node.b)
+                    lines.push(`pop rcx`);
+                    lines.push(`pop rax`);
+                    if (op == 'idiv') {
+                        // as seen in C -> asm view on godbolt
+                        // cqo sign-extends rax:rdx
+                        // not really sure what this means, but it's needed to make *signed* division work
+                        // for unsigned division we'd use 'mul' over 'imul' and ditch 'cqo'
+                        // https://en.wikipedia.org/wiki/Sign_extension
+                        // https://stackoverflow.com/questions/36464879/when-and-why-do-we-sign-extend-and-use-cdq-with-mul-div
+                        // https://stackoverflow.com/questions/51717317/dividing-with-a-negative-number-gives-me-an-overflow-in-nasm/51717463#51717463
+                        lines.push(`cqo`);
+                        lines.push(`${op} rcx`);
+                    } else {
+                        lines.push(`${op} rax, rcx`);
+                    }
+                    const resultRegister = node.op == '%' ? 'rdx' : 'rax'
+                    if (shouldReturn) lines.push(`push ${resultRegister}`);
+
                     return;
+                }
+                case 'unary': {
+                    const ops = {
+                        'pre++': 'inc',
+                        'post++': 'inc',
+                        'pre--': 'dec',
+                        'post--': 'dec',
+                        '!': 'not',
+                        '-': 'neg',
+                    }
+                    assert(node.a.kind == 'readVar')
+                    const op = ops[node.op]
+                    assert(op !== undefined, `illegal unary operator ${node.op}`)
+
+                    if (shouldReturn && node.op.startsWith('pre')) emitExpr(node.a)
+                    lines.push(`${op} qword ${emitVar(node.a.varDec)}`)
+                    if (shouldReturn && node.op.startsWith('post')) emitExpr(node.a)
+                    return
                 }
                 case 'numberLiteral': {
+                    assert(shouldReturn, 'number should not be called at top level')
                     // TODO: get a fitting empty register instead of hardcoded rax
-                    lines.push(`mov rax, ${node.n}`);
+                    lines.push(`push ${node.n}`);
                     return;
                 }
                 case 'assignVar': {
                     console.assert(typeof node.varDec === 'object', 'vardef must be object');
 
-                    const theVar = locals.get(node.varDec);
-                    assert(theVar !== undefined, `the variable ${node.varDec.name} has been declared`);
-                    if (node.expr.kind == 'numberLiteral') {
-                        lines.push(`; ${node.varDec.name} = ${node.expr.n}`)
-                        lines.push(`mov ${theVar}, ${node.expr.n}`);
-                    }
-                    else {
-                        emitExpr(node.expr);
-                        // TODO: get the register of the expression and use that instead of rax
-                        lines.push(`; ${node.varDec.name} = rax`)
-                        lines.push(`mov [rsp+${theVar}], rax\n`);
-                    }
+                    emitExpr(node.expr);
+                    lines.push(`; ${node.varDec.name} = expr`)
+                    lines.push(`pop rax`);
+                    lines.push(`mov ${emitVar(node.varDec)}, rax\n`);
+                    if (shouldReturn) lines.push(`push rax`);
                     return;
                 }
                 default: assert(false, `unsupported node kind ${node.kind}`);
