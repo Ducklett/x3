@@ -28,6 +28,7 @@ const api = {
     },
 
     fn: (name, params, instructions) => ({ kind: 'function', name, params, instructions }),
+    If: (cond, then, els = null) => ({ kind: 'if', cond, then, els }),
     call: (def, ...args) => ({ kind: 'call', def, args }),
     syscall: (name, ...args) => ({ kind: 'syscall', name, args }),
     param: (name) => ({ kind: 'param', name }),
@@ -44,17 +45,24 @@ const api = {
         const datalut = new Map();
         // label => data lookup
         const data = new Map();
-        const label = (content) => {
-            const foundL = datalut.get(content);
-            if (foundL)
-                return foundL;
+        const label = (content = null) => {
             if (!global.labelIndex)
                 global.labelIndex = 0;
-            global.labelIndex++;
-            const l = `__label${global.labelIndex}`;
-            data.set(l, content);
-            datalut.set(content, l);
-            return l;
+
+            if (content !== null) {
+                const foundL = datalut.get(content);
+                if (foundL)
+                    return foundL;
+                global.labelIndex++;
+                const l = `__label${global.labelIndex}`;
+                data.set(l, content);
+                datalut.set(content, l);
+                return l
+            } else {
+                global.labelIndex++;
+                const l = `__label${global.labelIndex}`;
+                return l
+            }
         };
         const lines = [];
         let hasMain = false;
@@ -168,6 +176,33 @@ const api = {
                     lines.push(``)
                     return;
                 }
+                case 'if': {
+                    const then = label()
+
+                    lines.push('; if ()')
+                    emitExpr(node.cond)
+                    lines.push(`pop rax`)
+                    lines.push(`cmp rax, 1`)
+
+                    lines.push(`jne .${then}`)
+                    lines.push('; then')
+                    assert(Array.isArray(node.then), 'if.then is array')
+                    for (let e of node.then) emitExpr(e, false)
+
+                    if (node.els) {
+                        assert(Array.isArray(node.els, 'if.els is array'))
+                        const end = label()
+                        lines.push(`jmp .${end}`)
+                        lines.push('; else')
+                        lines.push(`.${then}:`)
+                        for (let e of node.els) emitExpr(e, false)
+                        lines.push(`.${end}:`)
+                    } else {
+                        lines.push(`.${then}:`)
+                    }
+
+                    return
+                }
                 case 'readVar': {
                     assert(shouldReturn, 'readVar should not be called at top level')
                     lines.push(`push qword ${emitVar(node.varDec)}`);
@@ -180,16 +215,30 @@ const api = {
                         '*': 'imul',
                         '/': 'idiv',
                         '%': 'idiv',
-                    }
 
+                        '>': 'setg',
+                        '>=': 'setge',
+                        '<': 'setl',
+                        '<=': 'setle',
+                        '==': 'sete',
+                        '!=': 'setne',
+                    }
                     const op = ops[node.op]
                     assert(op, `illegal binary operator ${node.op}`)
+
+                    let resultRegister = node.op == '%' ? 'rdx' : 'rax'
 
                     emitExpr(node.a)
                     emitExpr(node.b)
                     lines.push(`pop rcx`);
                     lines.push(`pop rax`);
-                    if (op == 'idiv') {
+                    if (op.startsWith('set')) {
+                        lines.push(`cmp rax, rcx`);
+                        // TODO: figure out if this is safe?
+                        // we save the result in al but push rax 
+                        // so we're possibly saving garbage data from the upper bytes
+                        lines.push(`${op} al`);
+                    } else if (op == 'idiv') {
                         // as seen in C -> asm view on godbolt
                         // cqo sign-extends rax:rdx
                         // not really sure what this means, but it's needed to make *signed* division work
@@ -202,7 +251,6 @@ const api = {
                     } else {
                         lines.push(`${op} rax, rcx`);
                     }
-                    const resultRegister = node.op == '%' ? 'rdx' : 'rax'
                     if (shouldReturn) lines.push(`push ${resultRegister}`);
 
                     return;
@@ -241,7 +289,9 @@ const api = {
                     if (shouldReturn) lines.push(`push rax`);
                     return;
                 }
-                default: assert(false, `unsupported node kind ${node.kind}`);
+                default:
+                    console.log(node)
+                    assert(false, `unsupported node kind ${node.kind}`);
             }
         }
         for (let node of ast)
