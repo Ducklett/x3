@@ -1,4 +1,4 @@
-const { assert, emitAsm, syscall, fn, If, param, call, num, binary, readVar, declareVar, assignVar, fd, unary } = require('./compiler')
+const { assert, MARK, emitAsm, syscall, fn, If, param, call, num, binary, readVar, declareVar, assignVar, fd, unary, ret } = require('./compiler')
 
 const message = 'what\'s your name?\n';
 const message2 = 'hello ';
@@ -8,9 +8,11 @@ const messageShort = 'Please enter a name\n';
 const inputbuffer = ''.padStart(40);
 let main, fadd, nameLen, exitCode, a, b;
 const ast = [
-    fadd = fn('add', [a = param('a'), b = param('b')], [
-        binary('+', readVar(a), readVar(b))
-    ]),
+    fadd = MARK("doesNotCallOtherFunctions", "doesNotAllocate")
+        (fn('add', [a = param('a'), b = param('b')], [
+            ret(binary('+', readVar(a), readVar(b)))
+        ])),
+    fn('retard', [], [ret(num(420))]),
     main = fn('main', [], [
         nameLen = declareVar('nameLen'),
         exitCode = declareVar('exitCode'),

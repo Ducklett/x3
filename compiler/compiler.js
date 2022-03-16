@@ -27,6 +27,7 @@ const api = {
         stderr: 2,
     },
 
+    MARK: (...notes) => (node) => ({ ...node, notes: new Set(notes) }),
     fn: (name, params, instructions) => ({ kind: 'function', name, params, instructions }),
     If: (cond, then, els = null) => ({ kind: 'if', cond, then, els }),
     call: (def, ...args) => ({ kind: 'call', def, args }),
@@ -38,6 +39,7 @@ const api = {
     binary: (op, a, b) => ({ kind: 'binary', op, a, b }),
     unary: (op, a) => ({ kind: 'unary', op, a }),
     num: (n) => ({ kind: 'numberLiteral', n }),
+    ret: (expr) => ({ kind: 'return', expr }),
 
     emitAsm(ast, dest = 'out/out.asm') {
         let locals;
@@ -66,6 +68,7 @@ const api = {
         };
         const lines = [];
         let hasMain = false;
+        let returnLabel = null
         function emitVar(node) {
             assert(node.kind == 'declareVar' || node.kind == 'param', `expected declareVar, got ${node.kind}`)
             const offset = locals.get(node)
@@ -74,10 +77,14 @@ const api = {
             return `[rbp${offset > 0 ? '+' : ''}${offset}]`
         }
         function emitTop(node) {
+            console.log(node)
             switch (node.kind) {
                 case 'function': {
+                    let optimizations = node.notes ?? new Set()
+                    let removeAlloc = optimizations.has("doesNotAllocate")
+
+                    returnLabel = label()
                     locals = new Map();
-                    // TODO: maybe some kind of mangling so we can also have a function called start?
                     let name = node.name;
                     const isMain = name === 'main';
                     if (isMain) {
@@ -95,7 +102,7 @@ const api = {
                     lines.push(`; prologue`);
                     lines.push(`push rbp`);
                     lines.push(`mov rbp, rsp`);
-                    lines.push(`sub rsp, ${localSize}\n`);
+                    if (!removeAlloc) lines.push(`sub rsp, ${localSize}\n`);
 
                     let paramOffset = 16 + (node.params.length * 8)
                     for (let param of node.params) {
@@ -106,17 +113,20 @@ const api = {
 
                     let varOffset = 0;
                     for (let vr of vars) {
-                        // const varRegisters = ['rbx', 'rcx', 'r11', 'r12', 'r13', 'r14', 'r15'];
                         varOffset -= 8;
                         locals.set(vr, varOffset);
                         console.log(`var ${vr.name} = ${emitVar(vr)}`)
                     }
 
                     lines.push(`; body`);
-                    for (let expr of exprs) {
-                        emitExpr(expr, false);
+                    for (let [expr, i] of exprs.map((v, i) => [v, i])) {
+                        emitExpr(expr, {
+                            shouldReturn: false,
+                            lastOfFunc: i == exprs.length - 1,
+                        });
                     }
 
+                    lines.push(`${returnLabel}:`);
                     lines.push(`; epilogue`);
                     lines.push(`mov rsp, rbp`);
                     lines.push(`pop rbp`);
@@ -126,8 +136,18 @@ const api = {
                 default: assert(false, `unexpected top level kind ${node.kind}`);
             }
         }
-        function emitExpr(node, shouldReturn = true) {
+        function emitExpr(node, { shouldReturn = true, lastOfFunc = false } = {}) {
             switch (node.kind) {
+                case 'return': {
+                    // note that return WILL push the expr onto the stack
+                    if (node.expr) {
+                        emitExpr(node.expr)
+                        lines.push(`pop rax`)
+                    }
+                    lines.push(`; return`)
+                    lines.push(`jmp ${returnLabel}`)
+                    return
+                }
                 case 'syscall': {
                     const nr = syscalls[node.name];
                     assert(nr !== undefined, 'must be a linux syscall');
@@ -187,7 +207,7 @@ const api = {
                     lines.push(`jne .${then}`)
                     lines.push('; then')
                     assert(Array.isArray(node.then), 'if.then is array')
-                    for (let e of node.then) emitExpr(e, false)
+                    for (let e of node.then) emitExpr(e, { shouldReturn: false })
 
                     if (node.els) {
                         assert(Array.isArray(node.els, 'if.els is array'))
@@ -195,11 +215,12 @@ const api = {
                         lines.push(`jmp .${end}`)
                         lines.push('; else')
                         lines.push(`.${then}:`)
-                        for (let e of node.els) emitExpr(e, false)
+                        for (let e of node.els) emitExpr(e, { shouldReturn: false })
                         lines.push(`.${end}:`)
                     } else {
                         lines.push(`.${then}:`)
                     }
+                    lines.push('; endif\n')
 
                     return
                 }
