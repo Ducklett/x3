@@ -1,6 +1,5 @@
 const path = require('path')
 const fs = require('fs');
-const { off } = require('process');
 
 function read(filename) { return fs.readFileSync(filename, 'utf-8') }
 function write(filename, content) { return fs.writeFileSync(filename, content) }
@@ -33,16 +32,23 @@ const api = {
     call: (def, ...args) => ({ kind: 'call', def, args }),
     syscall: (name, ...args) => ({ kind: 'syscall', name, args }),
     param: (name) => ({ kind: 'param', name }),
-    declareVar: (name) => ({ kind: 'declareVar', name }),
+    declareVar: (name, expr) => ({ kind: 'declareVar', name, expr }),
     assignVar: (varDec, expr) => ({ kind: 'assignVar', varDec, expr }),
     readVar: (varDec) => ({ kind: 'readVar', varDec }),
+    readProp: (varDec, prop) => ({ kind: 'readProp', varDec, prop }),
     binary: (op, a, b) => ({ kind: 'binary', op, a, b }),
     unary: (op, a) => ({ kind: 'unary', op, a }),
-    num: (n) => ({ kind: 'numberLiteral', n }),
     ret: (expr) => ({ kind: 'return', expr }),
+
+    num: (n) => ({ kind: 'numberLiteral', n }),
+    str: (value) => ({ kind: 'stringLiteral', value, len: value.length }),
 
     emitAsm(ast, dest = 'out/out.asm') {
         let locals;
+
+        // variable => label lookup
+        const globals = new Map()
+
         // data => label lookup
         const datalut = new Map();
         // label => data lookup
@@ -71,14 +77,30 @@ const api = {
         let returnLabel = null
         function emitVar(node) {
             assert(node.kind == 'declareVar' || node.kind == 'param', `expected declareVar, got ${node.kind}`)
-            const offset = locals.get(node)
-            assert(offset !== undefined)
-            if (offset == 0) return '[rbp]'
-            return `[rbp${offset > 0 ? '+' : ''}${offset}]`
+            let offset = locals.get(node)
+            if (offset) {
+                assert(offset !== undefined)
+                if (offset == 0) return '[rbp]'
+                return `[rbp${offset > 0 ? '+' : ''}${offset}]`
+            } else {
+                offset = globals.get(node)
+                assert(offset !== undefined, 'referenced variable will either be a local or a global')
+                return offset
+            }
         }
         function emitTop(node) {
-            console.log(node)
             switch (node.kind) {
+                case 'declareVar': {
+                    const notes = node.notes ?? new Set()
+                    assert(notes.has('const'), 'top level variables are constant')
+                    assert(node.expr, 'top level variable is intialized')
+                    assert(node.expr.kind == 'stringLiteral', 'top level variable is a string literal')
+
+                    const l = label(node.expr.value)
+                    globals.set(node, l)
+
+                    return
+                }
                 case 'function': {
                     let optimizations = node.notes ?? new Set()
                     let removeAlloc = optimizations.has("doesNotAllocate")
@@ -113,6 +135,7 @@ const api = {
 
                     let varOffset = 0;
                     for (let vr of vars) {
+                        assert(vr.expr == null, 'initalized locals not supported')
                         varOffset -= 8;
                         locals.set(vr, varOffset);
                         console.log(`var ${vr.name} = ${emitVar(vr)}`)
@@ -155,18 +178,10 @@ const api = {
                     const argRegisters = ['rdi', 'rsi', 'rdx', 'r10', 'r8', 'r9'];
                     for (let i = 0; i < node.args.length; i++) {
                         const arg = node.args[i];
-                        if (typeof arg === 'string') {
-                            lines.push(`mov ${argRegisters[i]}, ${label(arg)}`);
-                        }
-                        else if (typeof arg === 'number') {
-                            lines.push(`mov ${argRegisters[i]}, ${arg}`);
-                        }
-                        else {
-                            assert(typeof arg === 'object', 'must be object');
-                            emitExpr(arg)
-                            lines.push(`pop ${argRegisters[i]}`);
-                            // lines.push(`mov ${argRegisters[i]}, ${emitVar(arg.varDec)}`);
-                        }
+                        assert(typeof arg === 'object', 'must be object');
+                        emitExpr(arg)
+                        lines.push(`pop ${argRegisters[i]}`);
+                        // lines.push(`mov ${argRegisters[i]}, ${emitVar(arg.varDec)}`);
                     }
                     lines.push(`mov rax, ${nr}`);
                     lines.push('syscall');
@@ -227,6 +242,15 @@ const api = {
                 case 'readVar': {
                     assert(shouldReturn, 'readVar should not be called at top level')
                     lines.push(`push qword ${emitVar(node.varDec)}`);
+                    return
+                }
+                case 'readProp': {
+                    assert(node.varDec.notes?.has('const'), 'should be a constant')
+                    assert(node.varDec.expr.kind == 'stringLiteral', 'should be initalized to a string literal')
+                    assert(node.prop == 'length', 'property should be length')
+
+                    lines.push(`push ${node.varDec.expr.value.length}`)
+
                     return
                 }
                 case 'binary': {
@@ -298,6 +322,11 @@ const api = {
                     assert(shouldReturn, 'number should not be called at top level')
                     // TODO: get a fitting empty register instead of hardcoded rax
                     lines.push(`push ${node.n}`);
+                    return;
+                }
+                case 'stringLiteral': {
+                    assert(shouldReturn, 'string literal should not be called at top level')
+                    lines.push(`push ${label(node.value)}`);
                     return;
                 }
                 case 'assignVar': {

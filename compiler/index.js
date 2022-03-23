@@ -1,50 +1,22 @@
-const { assert, MARK, emitAsm, syscall, fn, If, param, call, num, binary, readVar, declareVar, assignVar, fd, unary, ret } = require('./compiler')
+const { parse } = require("./parser")
+const { outputHtml } = require("./tool/outputHtml")
 
-const message = 'what\'s your name?\n';
-const message2 = 'hello ';
-const message3 = '\n';
-const messageLong = 'You have a long name\n';
-const messageShort = 'Please enter a name\n';
-const inputbuffer = ''.padStart(40);
-let main, fadd, nameLen, exitCode, a, b;
-const ast = [
-    fadd = MARK("doesNotCallOtherFunctions", "doesNotAllocate")
-        (fn('add', [a = param('a'), b = param('b')], [
-            ret(binary('+', readVar(a), readVar(b)))
-        ])),
-    fn('retard', [], [ret(num(420))]),
-    main = fn('main', [], [
-        nameLen = declareVar('nameLen'),
-        exitCode = declareVar('exitCode'),
+const code = `
+((see linux manual for syscall documentation))
+#syscall(0x001) proc write[fd:int,buf:*void,bufLen:int];
+#syscall(0x03c) proc exit[code:int];
 
-        syscall('write', fd.stdout, message, message.length),
+const stdin:int = 0;
+const stdout:int = 1;
+const stderr:int = 2;
 
-        assignVar(nameLen, syscall('read', fd.stdin, inputbuffer, inputbuffer.length)),
-        unary('pre--', readVar(nameLen)),
+#entrypoint
+proc main[] {
+    const msg = "hello world";
+    write(stdin,msg,msg.length);
+    exit(0);
+}
+`
+const st = parse(code)
 
-        If(binary('<=', readVar(nameLen), num(1)), [
-            syscall('write', fd.stdout, messageShort, messageShort.length),
-            syscall('exit', 1),
-        ]),
-
-        syscall('write', fd.stdout, message2, message2.length),
-        syscall('write', fd.stdout, inputbuffer, readVar(nameLen)),
-        syscall('write', fd.stdout, message3, message3.length),
-
-        If(binary('>', readVar(nameLen), num(10)), [
-            syscall('write', fd.stdout, messageLong, messageLong.length),
-        ]),
-
-        assignVar(
-            exitCode,
-            // 36 % (3+7) = exit(6)
-            binary('%',
-                num(36),
-                call(fadd, num(3), num(7))
-            )
-        ),
-        unary('pre++', readVar(exitCode)),
-        syscall('exit', readVar(exitCode)),
-    ]),
-];
-emitAsm(ast, 'out/out.asm');
+outputHtml(st)
