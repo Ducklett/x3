@@ -22,8 +22,9 @@ module.exports = {
         place-content:center;
     }
     .code {
-        padding:24px;
-        border-radius: 16px;
+        font-size:14px;
+        padding:12px;
+        border-radius: 8px;
         background: #282C34;
         tab-size:4;
         display:inline-block;
