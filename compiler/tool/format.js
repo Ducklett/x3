@@ -1,5 +1,3 @@
-const { ENGINE_METHOD_CIPHERS } = require("constants")
-
 module.exports = {
     format(syntaxtree, mark) {
         let pseudoOperators = new Set("[](){},.:;".split(''))
