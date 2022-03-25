@@ -113,12 +113,13 @@ module.exports = {
                         (node.colon) ? [
                             _format(node.colon),
                             _format(node.type),
+                        ].join('') : '',
+                        node.expr ? join([
                             space(),
-                        ].join('') : space(),
-                        _format(node.equals),
-                        space(),
-                        _format(node.expr),
-                        _format(node.terminator),
+                            _format(node.equals),
+                            _format(node.expr),
+                            _format(node.terminator),
+                        ]) : '',
                     ])
                 }
                 case 'each': {

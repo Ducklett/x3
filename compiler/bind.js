@@ -113,6 +113,24 @@ function bind(root) {
                     return it
                 }
             }
+            case 'binary': {
+                const a = bindExpression(node.lhs)
+                const b = bindExpression(node.rhs)
+                const op = node.op.value
+                const it = { kind: 'binary', a, op, b }
+                return it
+            }
+            case 'assignment': {
+                const varDec = symbols.get(node.name.value)
+                assert(varDec, `symbol "${node.name.value}" is defined`)
+                const expr = bindExpression(node.expr)
+                const it = {
+                    kind: 'assignVar',
+                    varDec,
+                    expr
+                }
+                return it
+            }
             default: assert(false, `unhandled kind "${node.kind}"`)
         }
     }
