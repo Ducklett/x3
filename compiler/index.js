@@ -1,5 +1,7 @@
 const { parse } = require("./parser")
-const { outputHtml } = require("./tool/outputHtml")
+const { bind } = require("./bind")
+const { inspect } = require("util")
+const { emitAsm } = require("./compiler")
 
 const code = `
 ((see linux manual for syscall documentation))
@@ -10,13 +12,18 @@ const stdin:int = 0;
 const stdout:int = 1;
 const stderr:int = 2;
 
+((TODO: move this to function scope))
+const msg = "hello world!\n";
+
 #entrypoint
 proc main[] {
-    const msg = "hello world";
-    write(stdin,msg,msg.length);
+    write(stdout,msg,msg.length);
     exit(0);
 }
 `
 const st = parse(code)
+const ast = bind(st)
 
-outputHtml(st)
+emitAsm(ast)
+
+//console.log(inspect(ast, { depth: 10 }))

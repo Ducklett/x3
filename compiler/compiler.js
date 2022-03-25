@@ -8,10 +8,15 @@ function assert(expr, msg = '') {
         return;
     const stack = new Error().stack;
     const failedAt = stack.split('\n')[2];
-    const [_, file, line] = failedAt.match(/\((.*):(\d+:\d+)\)/);
-    const relativeToRoot = path.relative(__dirname, file);
+    const matched = failedAt.match(/\((.*):(\d+:\d+)\)/) ?? failedAt.match(/at (.*):(\d+:\d+)/)
+    if (matched === null) {
+        console.error('stack parsing error in assert, update it!')
+        process.exit(1)
+    }
+    const [_, file, line] = matched
+    const relativeToRoot = path.relative(process.cwd(), file);
     const displayMessage = msg ? `: '${msg}'` : '';
-    console.log(`${relativeToRoot}(${line}) assertion failed${displayMessage}`);
+    console.log(`${relativeToRoot}:${line} assertion failed${displayMessage}`);
     process.exit(0);
 }
 
@@ -30,7 +35,7 @@ const api = {
     fn: (name, params, instructions) => ({ kind: 'function', name, params, instructions }),
     If: (cond, then, els = null) => ({ kind: 'if', cond, then, els }),
     call: (def, ...args) => ({ kind: 'call', def, args }),
-    syscall: (name, ...args) => ({ kind: 'syscall', name, args }),
+    syscall: (code, ...args) => ({ kind: 'syscall', code, args }),
     param: (name) => ({ kind: 'param', name }),
     declareVar: (name, expr) => ({ kind: 'declareVar', name, expr }),
     assignVar: (varDec, expr) => ({ kind: 'assignVar', varDec, expr }),
@@ -94,14 +99,30 @@ const api = {
                     const notes = node.notes ?? new Set()
                     assert(notes.has('const'), 'top level variables are constant')
                     assert(node.expr, 'top level variable is intialized')
-                    assert(node.expr.kind == 'stringLiteral', 'top level variable is a string literal')
 
-                    const l = label(node.expr.value)
-                    globals.set(node, l)
+                    switch (node.expr.kind) {
+                        case 'stringLiteral': {
+                            const l = label(node.expr.value)
+                            globals.set(node, l)
+                            break
+                        }
+                        case 'numberLiteral': {
+                            const l = label(node.expr.n)
+                            globals.set(node, l)
+                            break
+                        }
+                        default: assert(false, `illegal variable expression ${node.kind}`)
+                    }
+
 
                     return
                 }
                 case 'function': {
+                    // extern declaration; don't emit
+                    if (node.notes.has('syscall')) return
+
+                    assert(node.instructions, `functions have a body`)
+
                     let optimizations = node.notes ?? new Set()
                     let removeAlloc = optimizations.has("doesNotAllocate")
 
@@ -172,9 +193,11 @@ const api = {
                     return
                 }
                 case 'syscall': {
-                    const nr = syscalls[node.name];
+                    assert(node.code.kind == 'numberLiteral')
+                    const nr = node.code.n;
                     assert(nr !== undefined, 'must be a linux syscall');
-                    lines.push(`; ${node.name} syscall`);
+                    // TODO: code->name mapping for bebug info
+                    lines.push(`; ${node.code.n} syscall`);
                     const argRegisters = ['rdi', 'rsi', 'rdx', 'r10', 'r8', 'r9'];
                     for (let i = 0; i < node.args.length; i++) {
                         const arg = node.args[i];
@@ -354,7 +377,12 @@ ${lines.join('\n')}
 section .data
 ${[...data.keys()].map(k => {
             const msg = data.get(k);
+            if (typeof msg === 'number') {
+                return `${k} equ ${msg}`
+            }
+
             assert(typeof msg === 'string', 'only string data is supported');
+
             const bytes = [...msg].map(c => c.charCodeAt(0)).join(',');
             return `${k} db ${bytes} ; '${msg.replace(/\n/g, '\\n')}'`;
         }).join('\n')}
