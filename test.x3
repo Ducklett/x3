@@ -14,12 +14,12 @@ proc main[] {
     const end = "!\n";
     const name = "                        ";
 
-    write(stdout,msg,msg.length);
+    write(stdout, msg, msg.length);
 
-    var len = read(stdin, name, name.length);
+    var len = read(stdin, name, name.length) - 1; ((trim newline))
 
-    write(stdout,greet,greet.length);
-    write(stdout,name,len-1);
-    write(stdout,end,end.length);
+    write(stdout, greet, greet.length);
+    write(stdout, name, len);
+    write(stdout, end, end.length);
     exit(0);
 }
