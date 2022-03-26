@@ -12,7 +12,7 @@ proc main[] {
     const msg = "What's your name?\n";
     const greet = "hello ";
     const end = "!\n";
-    const name = "                        ";
+    const name:[40]char;
 
     write(stdout, msg, msg.length);
 

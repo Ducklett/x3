@@ -325,8 +325,8 @@ function parse(code) {
                     if (is('operator', '=')) {
                         equals = take('operator', '=')
                         expr = parseExpression()
-                        terminator = take('operator', ';')
                     }
+                    terminator = take('operator', ';')
                     return { kind: 'var', keyword, name, colon, type, equals, expr, terminator, tags }
                 }
                 default:
