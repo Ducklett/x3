@@ -1,23 +1,21 @@
 ((see linux manual for syscall documentation))
 #syscall(0x000) proc read[fd:int,buf:*void,count:int] -> int;
 #syscall(0x001) proc write[fd:int,buf:*void,count:int];
-#syscall(0x001) proc open[path name:c string,flags:int,mode:int] -> int;
-#syscall(0x002) proc close[file descriptor:int] -> int;
 #syscall(0x03c) proc exit[code:int];
 
 const stdin:int = 0;
 const stdout:int = 1;
 const stderr:int = 2;
 
-((TODO: move this to function scope))
-const msg = "What's your name?\n";
-const greet = "hello ";
-const end = "!\n";
-const name = "                        ";
 
 #entrypoint
 proc main[] {
     var len:int
+
+    const msg = "What's your name?\n";
+    const greet = "hello ";
+    const end = "!\n";
+    const name = "                        ";
 
     write(stdout,msg,msg.length);
 
