@@ -76,6 +76,11 @@ function parse(code) {
                 let from = lexerIndex
                 while (current() != '"') lexerIndex++
                 let str = code.slice(from, lexerIndex)
+                // TODO: maybe move this elsewhere
+                str = str.replace(/\\n/g, '\n')
+                    .replace(/\\r/g, '\r')
+                    .replace(/\\t/g, '\t')
+                    .replace(/\\0/g, '\0')
                 lexerIndex++
                 tokens.push({ kind: 'string', value: str })
                 continue
@@ -92,7 +97,6 @@ function parse(code) {
 
                     const slice = code.slice(from, lexerIndex)
                     let num = parseInt(slice, 16)
-                    console.log(slice + ' -> ' + num)
                     tokens.push({ kind: 'number', value: num })
                     continue
                 } else {

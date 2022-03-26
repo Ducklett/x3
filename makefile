@@ -8,6 +8,10 @@ testc:
 	gcc -fno-asynchronous-unwind-tables -s -c -o testc.o test.c
 	objconv -fnasm testc.o
 	cat ./testc.asm
+runc:
+	rm -f testc
+	gcc test.c -o testc
+	./testc
 compile:
 	rm -f ./out/out
 	rm -f ./out/out.asm

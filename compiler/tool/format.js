@@ -17,7 +17,6 @@ module.exports = {
             return '\n'
         }
         function indentation() {
-            console.log(indentLevel)
             return ''.padStart(indentLevel, '\t')
         }
         function joinedByNewline(items) {

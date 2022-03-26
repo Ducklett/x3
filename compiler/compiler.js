@@ -376,7 +376,7 @@ global _start
 ${lines.join('\n')}
 section .data
 ${[...data.keys()].map(k => {
-            const msg = data.get(k);
+            let msg = data.get(k);
             if (typeof msg === 'number') {
                 return `${k} equ ${msg}`
             }

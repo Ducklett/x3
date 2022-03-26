@@ -1,0 +1,40 @@
+{
+    "name": "lang-x3",
+    "displayName": "lang-x3",
+    "description": "x3 language support",
+    "version": "0.0.1",
+    "engines": {
+        "vscode": "^1.65.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "contributes": {
+        "languages": [
+            {
+                "id": "x3",
+                "aliases": [
+                    "x3",
+                    "x3"
+                ],
+                "extensions": [
+                    ".x3",
+                    ".ecksthree",
+                    ".xxx"
+                ],
+                "icon": {
+                    "light": "./x3-light.png",
+                    "dark": "./x3-dark.png"
+                },
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "x3",
+                "scopeName": "source.x3",
+                "path": "./syntaxes/x3.tmLanguage.json"
+            }
+        ]
+    }
+}
