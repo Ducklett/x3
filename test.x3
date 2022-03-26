@@ -7,11 +7,8 @@ const stdin:int = 0;
 const stdout:int = 1;
 const stderr:int = 2;
 
-
 #entrypoint
 proc main[] {
-    var len:int
-
     const msg = "What's your name?\n";
     const greet = "hello ";
     const end = "!\n";
@@ -19,7 +16,7 @@ proc main[] {
 
     write(stdout,msg,msg.length);
 
-    len = read(stdin, name, name.length);
+    var len = read(stdin, name, name.length);
 
     write(stdout,greet,greet.length);
     write(stdout,name,len-1);
