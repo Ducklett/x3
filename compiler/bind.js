@@ -1,13 +1,22 @@
-const { assert, syscall } = require('./compiler')
+const { assert } = require('./compiler')
 
-function bind(root) {
-    assert(root.kind == 'file')
-
+function bind(files) {
     // only globals for now
     const symbols = new Map()
+    const bodies = new Map()
     const ast = []
 
-    bindFile(root)
+    for (let root of files) {
+        assert(root.kind == 'file')
+        // bind declarations in file
+        bindFile(root)
+    }
+
+    // bind declaration bodies
+    for (let [symbol, body] of bodies) {
+        bindBody(body, symbol)
+    }
+
     return ast
 
     function bindFile(node) {
@@ -18,8 +27,22 @@ function bind(root) {
         }
     }
 
+    function bindBody(node, symbol) {
+        switch (node.kind) {
+            case 'proc': {
+                symbol.instructions = bindBlock(node.body)
+                return
+            }
+            default:
+                assert(false, `unhandled kind "${node.kind}"`)
+        }
+    }
+
     function bindDeclaration(node) {
         switch (node.kind) {
+            case 'import': {
+                return { kind: 'import', path: node.path }
+            }
             case 'var': {
                 assert(
                     !symbols.has(node.name.value),
@@ -63,7 +86,7 @@ function bind(root) {
                 }
                 symbols.set(it.name, it)
                 it.params = bindParameters(node.parameters)
-                if (node.body.kind == 'block') it.instructions = bindBody(node.body, it)
+                if (node.body.kind == 'block') bodies.set(it, node)
                 else it.instructions = null
 
                 return it
@@ -164,7 +187,7 @@ function bind(root) {
     function bindArguments(args) {
         return args.items.filter((_, i) => i % 2 == 0).map(p => bindExpression(p))
     }
-    function bindBody(body) {
+    function bindBlock(body) {
         return body.statements.map(bindDeclaration)
     }
 }
@@ -186,6 +209,7 @@ function lower(ast) {
 
     function lowerNode(node) {
         switch (node.kind) {
+            case 'import': return []
             case 'declareVar': {
                 if (node.notes.has('const')) {
                     return [node]

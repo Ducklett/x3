@@ -1,11 +1,23 @@
-function parse(sources) {
-    const code = sources.join('\n')
-    console.log(code)
+const { read } = require('./compiler')
+const path = require("path")
 
-    const keywords = new Set(["module", "use", "struct", "union", "proc", "return", "break", "continue", "goto", "var", "const", "for", "do", "while", "each", "enum", "if", "else", "switch",])
+function parse(source, importedFiles = null) {
+    if (!importedFiles) importedFiles = new Set()
+
+    importedFiles.add(source.path)
+
+    const code = source.code
+
+    const keywords = new Set(["module", "import", "use", "struct", "union", "proc", "return", "break", "continue", "goto", "var", "const", "for", "do", "while", "each", "enum", "if", "else", "switch",])
     const operators = new Set(["<<=", ">>=", "&&=", "||=", "==", "!=", ">=", "<=", "<<", ">>", "->", "&&", "||", "++", "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "~=", "=", "!", ">", "<", "+", "-", "/", "*", "%", "^", "~", "&", "|", "(", ")", "[", "]", "{", "}", "?", ":", ";", ".", ","])
     const binaryOperators = new Set(["==", "!=", ">=", "<=", "<<", ">>", "&&", "||", ">", "<", "+", "-", "/", "*", "%", "^", "&", "|"])
     const assignmentOperators = new Set(["<<=", ">>=", "&&=", "||=", "==", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "~=", "=",])
+
+    const tokens = lex(code)
+    const statements = _parse(tokens)
+    //emitHtml(statements)
+    //console.log(JSON.stringify(statements, null, 2))
+    return statements
 
     function lex(code) {
         function isWhitespace(c) {
@@ -156,9 +168,33 @@ function parse(sources) {
         return tokens
     }
 
-    function parse(tokens) {
+    function _parse(tokens) {
+        let isTopLevel = true
+        const filesToImport = new Set()
         tokens = tokens.filter(t => t.kind != 'whitespace' && t.kind != 'comment')
         let tokenIndex = 0
+
+        let contents = parseFile()
+        const files = [contents]
+        console.log(contents)
+        for (let filePath of filesToImport) {
+            assert(filePath.value.startsWith('./'), `import file path always starts with ./`)
+            let p = filePath.value.slice(2)
+            if (!p.endsWith('.x3')) p += '.x3'
+
+            const sourcePath = path.join(path.parse(source.path).dir, p)
+            if (importedFiles.has(sourcePath)) {
+                console.log('NOTE: file already imported! skipping')
+                continue
+            }
+            const importedSource = { path: sourcePath, code: read(sourcePath) }
+            const parsedSource = parse(importedSource, importedFiles)
+            for (const file of parsedSource) {
+                files.push(file)
+            }
+        }
+        return files
+
         function peek(n) { return tokens[tokenIndex + n] }
         function current() { return peek(0) }
         function is(kind, value = null) {
@@ -285,7 +321,16 @@ function parse(sources) {
             }
 
             const cur = current().value
+            if (cur != 'import') isTopLevel = false
+
             switch (cur) {
+                case 'import': {
+                    assert(isTopLevel, `imports should only be at top level`)
+                    const keyword = take('keyword', 'import')
+                    const path = take('string')
+                    filesToImport.add(path)
+                    return { kind: 'import', keyword, path }
+                }
                 case 'module': {
                     const keyword = take('keyword', 'module')
                     const name = take('symbol')
@@ -409,15 +454,7 @@ function parse(sources) {
             throw `unhandled type ${current().kind}::${current().value}`
 
         }
-
-        return parseFile()
     }
-
-    const tokens = lex(code)
-    const statements = parse(tokens)
-    //emitHtml(statements)
-    //console.log(JSON.stringify(statements, null, 2))
-    return statements
 }
 
 // const code = `

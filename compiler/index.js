@@ -4,11 +4,11 @@ const { inspect } = require('util')
 const { emitAsm, read } = require('./compiler')
 const { outputHtml } = require('./tool/outputHtml')
 
-compile('examples/sys.x3', 'examples/test.x3')
+compile('examples/test.x3')
 
-function compile(...filenames) {
-    const files = filenames.map(read)
-    const syntaxTree = parse(files)
+function compile(filename) {
+    const file = ({ path: filename, code: read(filename) })
+    const syntaxTree = parse(file)
     let ast = bind(syntaxTree)
     ast = lower(ast)
 

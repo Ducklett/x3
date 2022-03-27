@@ -67,6 +67,7 @@ const api = {
         const datalut = new Map()
         // label => data lookup
         const data = new Map()
+
         const label = (content = null) => {
             if (!global.labelIndex) global.labelIndex = 0
 
@@ -84,9 +85,46 @@ const api = {
                 return l
             }
         }
+
         const lines = []
         let hasMain = false
         let returnLabel = null
+
+        // ==================
+
+        // HACK: variables first
+        for (let node of ast) {
+            if (node.kind == 'declareVar') emitTop(node)
+        }
+
+        for (let node of ast) {
+            if (node.kind != 'declareVar') emitTop(node)
+        }
+
+        assert(hasMain, 'the program defines a main function')
+        const source = `
+section .text
+global _start
+${lines.join('\n')}
+section .data
+${[...data.keys()]
+                .map(k => {
+                    let msg = data.get(k)
+                    if (typeof msg === 'number') {
+                        return `${k} equ ${msg}`
+                    }
+
+                    assert(typeof msg === 'string', 'only string data is supported')
+
+                    const bytes = [...msg].map(c => c.charCodeAt(0)).join(',')
+                    return `${k} db ${bytes} ; '${msg.replace(/\n/g, '\\n')}'`
+                })
+                .join('\n')}
+`
+        write(dest, source)
+
+        // ==================
+
         function emitVar(node) {
             assert(
                 node.kind == 'declareVar' || node.kind == 'param',
@@ -398,28 +436,7 @@ const api = {
                     assert(false, `unsupported node kind ${node.kind}`)
             }
         }
-        for (let node of ast) emitTop(node)
-        assert(hasMain, 'the program defines a main function')
-        const source = `
-section .text
-global _start
-${lines.join('\n')}
-section .data
-${[...data.keys()]
-                .map(k => {
-                    let msg = data.get(k)
-                    if (typeof msg === 'number') {
-                        return `${k} equ ${msg}`
-                    }
 
-                    assert(typeof msg === 'string', 'only string data is supported')
-
-                    const bytes = [...msg].map(c => c.charCodeAt(0)).join(',')
-                    return `${k} db ${bytes} ; '${msg.replace(/\n/g, '\\n')}'`
-                })
-                .join('\n')}
-`
-        write(dest, source)
     }
 }
 
