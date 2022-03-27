@@ -1,0 +1,11 @@
+import "./sys"
+
+module std {
+    proc write[msg:string] {
+        sys.write(sys.stdout, msg, msg.length);
+    }
+
+    proc read[buffer:[]char] -> int {
+        sys.read(sys.stdin, buffer, buffer.length);
+    }
+}

@@ -176,7 +176,6 @@ function parse(source, importedFiles = null) {
 
         let contents = parseFile()
         const files = [contents]
-        console.log(contents)
         for (let filePath of filesToImport) {
             assert(filePath.value.startsWith('./'), `import file path always starts with ./`)
             let p = filePath.value.slice(2)
@@ -260,17 +259,20 @@ function parse(source, importedFiles = null) {
 
                     case 'symbol': {
                         let name = take('symbol')
+
+                        if (is('operator', '.')) {
+                            // property acces
+                            const dot = take('operator', '.')
+                            const property = parsePrimaryExpression()
+
+                            // use property access as lhs, try for assignement
+                            return { kind: 'property access', scope: name, dot, property }
+                        }
+
                         if (is('operator', '(')) {
                             // function call
                             const argumentList = parseList(parseExpression, "()")
                             return { kind: 'call', name, argumentList }
-                        } else if (is('operator', '.')) {
-                            // property acces
-                            const dot = take('operator', '.')
-                            const property = take('symbol')
-
-                            // use property access as lhs, try for assignement
-                            name = { kind: 'property access', name, dot, property }
                         }
 
                         if (isAssignmentOperator(current())) {
@@ -278,11 +280,8 @@ function parse(source, importedFiles = null) {
                             const expr = parseExpression()
                             return { kind: 'assignment', name, operator, expr }
                         }
-                        else {
-                            return { kind: 'reference', name }
-                        }
 
-                        // from property access
+                        // just a plain symbol
                         return name
                     }
                     case 'keyword': {
@@ -420,7 +419,7 @@ function parse(source, importedFiles = null) {
                     }
                 }
                 if (allowExpressions) {
-                    const needsTermination = new Set(['binary', 'unary', 'assignment', 'call', 'return'])
+                    const needsTermination = new Set(['binary', 'unary', 'assignment', 'call', 'return', 'property access'])
                     let expr = parseExpression()
                     if (expr) {
                         if (needsTermination.has(expr.kind)) {

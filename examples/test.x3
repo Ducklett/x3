@@ -1,18 +1,21 @@
-import "./sys"
+import "./std"
 
 #entrypoint
 proc main[] {
+    (( std.write("Hello world!\n"); ))
+    (( sys.exit(0); ))
+
     const msg = "What's your name?\n";
     const greet = "hello ";
     const end = "!\n";
     const name:[40]char;
 
-    write(stdout, msg, msg.length);
+    sys.write(sys.stdout, msg, msg.length);
 
-    var len = read(stdin, name, name.length) - 1; ((trim newline))
+    var len = sys.read(sys.stdin, name, name.length) - 1;
 
-    write(stdout, greet, greet.length);
-    write(stdout, name, len);
-    write(stdout, end, end.length);
-    exit(0);
+    sys.write(sys.stdout, greet, greet.length);
+    sys.write(sys.stdout, name, len);
+    sys.write(sys.stdout, end, end.length);
+    sys.exit(0);
 }

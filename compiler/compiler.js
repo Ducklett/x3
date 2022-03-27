@@ -45,7 +45,7 @@ const api = {
     If: (cond, then, els = null) => ({ kind: 'if', cond, then, els }),
     call: (def, ...args) => ({ kind: 'call', def, args }),
     syscall: (code, ...args) => ({ kind: 'syscall', code, args }),
-    param: name => ({ kind: 'param', name }),
+    param: name => ({ kind: 'parameter', name }),
     declareVar: (name, expr) => ({ kind: 'declareVar', name, expr }),
     assignVar: (varDec, expr) => ({ kind: 'assignVar', varDec, expr }),
     readVar: varDec => ({ kind: 'readVar', varDec }),
@@ -127,7 +127,7 @@ ${[...data.keys()]
 
         function emitVar(node) {
             assert(
-                node.kind == 'declareVar' || node.kind == 'param',
+                node.kind == 'declareVar' || node.kind == 'parameter',
                 `expected declareVar, got ${node.kind}`
             )
             let offset = locals.get(node)
@@ -272,7 +272,7 @@ ${[...data.keys()]
                 }
                 case 'call': {
                     lines.push(
-                        `; ${node.def.name}(${node.def.params.map(n => n.name).join(', ')})`
+                        `; ${node.def.symbol.name}(${node.def.symbol.params.map(n => n.name).join(', ')})`
                     )
                     const args = node.args
                     const argSize = args.length * 8
@@ -322,20 +322,32 @@ ${[...data.keys()]
 
                     return
                 }
-                case 'readVar': {
-                    assert(shouldReturn, 'readVar should not be called at top level')
-                    lines.push(`push qword ${emitVar(node.varDec)}`)
+                case 'reference': {
+                    assert(shouldReturn, 'reference should not be called at top level')
+                    lines.push(`push qword ${emitVar(node.symbol)}`)
                     return
                 }
                 case 'readProp': {
-                    assert(node.varDec.notes?.has('const'), 'should be a constant')
-                    assert(
-                        node.varDec.expr.kind == 'stringLiteral',
-                        'should be initalized to a string literal'
-                    )
-                    assert(node.prop == 'length', 'property should be length')
+                    console.log(node)
+                    assert(node.left.kind == 'reference')
+                    if (node.left.symbol.kind == 'parameter') {
+                        assert(node.prop.kind == 'string length', 'property should be length')
+                        console.error("NOT IMPLEMENTED: running this will cause bad stuff to happen")
+                    } else {
+                        assert(node.left.symbol.kind == 'declareVar')
+                        const varDec = node.left.symbol
 
-                    lines.push(`push ${node.varDec.expr.value.length}`)
+                        assert(varDec.notes?.has('const'), 'should be a constant')
+                        assert(
+                            varDec.expr.kind == 'stringLiteral',
+                            'should be initalized to a string literal'
+                        )
+
+                        assert(node.prop.kind == 'string length', 'property should be length')
+
+                        lines.push(`push ${varDec.expr.value.length}`)
+                    }
+
 
                     return
                 }
@@ -432,6 +444,7 @@ ${[...data.keys()]
                     return
                 }
                 default:
+                    console.log("IT:")
                     console.log(node)
                     assert(false, `unsupported node kind ${node.kind}`)
             }

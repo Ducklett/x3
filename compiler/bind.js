@@ -1,10 +1,12 @@
 const { assert } = require('./compiler')
 
 function bind(files) {
-    // only globals for now
-    const symbols = new Map()
     const bodies = new Map()
     const ast = []
+    const scopeStack = []
+    pushScope()
+
+    function currentScope() { return scopeStack[scopeStack.length - 1]; }
 
     for (let root of files) {
         assert(root.kind == 'file')
@@ -19,6 +21,37 @@ function bind(files) {
 
     return ast
 
+    function addSymbol(name, symbol) {
+        currentScope().symbols.set(name, symbol)
+    }
+
+    function findSymbol(name, scope = null) {
+        if (!scope) scope = currentScope()
+
+        const symbol = scope.symbols.get(name)
+        if (symbol) return symbol;
+        if (scope.parent) return findSymbol(name, scope.parent)
+        return null
+    }
+
+    function pushScope(scope, name) {
+
+        if (!scope) scope = {
+            name,
+            parent: currentScope(),
+            symbols: new Map(),
+        }
+
+        scopeStack.push(scope)
+
+        return scope
+    }
+
+    function popScope() {
+        assert(scopeStack.length > 1, `scope stack not empty`)
+        return scopeStack.pop()
+    }
+
     function bindFile(node) {
         for (let decl of node.declarations) {
             const it = bindDeclaration(decl)
@@ -30,7 +63,9 @@ function bind(files) {
     function bindBody(node, symbol) {
         switch (node.kind) {
             case 'proc': {
+                pushScope(symbol.scope)
                 symbol.instructions = bindBlock(node.body)
+                popScope()
                 return
             }
             default:
@@ -43,28 +78,36 @@ function bind(files) {
             case 'import': {
                 return { kind: 'import', path: node.path }
             }
+            case 'module': {
+                const it = { kind: 'module', name: node.name.value, declarations: undefined }
+                addSymbol(it.name, it)
+                it.scope = pushScope(null, it.name)
+                it.declarations = bindBlock(node.block, node.name.value)
+                popScope()
+                return it
+            }
             case 'var': {
                 assert(
-                    !symbols.has(node.name.value),
+                    !currentScope().symbols.has(node.name.value),
                     `${node.name.value} is a unique name`
                 )
                 const it = {
                     kind: 'declareVar',
                     name: node.name.value,
                     expr: undefined,
-                    notes: new Map()
+                    notes: new Map(),
+                    scope: currentScope()
                 }
                 const isConst = node.keyword.value == 'const'
                 if (isConst) it.notes.set('const', [])
                 const isCharBuffer = node.type && node.type.kind == 'type array'
                 if (isConst && isCharBuffer) {
-                    console.log(node.type)
                     assert(node.type.size, `const array must have size`)
                     assert(node.type.of.kind == 'type atom', `must not be nested array`)
                     assert(node.type.of.name.value == 'char', `must be char`)
                     node.expr = { kind: 'string', value: "".padStart(node.type.size.value, ' ') }
                 }
-                symbols.set(it.name, it)
+                addSymbol(it.name, it)
 
                 if (node.expr) it.expr = bindExpression(node.expr)
 
@@ -72,7 +115,7 @@ function bind(files) {
             }
             case 'proc': {
                 assert(
-                    !symbols.has(node.name.value),
+                    !currentScope().symbols.has(node.name.value),
                     `${node.name.value} is a unique name`
                 )
                 const it = {
@@ -84,8 +127,11 @@ function bind(files) {
                 for (let n of node.tags) {
                     it.notes.set(...bindTag(n))
                 }
-                symbols.set(it.name, it)
+                addSymbol(it.name, it)
+                it.scope = pushScope(null, it.name)
                 it.params = bindParameters(node.parameters)
+                popScope()
+
                 if (node.body.kind == 'block') bodies.set(it, node)
                 else it.instructions = null
 
@@ -107,7 +153,7 @@ function bind(files) {
         return [t, args]
     }
 
-    function bindExpression(node) {
+    function bindExpression(node, inScope) {
         switch (node.kind) {
             case 'number':
                 return { kind: 'numberLiteral', n: node.value }
@@ -117,35 +163,43 @@ function bind(files) {
                     value: node.value,
                     len: node.value.length
                 }
-            case 'reference': {
-                if (node.name.kind == 'symbol') {
-                    const varDec = symbols.get(node.name.value)
-                    assert(varDec, `symbol "${node.name.value}" is defined`)
-                    const it = {
-                        kind: 'readVar',
-                        varDec
-                    }
-                    return it
-                } else if (node.name.kind == 'property access') {
-                    const varDec = symbols.get(node.name.name.value)
-                    assert(varDec, `symbol "${node.name.name.value}" is defined`)
-                    const it = {
-                        kind: 'readProp',
-                        varDec,
-                        prop: node.name.property.value
-                    }
-                    return it
+            case 'symbol': {
+                // string length hack
+                if (node.value == 'length') {
+                    return { kind: 'string length' }
                 }
+
+                const symbol = findSymbol(node.value, inScope)
+                assert(symbol, `symbol "${node.value}" is defined`)
+                const it = {
+                    kind: 'reference',
+                    symbol
+                }
+                return it
+            }
+            case 'property access': {
+                const left = bindExpression(node.scope, inScope)
+                assert(left)
+                assert(left.symbol.scope || node.property.value == 'length', `property access is either string length hack OR module`)
+
+                const right = bindExpression(node.property, left.symbol?.scope)
+
+                const it = {
+                    kind: 'readProp',
+                    left,
+                    prop: right
+                }
+                return it
             }
             case 'call': {
-                const def = symbols.get(node.name.value)
-                assert(def, `symbol "${node.name.value}" is defined`)
+                const def = bindExpression(node.name, inScope)
 
-                const isSyscall = def.notes.has('syscall')
+                const isSyscall = def.symbol.notes.has('syscall')
+
                 if (isSyscall) {
                     const it = {
                         kind: 'syscall',
-                        code: def.notes.get('syscall')[0],
+                        code: def.symbol.notes.get('syscall')[0],
                         args: bindArguments(node.argumentList)
                     }
                     return it
@@ -166,7 +220,7 @@ function bind(files) {
                 return it
             }
             case 'assignment': {
-                const varDec = symbols.get(node.name.value)
+                const varDec = bindExpression(node.name)
                 assert(varDec, `symbol "${node.name.value}" is defined`)
                 const expr = bindExpression(node.expr)
                 const it = {
@@ -182,12 +236,18 @@ function bind(files) {
     }
 
     function bindParameters(params) {
-        return params.items.filter((_, i) => i % 2 == 0).map(p => p.name.value)
+        return params.items.filter((_, i) => i % 2 == 0).map(p => {
+            const it = { kind: 'parameter', name: p.name.value }
+            addSymbol(it.name, it)
+            return it
+        })
     }
     function bindArguments(args) {
-        return args.items.filter((_, i) => i % 2 == 0).map(p => bindExpression(p))
+        return args.items.filter((_, i) => i % 2 == 0).map(p => {
+            return bindExpression(p)
+        })
     }
-    function bindBlock(body) {
+    function bindBlock(body, name = null) {
         return body.statements.map(bindDeclaration)
     }
 }
@@ -195,13 +255,36 @@ function bind(files) {
 function lower(ast) {
     return lowerNodeList(ast)
 
+    function mangleName(node) {
+        function mangleSegment(str) {
+            return str.replace(/\s/g, '_')
+        }
+        assert(node.name)
+
+        let left = mangleSegment(node.name)
+        if (node.scope) {
+            let scope = node.kind == 'declareVar' ? node.scope : node.scope.parent
+            while (scope) {
+                if (scope.name) left = mangleSegment(scope.name) + '__' + left
+                scope = scope.parent
+            }
+        }
+
+        return left
+    }
+
     function lowerNodeList(nodes) {
         if (!nodes) return null
         const newList = []
         for (let n of nodes) {
             const result = lowerNode(n)
+
             if (result) {
-                for (let r of result) newList.push(r)
+                assert(Array.isArray(result))
+                for (let r of result) {
+                    assert(!Array.isArray(r))
+                    newList.push(r)
+                }
             }
         }
         return newList
@@ -210,32 +293,65 @@ function lower(ast) {
     function lowerNode(node) {
         switch (node.kind) {
             case 'import': return []
+            case 'module': return lowerNodeList(node.declarations)
+
             case 'declareVar': {
+                node.name = mangleName(node)
                 if (node.notes.has('const')) {
                     return [node]
                 }
 
                 if (node.expr) {
                     const varDec = node
-                    const varAssignment = { kind: 'assignVar', varDec, expr: node.expr }
+                    let expr = node.expr ? lowerNode(node.expr) : null
+                    console.log(expr)
+                    assert(!expr || expr.length == 1)
+                    expr = expr[0]
+                    const varAssignment = { kind: 'assignVar', varDec, expr }
                     varDec.expr = undefined
                     return [varDec, varAssignment]
                 } else {
-                    return node
+                    return [node]
                 }
             }
-            case 'syscall':
-                return [node]
             case 'function': {
+                // NOTE: we can't create a new copy because this would break the symbol
+                node.name = mangleName(node)
+                node.instructions = lowerNodeList(node.instructions)
                 return [
-                    {
-                        kind: 'function',
-                        name: node.name,
-                        instructions: lowerNodeList(node.instructions),
-                        notes: node.notes,
-                        params: node.params
-                    }
+                    node
                 ]
+            }
+
+            case 'binary': {
+                const left = lowerNode(node.a)
+                const right = lowerNode(node.b)
+                assert(left.length == 1)
+                assert(right.length == 1)
+                node.a = left[0]
+                node.b = right[0]
+                return [node]
+            }
+            case 'reference':
+            case 'numberLiteral':
+            case 'stringLiteral': return [node]
+
+            case 'syscall':
+            case 'call': {
+                return [{
+                    ...node, args: node.args.map(a => {
+                        const result = lowerNode(a)
+                        assert(result.length == 1)
+                        return result[0]
+                    })
+                }]
+            }
+            case 'readProp': {
+                if (node.left.kind == 'reference' && node.left.symbol.kind == 'module') {
+                    return lowerNode(node.prop)
+                } else {
+                    return [node]
+                }
             }
             default:
                 console.log(node)

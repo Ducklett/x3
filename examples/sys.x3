@@ -1,8 +1,10 @@
-((see linux manual for syscall documentation))
-#syscall(0x000) proc read[fd:int,buf:*void,count:int] -> int;
-#syscall(0x001) proc write[fd:int,buf:*void,count:int];
-#syscall(0x03c) proc exit[code:int];
+module sys {
+    ((see linux manual for syscall documentation))
+    #syscall(0x000) proc read[fd:int,buf:*void,count:int] -> int;
+    #syscall(0x001) proc write[fd:int,buf:*void,count:int];
+    #syscall(0x03c) proc exit[code:int];
 
-const stdin:int = 0;
-const stdout:int = 1;
-const stderr:int = 2;
+    const stdin:int = 0;
+    const stdout:int = 1;
+    const stderr:int = 2;
+}

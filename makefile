@@ -24,7 +24,7 @@ run:
 	rm -f ./out/out
 	rm -f ./out/out.asm
 
-	node compiler
+	node --trace-uncaught compiler
 	mkdir -p out
 	nasm -f elf64 out/out.asm -o out/out.o
 	ld out/out.o -o out/out
