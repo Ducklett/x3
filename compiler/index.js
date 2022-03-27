@@ -4,13 +4,16 @@ const { inspect } = require('util')
 const { emitAsm, read } = require('./compiler')
 const { outputHtml } = require('./tool/outputHtml')
 
-const code = read('test.x3')
+compile('examples/sys.x3', 'examples/test.x3')
 
-const st = parse(code)
-let ast = bind(st)
-ast = lower(ast)
+function compile(...filenames) {
+    const files = filenames.map(read)
+    const syntaxTree = parse(files)
+    let ast = bind(syntaxTree)
+    ast = lower(ast)
 
-//outputHtml(st)
-emitAsm(ast)
+    //outputHtml(st)
+    emitAsm(ast)
 
-//console.log(inspect(ast, { depth: 10 }))
+    //console.log(inspect(ast, { depth: 10 }))
+}

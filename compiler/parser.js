@@ -1,4 +1,7 @@
-function parse(code) {
+function parse(sources) {
+    const code = sources.join('\n')
+    console.log(code)
+
     const keywords = new Set(["module", "use", "struct", "union", "proc", "return", "break", "continue", "goto", "var", "const", "for", "do", "while", "each", "enum", "if", "else", "switch",])
     const operators = new Set(["<<=", ">>=", "&&=", "||=", "==", "!=", ">=", "<=", "<<", ">>", "->", "&&", "||", "++", "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "~=", "=", "!", ">", "<", "+", "-", "/", "*", "%", "^", "~", "&", "|", "(", ")", "[", "]", "{", "}", "?", ":", ";", ".", ","])
     const binaryOperators = new Set(["==", "!=", ">=", "<=", "<<", ">>", "&&", "||", ">", "<", "+", "-", "/", "*", "%", "^", "&", "|"])
