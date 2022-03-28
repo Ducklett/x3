@@ -1,4 +1,4 @@
-const { read } = require('./compiler')
+const { read, assert } = require('./compiler')
 const path = require("path")
 
 function parse(source, importedFiles = null) {
@@ -224,12 +224,6 @@ function parse(source, importedFiles = null) {
             return tokens[tokenIndex++];
         }
 
-        function assert(expr, msg) {
-            if (expr) return
-            console.error(`assertion failed: ${msg}`)
-            process.exit(1)
-        }
-
         function parseFile() {
             const declarations = []
             while (true) {
@@ -330,6 +324,12 @@ function parse(source, importedFiles = null) {
                     filesToImport.add(path)
                     return { kind: 'import', keyword, path }
                 }
+                case 'use': {
+                    const keyword = take('keyword', 'use')
+                    const path = parsePath()
+                    const it = { kind: 'use', keyword, path }
+                    return it
+                }
                 case 'module': {
                     const keyword = take('keyword', 'module')
                     const name = take('symbol')
@@ -381,6 +381,10 @@ function parse(source, importedFiles = null) {
 
                     return false
             }
+        }
+
+        function parsePath() {
+            return take('symbol')
         }
 
         function parseTypedSymbol() {

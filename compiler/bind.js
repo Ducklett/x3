@@ -2,6 +2,7 @@ const { assert } = require('./compiler')
 
 function bind(files) {
     const bodies = new Map()
+    const usings = []
     const ast = []
     const scopeStack = []
     pushScope()
@@ -14,6 +15,16 @@ function bind(files) {
         bindFile(root)
     }
 
+    for (let [scope, node, it] of usings) {
+        pushScope(scope)
+        const usedScope = findSymbol(node.path.value)
+        popScope()
+
+        assert(usedScope, `scope is defined`)
+        scope.used.add(usedScope)
+        console.log(usedScope)
+        it.usedScope = usedScope
+    }
     // bind declaration bodies
     for (let [symbol, body] of bodies) {
         bindBody(body, symbol)
@@ -28,8 +39,15 @@ function bind(files) {
     function findSymbol(name, scope = null) {
         if (!scope) scope = currentScope()
 
-        const symbol = scope.symbols.get(name)
+        let symbol = scope.symbols.get(name)
         if (symbol) return symbol;
+        for (let u of scope.used) {
+            if (u.name == name) return u
+            if (u.scope) {
+                symbol = findSymbol(name, u.scope)
+                if (symbol) return symbol
+            }
+        }
         if (scope.parent) return findSymbol(name, scope.parent)
         return null
     }
@@ -40,6 +58,7 @@ function bind(files) {
             name,
             parent: currentScope(),
             symbols: new Map(),
+            used: new Set(),
         }
 
         scopeStack.push(scope)
@@ -77,6 +96,12 @@ function bind(files) {
         switch (node.kind) {
             case 'import': {
                 return { kind: 'import', path: node.path }
+            }
+            case 'use': {
+                assert(node.path.kind == 'symbol')
+                const it = { kind: 'use' }
+                usings.push([currentScope(), node, it])
+                return it
             }
             case 'module': {
                 const it = { kind: 'module', name: node.name.value, declarations: undefined }
@@ -292,7 +317,9 @@ function lower(ast) {
 
     function lowerNode(node) {
         switch (node.kind) {
-            case 'import': return []
+            case 'import':
+            case 'use': return []
+
             case 'module': return lowerNodeList(node.declarations)
 
             case 'declareVar': {
