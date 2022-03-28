@@ -15,5 +15,5 @@ function compile(filename) {
     //outputHtml(st)
     emitAsm(ast)
 
-    // console.log(inspect(ast, { depth: 3 }))
+    // console.log(inspect(ast, { depth: 2 }))
 }

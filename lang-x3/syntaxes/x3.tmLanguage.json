@@ -125,7 +125,7 @@
 			]
 		},
 		"tags": {
-			"name": "comment.line.x3",
+			"name": "entity.name.type.x3",
 			"match": "(\\#[a-zA-Z\\s]+)\\b"
 		},
 		"symbols": {

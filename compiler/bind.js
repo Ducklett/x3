@@ -5,7 +5,8 @@ function bind(files) {
     const usings = []
     const ast = []
     const scopeStack = []
-    pushScope()
+    const fileScopes = []
+    pushScope(null, 'root', 'global')
 
     function currentScope() { return scopeStack[scopeStack.length - 1]; }
 
@@ -50,12 +51,24 @@ function bind(files) {
 
         if (!recurse) return false
 
-        while (scope.parent) {
+        while (scope.parent && scope.kind != 'file') {
+            // skip symbols in the scope above 'scope' blocks
             if (scope.kind == 'scope') {
                 scope = scope.parent
                 continue
             }
             return findSymbol(name, scope.parent)
+        }
+
+        // we reached the root
+        // try find symbol at the top level of *other* file scopes
+        if (scope.kind == 'file') {
+            assert(scope.parent && scope.parent.kind == 'global')
+            for (let file of fileScopes) {
+                if (file == scope) continue
+                symbol = findSymbol(name, file, false)
+                if (symbol) return symbol
+            }
         }
 
         return null
@@ -82,11 +95,13 @@ function bind(files) {
     }
 
     function bindFile(node) {
+        fileScopes.push(pushScope(null, 'file', 'file'))
         for (let decl of node.declarations) {
             const it = bindDeclaration(decl)
             assert(it)
             ast.push(it)
         }
+        popScope()
     }
 
     function bindBody(node, symbol) {
@@ -330,6 +345,9 @@ function lower(ast) {
         if (node.scope) {
             let scope = node.kind == 'declareVar' ? node.scope : node.scope.parent
             while (scope) {
+                if (scope.kind == 'file') break
+                assert(scope.kind != 'global')
+
                 if (scope.name) left = mangleSegment(scope.name) + '__' + left
                 scope = scope.parent
             }
