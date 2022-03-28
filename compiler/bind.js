@@ -6,6 +6,12 @@ function bind(files) {
     const ast = []
     const scopeStack = []
     const fileScopes = []
+
+    const typeMap = {
+        'int': { type: 'int', size: 8 },
+        'string': { type: 'string', size: 16 },
+    }
+
     pushScope(null, 'root', 'global')
 
     function currentScope() { return scopeStack[scopeStack.length - 1]; }
@@ -150,16 +156,33 @@ function bind(files) {
                 }
                 const isConst = node.keyword.value == 'const'
                 if (isConst) it.notes.set('const', [])
+
+                addSymbol(it.name, it)
+
+                if (node.type) {
+                    it.type = bindType(node.type)
+                }
+
+                // character buffer hack
+                // TODO: implement real buffer type
                 const isCharBuffer = node.type && node.type.kind == 'type array'
                 if (isConst && isCharBuffer) {
                     assert(node.type.size, `const array must have size`)
                     assert(node.type.of.kind == 'type atom', `must not be nested array`)
                     assert(node.type.of.name.value == 'char', `must be char`)
-                    node.expr = { kind: 'string', value: "".padStart(node.type.size.value, ' ') }
+                    node.expr = {
+                        kind: 'string',
+                        value: "".padStart(node.type.size.value, ' '),
+                    }
                 }
-                addSymbol(it.name, it)
 
-                if (node.expr) it.expr = bindExpression(node.expr)
+                if (node.expr) {
+                    it.expr = bindExpression(node.expr)
+                    if (!it.type) it.type = it.expr.type
+                }
+
+                assert(it.type, 'type must be either provided or inferred from expression')
+                if (it.expr) assert(it.expr.type == it.type, 'type matches')
 
                 return it
             }
@@ -216,6 +239,27 @@ function bind(files) {
         }
     }
 
+
+    function bindType(node) {
+
+        switch (node.kind) {
+            case 'type atom': {
+                assert(node.name.kind == 'symbol')
+                const type = typeMap[node.name.value]
+                assert(type, `'${node.name.value}' is a legal type`)
+                return type
+            }
+            case 'type array': {
+                // HACK: string buffer type; reinterpret as string
+                assert(node.of.kind == 'type atom' && node.of.name.value == 'char')
+                return typeMap.string
+            }
+            default:
+                console.log(node)
+                assert(false, `unhandled node kind`)
+        }
+        assert(false)
+    }
     function bindTag(node) {
         const t = node.value
         let args = []
@@ -227,12 +271,13 @@ function bind(files) {
     function bindExpression(node, inScope) {
         switch (node.kind) {
             case 'number':
-                return { kind: 'numberLiteral', n: node.value }
+                return { kind: 'numberLiteral', n: node.value, type: typeMap.int }
             case 'string':
                 return {
                     kind: 'stringLiteral',
                     value: node.value,
-                    len: node.value.length
+                    len: node.value.length,
+                    type: typeMap.string
                 }
             case 'symbol': {
                 // string length hack
@@ -406,7 +451,6 @@ function lower(ast) {
             case 'function': {
                 // NOTE: we can't create a new copy because this would break the symbol
                 node.name = mangleName(node)
-                console.log(node)
                 node.instructions = lowerNodeList(node.instructions?.statements)
                 return [
                     node

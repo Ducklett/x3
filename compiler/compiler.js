@@ -125,7 +125,7 @@ ${[...data.keys()]
 
         // ==================
 
-        function emitVar(node) {
+        function emitVar(node, fieldOffset = 0) {
             assert(
                 node.kind == 'declareVar' || node.kind == 'parameter',
                 `expected declareVar, got ${node.kind}`
@@ -133,10 +133,18 @@ ${[...data.keys()]
             let offset = locals.get(node)
             if (offset) {
                 assert(offset !== undefined)
+                if (fieldOffset) {
+                    assert(typeof offset == 'number')
+                    offset += fieldOffset
+                }
                 if (offset == 0) return '[rbp]'
                 return `[rbp${offset > 0 ? '+' : ''}${offset}]`
             } else {
                 offset = globals.get(node)
+                if (fieldOffset) {
+                    assert(typeof offset == 'number')
+                    offset += fieldOffset
+                }
                 assert(
                     offset !== undefined,
                     'referenced variable will either be a local or a global'
@@ -149,6 +157,7 @@ ${[...data.keys()]
                 case 'declareVar': {
                     const notes = node.notes ?? new Set()
                     assert(notes.has('const'), 'top level variables are constant')
+                    console.log(node)
                     assert(node.expr, 'top level variable is intialized')
 
                     switch (node.expr.kind) {
@@ -275,18 +284,35 @@ ${[...data.keys()]
                         `; ${node.def.symbol.name}(${node.def.symbol.params.map(n => n.name).join(', ')})`
                     )
                     const args = node.args
-                    const argSize = args.length * 8
+                    const argSize = args.reduce((acc, cur, i) => {
+                        assert(cur.type, `has a type`)
+                        const size = cur.type.size
+                        assert(size > 0, `type has size`)
+                        return acc + size
+                    }, 0)
+
                     if (argSize) {
                         lines.push(`sub rsp, ${argSize}`)
                         let off = argSize
                         for (let arg of args) {
-                            assert(arg.kind === 'numberLiteral')
-                            off -= 8
-                            lines.push(`mov qword [rsp+${off}], ${arg.n}`)
-                            console.log(`arg [rsp+${off}] = ${arg.n}`)
+
+                            off -= arg.type.size
+
+                            if (arg.kind === 'stringLiteral') {
+                                console.log(arg)
+                                const l = label(arg.value)
+                                lines.push(`mov qword [rsp+${off + 8}], ${arg.len}`)
+                                lines.push(`mov qword [rsp+${off}], ${l}`)
+                                // assert(false)
+                            } else {
+                                assert(arg.kind == 'numberLiteral')
+
+                                lines.push(`mov qword [rsp+${off}], ${arg.n}`)
+                                console.log(`arg [rsp+${off}] = ${arg.n}`)
+                            }
                         }
                     }
-                    lines.push(`call _${node.def.name}`)
+                    lines.push(`call _${node.def.symbol.name}`)
                     if (argSize) {
                         lines.push(`add rsp, ${argSize}`)
                     }
@@ -331,7 +357,14 @@ ${[...data.keys()]
                     assert(node.left.kind == 'reference')
                     if (node.left.symbol.kind == 'parameter') {
                         assert(node.prop.kind == 'string length', 'property should be length')
-                        console.error("NOT IMPLEMENTED: running this will cause bad stuff to happen")
+                        // console.error("NOT IMPLEMENTED: running this will cause bad stuff to happen")
+                        // console.log(node)
+                        // assert(false)
+
+                        assert(shouldReturn, 'reference should not be called at top level')
+                        lines.push(`push qword ${emitVar(node.left.symbol, 8)} ; ${node.left.symbol.name}.length`)
+                        return
+
                     } else {
                         assert(node.left.symbol.kind == 'declareVar')
                         const varDec = node.left.symbol

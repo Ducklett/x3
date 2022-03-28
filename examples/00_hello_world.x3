@@ -1,0 +1,7 @@
+import "./lib/std"
+
+#entrypoint
+proc main[] {
+    std.write("Hello world\n");
+    std.exit(0);
+}

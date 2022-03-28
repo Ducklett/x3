@@ -1,0 +1,11 @@
+#syscall(0x001) proc write[fd:int,msg:*void,msg length:int];
+#syscall(0x03c) proc exit[code:int];
+
+#entrypoint
+proc main[] {
+    const stdout = 1;
+    const msg = "Hello world!\n";
+
+    write(stdout, msg, msg.length);
+    exit(0);
+}

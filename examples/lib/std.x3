@@ -1,6 +1,10 @@
 import "./sys"
 
 module std {
+    proc exit[code:int] {
+        sys.exit(code);
+    }
+
     proc write[msg:string] {
         sys.write(sys.stdout, msg, msg.length);
     }
