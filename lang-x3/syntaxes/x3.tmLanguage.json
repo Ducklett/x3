@@ -3,6 +3,9 @@
 	"name": "x3",
 	"patterns": [
 		{
+			"include": "#storage"
+		},
+		{
 			"include": "#keywords"
 		},
 		{
@@ -25,11 +28,99 @@
 		}
 	],
 	"repository": {
+		"storage": {
+			"patterns": [
+				{
+					"match": "\\b(use)\\b([a-zA-Z\\s]+)((\\.)([a-zA-Z\\s]+))*\\b",
+					"captures": {
+						"1": {
+							"name": "keyword.control.x3"
+						},
+						"2": {
+							"name": "variable.other.constant"
+						},
+						"4": {
+							"name": "keyword.operator.pseudo.x3"
+						},
+						"5": {
+							"name": "variable.other.constant"
+						}
+					}
+				},
+				{
+					"match": "\\b(proc)\\b([a-zA-Z\\s]+)\\b",
+					"captures": {
+						"1": {
+							"name": "storage.type.function.x3"
+						},
+						"2": {
+							"name": "entity.name.function.x3"
+						}
+					}
+				},
+				{
+					"match": "\\b(scope)\\b([a-zA-Z\\s]+)\\b",
+					"captures": {
+						"1": {
+							"name": "storage.type.function.x3"
+						},
+						"2": {
+							"name": "entity.name.function.x3"
+						}
+					}
+				},
+				{
+					"match": "\\b(struct)\\b([a-zA-Z\\s]+)\\b",
+					"captures": {
+						"1": {
+							"name": "storage.type.struct.x3"
+						},
+						"2": {
+							"name": "variable.other.constant.x3"
+						}
+					}
+				},
+				{
+					"match": "\\b(const)\\b([a-zA-Z\\s]+)\\b",
+					"captures": {
+						"1": {
+							"name": "storage.type.const.x3"
+						},
+						"2": {
+							"name": "variable.other.constant.x3"
+						}
+					}
+				},
+				{
+					"match": "\\b(var)\\b([a-zA-Z\\s]+)\\b",
+					"captures": {
+						"1": {
+							"name": "storage.type.var.x3"
+						},
+						"2": {
+							"name": "variable.other.readwrite.x3"
+						}
+					}
+				},
+				{
+					"match": "\\b([a-zA-Z\\s]+)\\(",
+					"captures": {
+						"1": {
+							"name": "entity.name.function.x3"
+						},
+						"2": {
+							"name": "keyword.operator.pseudo.x3"
+						}
+					}
+				}
+
+			]
+		},
 		"keywords": {
 			"patterns": [
 				{
 					"name": "keyword.control.x3",
-					"match": "\\b(import|module|use|struct|union|proc|scope|return|break|continue|goto|var|const|for|do|while|each|enum|if|else|switch)\\b"
+					"match": "\\b(module|import|struct|union|proc|scope|return|break|continue|goto|var|const|for|do|while|each|enum|if|else|switch)\\b"
 				}
 			]
 		},

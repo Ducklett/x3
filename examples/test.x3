@@ -4,21 +4,19 @@ use sys
 
 #entrypoint
 proc main[] {
-    (( std.write("Hello world!\n"); ))
-    (( sys.exit(0); ))
-
-    const msg = "What's your name?\n";
-    const greet = "hello ";
-    const end = "!\n";
     const name:[40]char;
     var len:int;
 
-    scope prompt user for name[msg:string,name:[]char,len:int] {
+    scope prompt user for name[name:[]char,len:int] {
+        const msg = "What's your name?\n";
+
         write(stdout, msg, msg.length);
         len = read(stdin, name, name.length) - 1;
     }
 
-    scope greet user[greet:string,name:[]char,len:int,end:string] {
+    scope greet user[name:[]char,len:int] {
+        const greet = "hello ";
+        const end = "!\n";
         write(stdout, greet, greet.length);
         write(stdout, name, len);
         write(stdout, end, end.length);
