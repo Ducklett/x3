@@ -248,6 +248,9 @@ function parse(source, importedFiles = null) {
 
             function parsePrimaryExpression() {
                 switch (current().kind) {
+                    case 'operator': {
+                        if (current().value == '{') return parseBlock('expression', true, true)
+                    }
                     case 'number': return take('number')
                     case 'string': return take('string')
 

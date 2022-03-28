@@ -132,7 +132,7 @@ function bind(files) {
                 const it = { kind: 'module', name: node.name.value, declarations: undefined }
                 addSymbol(it.name, it)
                 it.scope = pushScope(null, it.name)
-                it.declarations = bindBlock(node.block, node.name.value)
+                it.declarations = bindBlock(node.block)
                 popScope()
                 return it
             }
@@ -207,6 +207,9 @@ function bind(files) {
             }
             case 'terminated expression': {
                 return bindExpression(node.expr)
+            }
+            case 'block': {
+                return bindBlock(node)
             }
             default:
                 assert(false, `unhandled kind "${node.kind}"`)
@@ -327,8 +330,8 @@ function bind(files) {
             return bindExpression(p)
         })
     }
-    function bindBlock(body, name = null) {
-        return body.statements.map(bindDeclaration)
+    function bindBlock(body, isExpression = false) {
+        return { kind: 'block', isExpression, statements: body.statements.map(bindDeclaration) }
     }
 }
 
@@ -378,9 +381,9 @@ function lower(ast) {
             case 'import':
             case 'use': return []
 
-            case 'module': return lowerNodeList(node.declarations)
+            case 'module': return lowerNodeList(node.declarations.statements)
 
-            case 'scope': return lowerNodeList(node.instructions)
+            case 'scope': return lowerNodeList(node.instructions.statements)
 
             case 'declareVar': {
                 node.name = mangleName(node)
@@ -403,11 +406,14 @@ function lower(ast) {
             case 'function': {
                 // NOTE: we can't create a new copy because this would break the symbol
                 node.name = mangleName(node)
-                node.instructions = lowerNodeList(node.instructions)
+                console.log(node)
+                node.instructions = lowerNodeList(node.instructions?.statements)
                 return [
                     node
                 ]
             }
+
+            case 'block': return lowerNodeList(node.statements)
 
             case 'binary': {
                 const left = lowerNode(node.a)
