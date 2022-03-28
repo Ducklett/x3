@@ -202,7 +202,7 @@ ${[...data.keys()]
                     for (let param of node.params) {
                         paramOffset -= 8
                         locals.set(param, paramOffset)
-                        console.log(`param ${param.name} = [rbp+${paramOffset}]`)
+                        // console.log(`param ${param.name} = [rbp+${paramOffset}]`)
                     }
 
                     let varOffset = 0
@@ -210,12 +210,12 @@ ${[...data.keys()]
                         if (vr.notes.has('const')) {
                             // hoist that bitch!
                             emitTop(vr)
-                            console.log(`const ${vr.name} = ${emitVar(vr)}`)
+                            // console.log(`const ${vr.name} = ${emitVar(vr)}`)
                         } else {
                             assert(vr.expr == null, 'initalized locals not supported')
                             varOffset -= 8
                             locals.set(vr, varOffset)
-                            console.log(`var ${vr.name} = ${emitVar(vr)}`)
+                            // console.log(`var ${vr.name} = ${emitVar(vr)}`)
                         }
                     }
 
@@ -328,7 +328,6 @@ ${[...data.keys()]
                     return
                 }
                 case 'readProp': {
-                    console.log(node)
                     assert(node.left.kind == 'reference')
                     if (node.left.symbol.kind == 'parameter') {
                         assert(node.prop.kind == 'string length', 'property should be length')
@@ -431,15 +430,14 @@ ${[...data.keys()]
                     return
                 }
                 case 'assignVar': {
-                    console.assert(
-                        typeof node.varDec === 'object',
-                        'vardef must be object'
-                    )
+                    assert(node.varDec.kind == 'reference', 'must be reference')
+                    assert(node.varDec.symbol.kind == 'declareVar', 'must reference variable')
+                    const varDec = node.varDec.symbol
 
                     emitExpr(node.expr)
-                    lines.push(`; ${node.varDec.name} = expr`)
+                    lines.push(`; ${varDec.name} = expr`)
                     lines.push(`pop rax`)
-                    lines.push(`mov ${emitVar(node.varDec)}, rax\n`)
+                    lines.push(`mov ${emitVar(varDec)}, rax\n`)
                     if (shouldReturn) lines.push(`push rax`)
                     return
                 }

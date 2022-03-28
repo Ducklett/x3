@@ -11,13 +11,18 @@ proc main[] {
     const greet = "hello ";
     const end = "!\n";
     const name:[40]char;
+    var len:int;
 
-    write(stdout, msg, msg.length);
+    scope prompt user for name[msg:string,name:[]char,len:int] {
+        write(stdout, msg, msg.length);
+        len = read(stdin, name, name.length) - 1;
+    }
 
-    var len = read(stdin, name, name.length) - 1;
+    scope greet user[greet:string,name:[]char,len:int,end:string] {
+        write(stdout, greet, greet.length);
+        write(stdout, name, len);
+        write(stdout, end, end.length);
+    }
 
-    write(stdout, greet, greet.length);
-    write(stdout, name, len);
-    write(stdout, end, end.length);
     exit(0);
 }

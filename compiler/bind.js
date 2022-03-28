@@ -22,7 +22,6 @@ function bind(files) {
 
         assert(usedScope, `scope is defined`)
         scope.used.add(usedScope)
-        console.log(usedScope)
         it.usedScope = usedScope
     }
     // bind declaration bodies
@@ -36,26 +35,37 @@ function bind(files) {
         currentScope().symbols.set(name, symbol)
     }
 
-    function findSymbol(name, scope = null) {
+    function findSymbol(name, scope = null, recurse = true) {
         if (!scope) scope = currentScope()
 
         let symbol = scope.symbols.get(name)
         if (symbol) return symbol;
         for (let u of scope.used) {
             if (u.name == name) return u
-            if (u.scope) {
-                symbol = findSymbol(name, u.scope)
+            if (u.scope && recurse) {
+                symbol = findSymbol(name, u.scope, false)
                 if (symbol) return symbol
             }
         }
-        if (scope.parent) return findSymbol(name, scope.parent)
+
+        if (!recurse) return false
+
+        while (scope.parent) {
+            if (scope.kind == 'scope') {
+                scope = scope.parent
+                continue
+            }
+            return findSymbol(name, scope.parent)
+        }
+
         return null
     }
 
-    function pushScope(scope, name) {
+    function pushScope(scope, name, kind) {
 
         if (!scope) scope = {
             name,
+            kind,
             parent: currentScope(),
             symbols: new Map(),
             used: new Set(),
@@ -135,6 +145,24 @@ function bind(files) {
                 addSymbol(it.name, it)
 
                 if (node.expr) it.expr = bindExpression(node.expr)
+
+                return it
+            }
+            case 'scope': {
+                const it = {
+                    kind: 'scope',
+                    name: node.name.value,
+                    instructions: undefined,
+                    notes: new Map()
+                }
+                for (let n of node.tags) {
+                    it.notes.set(...bindTag(n))
+                }
+
+                it.scope = pushScope(null, it.name, 'scope')
+                it.params = bindScopeParameters(node.parameters)
+                it.instructions = bindBlock(node.body)
+                popScope()
 
                 return it
             }
@@ -267,6 +295,18 @@ function bind(files) {
             return it
         })
     }
+    function bindScopeParameters(params) {
+        return params.items.filter((_, i) => i % 2 == 0).map(p => {
+            const it = { kind: 'scope parameter' }
+            const name = p.name.value
+            assert(name)
+            const symbol = findSymbol(name, currentScope().parent)
+            assert(symbol)
+            it.symbol = symbol
+            currentScope().symbols.set(name, symbol)
+            return it
+        })
+    }
     function bindArguments(args) {
         return args.items.filter((_, i) => i % 2 == 0).map(p => {
             return bindExpression(p)
@@ -322,6 +362,8 @@ function lower(ast) {
 
             case 'module': return lowerNodeList(node.declarations)
 
+            case 'scope': return lowerNodeList(node.instructions)
+
             case 'declareVar': {
                 node.name = mangleName(node)
                 if (node.notes.has('const')) {
@@ -331,7 +373,6 @@ function lower(ast) {
                 if (node.expr) {
                     const varDec = node
                     let expr = node.expr ? lowerNode(node.expr) : null
-                    console.log(expr)
                     assert(!expr || expr.length == 1)
                     expr = expr[0]
                     const varAssignment = { kind: 'assignVar', varDec, expr }
@@ -357,6 +398,13 @@ function lower(ast) {
                 assert(right.length == 1)
                 node.a = left[0]
                 node.b = right[0]
+                return [node]
+            }
+
+            case 'assignVar': {
+                const expr = lowerNode(node.expr)
+                assert(expr.length == 1)
+                node.expr = expr[0]
                 return [node]
             }
             case 'reference':

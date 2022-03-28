@@ -8,7 +8,7 @@ function parse(source, importedFiles = null) {
 
     const code = source.code
 
-    const keywords = new Set(["module", "import", "use", "struct", "union", "proc", "return", "break", "continue", "goto", "var", "const", "for", "do", "while", "each", "enum", "if", "else", "switch",])
+    const keywords = new Set(["module", "import", "use", "struct", "union", "proc", "scope", "return", "break", "continue", "goto", "var", "const", "for", "do", "while", "each", "enum", "if", "else", "switch",])
     const operators = new Set(["<<=", ">>=", "&&=", "||=", "==", "!=", ">=", "<=", "<<", ">>", "->", "&&", "||", "++", "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "~=", "=", "!", ">", "<", "+", "-", "/", "*", "%", "^", "~", "&", "|", "(", ")", "[", "]", "{", "}", "?", ":", ";", ".", ","])
     const binaryOperators = new Set(["==", "!=", ">=", "<=", "<<", ">>", "&&", "||", ">", "<", "+", "-", "/", "*", "%", "^", "&", "|"])
     const assignmentOperators = new Set(["<<=", ">>=", "&&=", "||=", "==", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "~=", "=",])
@@ -322,12 +322,12 @@ function parse(source, importedFiles = null) {
                     const keyword = take('keyword', 'import')
                     const path = take('string')
                     filesToImport.add(path)
-                    return { kind: 'import', keyword, path }
+                    return { kind: 'import', keyword, path, tags }
                 }
                 case 'use': {
                     const keyword = take('keyword', 'use')
                     const path = parsePath()
-                    const it = { kind: 'use', keyword, path }
+                    const it = { kind: 'use', keyword, path, tags }
                     return it
                 }
                 case 'module': {
@@ -352,6 +352,13 @@ function parse(source, importedFiles = null) {
                         body = parseBlock('proc', true, true)
                     }
                     return { kind: 'proc', keyword, name, parameters, arrow, returnType, body, tags }
+                }
+                case 'scope': {
+                    const keyword = take('keyword', 'scope')
+                    const name = take('symbol')
+                    const parameters = parseList(parseTypedSymbol)
+                    let body = parseBlock('proc', true, true)
+                    return { kind: 'scope', keyword, name, parameters, body, tags }
                 }
                 case 'struct': {
                     const keyword = take('keyword', 'struct')

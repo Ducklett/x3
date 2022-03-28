@@ -29,7 +29,7 @@
 			"patterns": [
 				{
 					"name": "keyword.control.x3",
-					"match": "\\b(import|module|use|struct|union|proc|return|break|continue|goto|var|const|for|do|while|each|enum|if|else|switch)\\b"
+					"match": "\\b(import|module|use|struct|union|proc|scope|return|break|continue|goto|var|const|for|do|while|each|enum|if|else|switch)\\b"
 				}
 			]
 		},
