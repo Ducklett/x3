@@ -488,9 +488,19 @@ function parse(source, importedFiles = null) {
             return { kind: 'block', begin, statements, end }
         }
 
+        function parseChain() {
+            let lhs = take('symbol')
+            while (is('operator', '.')) {
+                const dot = take('operator', '.')
+                const rhs = take('symbol')
+                lhs = { kind: 'property access', scope: lhs, dot, property: rhs }
+            }
+
+            return lhs
+        }
         function parseType() {
             if (is('symbol')) {
-                return { kind: 'type atom', name: take('symbol') }
+                return { kind: 'type atom', name: parseChain() }
             } else if (is('operator', '[')) {
                 let size
                 let begin = take('operator', '[')

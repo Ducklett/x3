@@ -24,7 +24,9 @@ function bind(files) {
 
     function currentScope() { return scopeStack[scopeStack.length - 1]; }
 
-    for (let root of files) {
+    // TODO: proper order-independent lookups
+    // pretty sure reverse is still a good idea for performance (becaue imports don't rely on main, but main relies on imports)
+    for (let root of [...files].reverse()) {
         assert(root.kind == 'file')
         // bind declarations in file
         bindFile(root)
@@ -156,6 +158,7 @@ function bind(files) {
                 const of = bindType(node.type)
                 assert(of)
                 // TODO: unhack type alias
+                assert(!typeMap[name], `type name is unique`)
                 typeMap[name] = of
                 const it = { kind: 'type alias', name, of }
                 return it
@@ -266,14 +269,29 @@ function bind(files) {
         }
     }
 
+    function getTypePath(name) {
+        // type namespacing not supported yet!
+        // just return the top for now
+        while (name && name.kind != 'symbol') {
+            assert(name.kind == 'property access')
+            name = name.property
+        }
+        return name.value
+
+        // if (name.kind == 'symbol') return name.value
+
+        // assert(name.kind == 'property access')
+        // assert(name.scope.kind == 'symbol')
+        // return name.scope.value + '__' + getTypePath(name.property)
+    }
 
     function bindType(node) {
 
         switch (node.kind) {
             case 'type atom': {
-                assert(node.name.kind == 'symbol')
-                const type = typeMap[node.name.value]
-                assert(type, `'${node.name.value}' is a legal type`)
+                const name = getTypePath(node.name)
+                const type = typeMap[name]
+                assert(type, `'${name}' is a legal type`)
                 return type
             }
             case 'type array': {

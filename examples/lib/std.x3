@@ -9,18 +9,31 @@ module std {
         sys.write(sys.stdout, msg, msg.length);
     }
 
-    proc read[buffer:[]char] -> int {
+    proc read[buffer:![]char] -> int {
         sys.read(sys.stdin, buffer, buffer.length);
+    }
+
+    #private
+    proc write file text base[filename:cstring, content:string, flags:int, mode: sys.mode_t] {
+        ((TODO: support for non-constexpr const declarations))
+        ((TODO: error checking))
+        var fd = sys.open(filename, flags, mode);
+        sys.write(fd,content,content.length);
+        sys.close(fd);
     }
 
     proc write all text[filename:cstring, content:string] {
         const flags = sys.O_CREAT|sys.O_WRONLY;
         const mode = sys.S_IRUSR|sys.S_IWUSR;
 
-        ((TODO: support for non-constexpr const declarations))
-        ((TODO: error checking))
-        var fd = sys.open(filename, flags, mode);
-        sys.write(fd,content,content.length);
-        sys.close(fd);
+        sys.unlink(filename);
+        write file text base(filename, content, flags, mode);
+    }
+
+    proc append text[filename:cstring, content:string] {
+        const flags = sys.O_CREAT|sys.O_WRONLY|sys.O_APPEND;
+        const mode = sys.S_IRUSR|sys.S_IWUSR;
+
+        write file text base(filename, content, flags, mode);
     }
 }

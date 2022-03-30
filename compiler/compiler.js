@@ -280,7 +280,18 @@ ${[...data.keys()]
                     for (let i = 0; i < node.args.length; i++) {
                         const arg = node.args[i]
                         assert(typeof arg === 'object', 'must be object')
+
+                        // TODO: get rid of this hack
+                        // evil casting hack
+                        let hackType = false
+                        if (arg.type.type == 'string') {
+                            hackType = true
+                            arg.type.type = 'cstring'
+                        }
                         emitExpr(arg)
+
+                        if (hackType) arg.type.type = 'string'
+
                         lines.push(`pop ${argRegisters[i]}`)
                         // lines.push(`mov ${argRegisters[i]}, ${emitVar(arg.varDec)}`);
                     }
@@ -303,30 +314,42 @@ ${[...data.keys()]
                     }, 0)
 
                     if (argSize) {
-                        lines.push(`sub rsp, ${argSize}`)
-                        let off = argSize
                         for (let arg of args) {
-
-                            off -= arg.type.size
-
-                            // TODO: just call emitExpr
-                            if (arg.kind === 'stringLiteral') {
-                                if (arg.type.type == 'cstring') {
-                                    const l = label(arg.value)
-                                    lines.push(`mov qword [rsp+${off}], ${l}`)
-                                } else {
-                                    const l = label(arg.value)
-                                    lines.push(`mov qword [rsp+${off + 8}], ${arg.len}`)
-                                    lines.push(`mov qword [rsp+${off}], ${l}`)
-                                }
-                            } else {
-                                assert(arg.kind == 'numberLiteral')
-
-                                lines.push(`mov qword [rsp+${off}], ${arg.n}`)
-                                console.log(`arg [rsp+${off}] = ${arg.n}`)
-                            }
+                            emitExpr(arg)
                         }
                     }
+                    // if (argSize) {
+                    //     lines.push(`sub rsp, ${argSize}`)
+                    //     let off = argSize
+                    //     for (let arg of args) {
+
+                    //         off -= arg.type.size
+
+                    //         // TODO: just call emitExpr
+                    //         if (arg.kind === 'stringLiteral') {
+                    //             if (arg.type.type == 'cstring') {
+                    //                 const l = label(arg.value)
+                    //                 lines.push(`mov qword [rsp+${off}], ${l}`)
+                    //             } else {
+                    //                 const l = label(arg.value)
+                    //                 lines.push(`mov qword [rsp+${off + 8}], ${arg.len}`)
+                    //                 lines.push(`mov qword [rsp+${off}], ${l}`)
+                    //             }
+                    //         } else {
+                    //             console.log(arg)
+                    //             if (arg.kind == 'reference') {
+                    //                 lines.push(`mov rax, ${emitVar(arg.symbol)} ; ${arg.symbol.name}`)
+                    //                 lines.push(`mov qword [rsp+${off}], rax`)
+                    //                 // lines.push(`mov qword [rsp+${off}], ${arg.n}`)
+                    //             } else {
+                    //                 assert(arg.kind == 'numberLiteral')
+
+                    //                 lines.push(`mov qword [rsp+${off}], ${arg.n}`)
+                    //                 console.log(`arg [rsp+${off}] = ${arg.n}`)
+                    //             }
+                    //         }
+                    //     }
+                    // }
                     lines.push(`call _${node.def.symbol.name}`)
                     if (argSize) {
                         lines.push(`add rsp, ${argSize}`)
@@ -365,7 +388,14 @@ ${[...data.keys()]
                 }
                 case 'reference': {
                     assert(shouldReturn, 'reference should not be called at top level')
-                    lines.push(`push qword ${emitVar(node.symbol)} ; ${node.symbol.name}`)
+                    // TODO: unhack
+
+                    if (node.type.type == 'string') {
+                        lines.push(`push qword ${emitVar(node.symbol, 8)} ; ${node.symbol.name}.length`)
+                        lines.push(`push qword ${emitVar(node.symbol)} ; ${node.symbol.name}`)
+                    } else {
+                        lines.push(`push qword ${emitVar(node.symbol)} ; ${node.symbol.name}`)
+                    }
                     return
                 }
                 case 'readProp': {
@@ -474,7 +504,18 @@ ${[...data.keys()]
                         shouldReturn,
                         'string literal should not be called at top level'
                     )
-                    lines.push(`push ${label(node.value)}`)
+
+                    if (node.type.type == 'cstring') {
+                        const l = label(node.value)
+                        lines.push(`push ${l}`)
+                    } else {
+                        assert(node.type.type == 'string')
+                        const l = label(node.value)
+                        lines.push(`push ${node.len}`)
+                        lines.push(`push ${l}`)
+                    }
+
+                    // lines.push(`push ${label(node.value)}`)
                     return
                 }
                 case 'assignVar': {

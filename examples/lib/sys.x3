@@ -23,6 +23,7 @@ module sys {
     #syscall(0x00C) proc brk[brk:u64];
 
     #syscall(0x03c) proc exit[code:int];
+    #syscall(0x057) proc unlink[path:cstring];
 
     ((IO file descriptors))
     const stdin:int = 0;

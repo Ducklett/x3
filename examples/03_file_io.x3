@@ -9,8 +9,11 @@ proc main[] {
 
 - foo
 - bar
-- baz";
+- baz
+";
 
     write all text(c"out.txt", file content);
-    exit(69);
+    append text(c"out.txt", "- qux\n");
+    append text(c"out.txt", "- quuuuux\n");
+    exit(0);
 }
