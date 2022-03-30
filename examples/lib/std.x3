@@ -12,4 +12,15 @@ module std {
     proc read[buffer:[]char] -> int {
         sys.read(sys.stdin, buffer, buffer.length);
     }
+
+    proc write all text[filename:cstring, content:string] {
+        const flags = sys.O_CREAT|sys.O_WRONLY;
+        const mode = sys.S_IRUSR|sys.S_IWUSR;
+
+        ((TODO: support for non-constexpr const declarations))
+        ((TODO: error checking))
+        var fd = sys.open(filename, flags, mode);
+        sys.write(fd,content,content.length);
+        sys.close(fd);
+    }
 }

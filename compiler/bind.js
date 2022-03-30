@@ -7,9 +7,17 @@ function bind(files) {
     const scopeStack = []
     const fileScopes = []
 
+    // TODO: actually have different int types
     const typeMap = {
         'int': { type: 'int', size: 8 },
+        'uint': { type: 'int', size: 8 },
+        'u64': { type: 'int', size: 8 },
+        'i64': { type: 'int', size: 8 },
+        'u0': { type: 'u0', size: 0 },
         'string': { type: 'string', size: 16 },
+        'cstring': { type: 'cstring', size: 8 },
+        'char': { type: 'char', size: 1 },
+        'pointer': { type: 'pointer', size: 8, to: undefined },
     }
 
     pushScope(null, 'root', 'global')
@@ -142,6 +150,16 @@ function bind(files) {
                 popScope()
                 return it
             }
+            case 'type alias': {
+                const name = node.name.value
+                assert(name)
+                const of = bindType(node.type)
+                assert(of)
+                // TODO: unhack type alias
+                typeMap[name] = of
+                const it = { kind: 'type alias', name, of }
+                return it
+            }
             case 'var': {
                 assert(
                     !currentScope().symbols.has(node.name.value),
@@ -178,11 +196,12 @@ function bind(files) {
 
                 if (node.expr) {
                     it.expr = bindExpression(node.expr)
+                    assert(it.expr.type, `expressions must have a type`)
                     if (!it.type) it.type = it.expr.type
                 }
 
                 assert(it.type, 'type must be either provided or inferred from expression')
-                if (it.expr) assert(it.expr.type == it.type, 'type matches')
+                if (it.expr) assert(it.expr.type == it.type, `type matches ${it.expr.type.type} ${it.type.type}`)
 
                 return it
             }
@@ -209,12 +228,20 @@ function bind(files) {
                     !currentScope().symbols.has(node.name.value),
                     `${node.name.value} is a unique name`
                 )
+
+                const returnType = node.returnType
+                    ? bindType(node.returnType)
+                    : typeMap.u0
+
                 const it = {
                     kind: 'function',
                     name: node.name.value,
                     instructions: undefined,
+                    returnType,
                     notes: new Map()
                 }
+
+
                 for (let n of node.tags) {
                     it.notes.set(...bindTag(n))
                 }
@@ -254,6 +281,18 @@ function bind(files) {
                 assert(node.of.kind == 'type atom' && node.of.name.value == 'char')
                 return typeMap.string
             }
+            case 'type pointer': {
+                const it = typeMap.pointer
+                it.to = bindType(node.to)
+                return it
+            }
+            case 'type mutable': {
+                // as of right now there isn't much value in having a "mutable" type wrapper
+                // so just return the type with a flag set instead
+                const it = bindType(node.it)
+                it.mutable = true
+                return it
+            }
             default:
                 console.log(node)
                 assert(false, `unhandled node kind`)
@@ -277,20 +316,32 @@ function bind(files) {
                     kind: 'stringLiteral',
                     value: node.value,
                     len: node.value.length,
-                    type: typeMap.string
+                    type: node.value.endsWith('\0')
+                        ? typeMap.cstring
+                        : typeMap.string
                 }
+            case 'parenthesized expression': {
+                const expr = bindExpression(node.expr);
+                assert(expr.type)
+                const type = expr.type
+                return { kind: 'parenthesized expression', expr, type }
+            }
             case 'symbol': {
                 // string length hack
                 if (node.value == 'length') {
-                    return { kind: 'string length' }
+                    return { kind: 'string length', type: typeMap.u64 }
                 }
 
                 const symbol = findSymbol(node.value, inScope)
                 assert(symbol, `symbol "${node.value}" is defined`)
+                const type = symbol.type
                 const it = {
                     kind: 'reference',
-                    symbol
+                    symbol,
+                    type
                 }
+
+
                 return it
             }
             case 'property access': {
@@ -299,16 +350,23 @@ function bind(files) {
                 assert(left.symbol.scope || node.property.value == 'length', `property access is either string length hack OR module`)
 
                 const right = bindExpression(node.property, left.symbol?.scope)
+                console.log(right)
+                assert(right.type)
+                const type = right.type
 
                 const it = {
                     kind: 'readProp',
                     left,
-                    prop: right
+                    prop: right,
+                    type
                 }
                 return it
             }
             case 'call': {
                 const def = bindExpression(node.name, inScope)
+
+                assert(def.symbol.returnType)
+                const type = def.symbol.returnType
 
                 const isSyscall = def.symbol.notes.has('syscall')
 
@@ -316,14 +374,16 @@ function bind(files) {
                     const it = {
                         kind: 'syscall',
                         code: def.symbol.notes.get('syscall')[0],
-                        args: bindArguments(node.argumentList)
+                        args: bindArguments(node.argumentList),
+                        type
                     }
                     return it
                 } else {
                     const it = {
                         kind: 'call',
                         def,
-                        args: bindArguments(node.argumentList)
+                        args: bindArguments(node.argumentList),
+                        type
                     }
                     return it
                 }
@@ -331,8 +391,14 @@ function bind(files) {
             case 'binary': {
                 const a = bindExpression(node.lhs)
                 const b = bindExpression(node.rhs)
+                console.log(a)
+                assert(a.type)
+                assert(b.type)
+                assert(a.type == b.type)
+
                 const op = node.op.value
-                const it = { kind: 'binary', a, op, b }
+                const type = a.type
+                const it = { kind: 'binary', a, op, b, type }
                 return it
             }
             case 'assignment': {
@@ -353,7 +419,11 @@ function bind(files) {
 
     function bindParameters(params) {
         return params.items.filter((_, i) => i % 2 == 0).map(p => {
-            const it = { kind: 'parameter', name: p.name.value }
+            const it = {
+                kind: 'parameter',
+                name: p.name.value,
+                type: bindType(p.type)
+            }
             addSymbol(it.name, it)
             return it
         })
@@ -424,7 +494,10 @@ function lower(ast) {
     function lowerNode(node) {
         switch (node.kind) {
             case 'import':
+            case 'type alias':
             case 'use': return []
+
+            case 'parenthesized expression': return lowerNode(node.expr)
 
             case 'module': return lowerNodeList(node.declarations.statements)
 
@@ -433,7 +506,17 @@ function lower(ast) {
             case 'declareVar': {
                 node.name = mangleName(node)
                 if (node.notes.has('const')) {
-                    return [node]
+                    const expr = lowerNode(node.expr)
+                    assert(expr.length == 1)
+                    node.expr = expr[0]
+
+                    // inlined
+                    // TODO: still add some comment to nasm so we know what the number represents
+                    if (node.expr.kind == 'numberLiteral') {
+                        return []
+                    } else {
+                        return [node]
+                    }
                 }
 
                 if (node.expr) {
@@ -441,7 +524,8 @@ function lower(ast) {
                     let expr = node.expr ? lowerNode(node.expr) : null
                     assert(!expr || expr.length == 1)
                     expr = expr[0]
-                    const varAssignment = { kind: 'assignVar', varDec, expr }
+                    const ref = { kind: 'reference', symbol: varDec, type: varDec.type }
+                    const varAssignment = { kind: 'assignVar', varDec: ref, expr }
                     varDec.expr = undefined
                     return [varDec, varAssignment]
                 } else {
@@ -466,6 +550,16 @@ function lower(ast) {
                 assert(right.length == 1)
                 node.a = left[0]
                 node.b = right[0]
+
+                // HACK: bad constant folding
+                if (node.a.kind == 'numberLiteral' && node.b.kind == 'numberLiteral') {
+                    // NOTE: tight coupling between x3 and js operators
+                    const newValue = eval(`node.a.n ${node.op} node.b.n`)
+                    const it = { ...node.a, n: newValue }
+                    return [it]
+
+                }
+
                 return [node]
             }
 
@@ -475,7 +569,15 @@ function lower(ast) {
                 node.expr = expr[0]
                 return [node]
             }
-            case 'reference':
+            case 'reference': {
+                if (node.symbol.kind == 'declareVar') {
+                    if (node.symbol.notes.has('const')) {
+                        return lowerNode(node.symbol.expr)
+                    }
+                }
+
+                return [node]
+            }
             case 'numberLiteral':
             case 'stringLiteral': return [node]
 

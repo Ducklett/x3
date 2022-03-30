@@ -8,7 +8,7 @@ function parse(source, importedFiles = null) {
 
     const code = source.code
 
-    const keywords = new Set(["module", "import", "use", "struct", "union", "proc", "scope", "return", "break", "continue", "goto", "var", "const", "for", "do", "while", "each", "enum", "if", "else", "switch",])
+    const keywords = new Set(["module", "import", "use", "type", "struct", "union", "proc", "scope", "return", "break", "continue", "goto", "var", "const", "for", "do", "while", "each", "enum", "if", "else", "switch",])
     const operators = new Set(["<<=", ">>=", "&&=", "||=", "==", "!=", ">=", "<=", "<<", ">>", "->", "&&", "||", "++", "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "~=", "=", "!", ">", "<", "+", "-", "/", "*", "%", "^", "~", "&", "|", "(", ")", "[", "]", "{", "}", "?", ":", ";", ".", ","])
     const binaryOperators = new Set(["==", "!=", ">=", "<=", "<<", ">>", "&&", "||", ">", "<", "+", "-", "/", "*", "%", "^", "&", "|"])
     const assignmentOperators = new Set(["<<=", ">>=", "&&=", "||=", "==", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "~=", "=",])
@@ -29,7 +29,7 @@ function parse(source, importedFiles = null) {
         }
 
         function isLegalSymbol(c) {
-            return c == ' ' || isLegalKeyword(c) || (c >= '0' && c <= '9')
+            return c == ' ' || c == '_' || isLegalKeyword(c) || (c >= '0' && c <= '9')
         }
 
         function isLegalNumber(c) {
@@ -38,6 +38,10 @@ function parse(source, importedFiles = null) {
 
         function isLegalHexNumber(c) {
             return (c >= 0 && c <= 9) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+        }
+
+        function isLegalOctalNumber(c) {
+            return (c >= 0 && c <= 7)
         }
 
         const maxTokenLength = 3;
@@ -86,6 +90,12 @@ function parse(source, importedFiles = null) {
             }
 
             //string
+            let shouldNullTerminate = false
+            if (current() == 'c' && peek(1) == '"') {
+                shouldNullTerminate = true
+                lexerIndex++
+            }
+
             if (current() == '"') {
                 lexerIndex++
                 let from = lexerIndex
@@ -96,6 +106,7 @@ function parse(source, importedFiles = null) {
                     .replace(/\\r/g, '\r')
                     .replace(/\\t/g, '\t')
                     .replace(/\\0/g, '\0')
+                if (shouldNullTerminate) str += '\0'
                 lexerIndex++
                 tokens.push({ kind: 'string', value: str })
                 continue
@@ -114,6 +125,18 @@ function parse(source, importedFiles = null) {
                     let num = parseInt(slice, 16)
                     tokens.push({ kind: 'number', value: num })
                     continue
+                }
+                else if (current() == '0' && peek(1) == 'o') {
+                    // octal
+                    lexerIndex += 2
+                    let from = lexerIndex
+                    while (isLegalOctalNumber(current())) lexerIndex++
+
+                    const slice = code.slice(from, lexerIndex)
+                    let num = parseInt(slice, 8)
+                    tokens.push({ kind: 'number', value: num })
+                    continue
+
                 } else {
                     // decimal
                     while (isLegalNumber(current())) lexerIndex++
@@ -129,7 +152,7 @@ function parse(source, importedFiles = null) {
             }
 
             // keyword and symbol
-            if (isLegalKeyword(current())) {
+            if (isLegalKeyword(current()) || isLegalSymbol(current())) {
                 let from = lexerIndex
                 while (isLegalKeyword(current())) lexerIndex++
                 let potentialKeyword = code.slice(from, lexerIndex)
@@ -250,6 +273,13 @@ function parse(source, importedFiles = null) {
                 switch (current().kind) {
                     case 'operator': {
                         if (current().value == '{') return parseBlock('expression', true, true)
+                        if (is('operator', '(')) {
+                            const open = take('operator', '(')
+                            const expr = parseExpression()
+                            const close = take('operator', ')')
+                            return { kind: 'parenthesized expression', open, expr, close }
+                        }
+                        assert(false, `unexpected operator`)
                     }
                     case 'number': return take('number')
                     case 'string': return take('string')
@@ -338,6 +368,13 @@ function parse(source, importedFiles = null) {
                     const name = take('symbol')
                     const block = parseBlock('module', true, false)
                     return { kind: 'module', keyword, name, block, tags }
+                }
+                case 'type': {
+                    const keyword = take('keyword', 'type')
+                    const name = take('symbol')
+                    const equals = take('operator', '=')
+                    const type = parseType()
+                    return { kind: 'type alias', keyword, name, equals, type }
                 }
                 case 'proc': {
                     const keyword = take('keyword', 'proc')
@@ -443,6 +480,8 @@ function parse(source, importedFiles = null) {
                         continue
                     }
                 }
+
+                console.log(current())
                 throw 'failed to parse statement or expression in block'
             }
             const end = take('operator', '}')
@@ -463,6 +502,10 @@ function parse(source, importedFiles = null) {
                 let pointer = take('operator', '*')
                 let to = parseType()
                 return { kind: 'type pointer', pointer, to }
+            } else if (is('operator', '!')) {
+                let mutable = take('operator', '!')
+                let it = parseType()
+                return { kind: 'type mutable', mutable, it }
             }
             throw `unhandled type ${current().kind}::${current().value}`
 

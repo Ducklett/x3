@@ -117,7 +117,7 @@ ${[...data.keys()]
                     assert(typeof msg === 'string', 'only string data is supported')
 
                     const bytes = [...msg].map(c => c.charCodeAt(0)).join(',')
-                    return `${k} db ${bytes} ; '${msg.replace(/\n/g, '\\n')}'`
+                    return `${k} db ${bytes} ; '${msg.slice(0, 20).replace(/(\n|\r|\0)/g, '')}'`
                 })
                 .join('\n')}
 `
@@ -157,7 +157,6 @@ ${[...data.keys()]
                 case 'declareVar': {
                     const notes = node.notes ?? new Set()
                     assert(notes.has('const'), 'top level variables are constant')
-                    console.log(node)
                     assert(node.expr, 'top level variable is intialized')
 
                     switch (node.expr.kind) {
@@ -172,7 +171,8 @@ ${[...data.keys()]
                             break
                         }
                         default:
-                            assert(false, `illegal variable expression ${node.kind}`)
+                            console.log(node)
+                            assert(false, `illegal variable expression '${node.expr.kind}'`)
                     }
 
                     return
@@ -200,18 +200,28 @@ ${[...data.keys()]
 
                     lines.push(`_${name}:`)
 
-                    const localSize = vars.length * 8
+                    // const localSize = vars.length * 8
+                    const localSize = vars.reduce((acc, cur) => {
+                        assert(cur.type.size && cur.type.size > 0)
+                        return acc + cur.type.size
+                    }, 0)
 
                     lines.push(`; prologue`)
                     lines.push(`push rbp`)
                     lines.push(`mov rbp, rsp`)
                     if (!removeAlloc) lines.push(`sub rsp, ${localSize}\n`)
 
-                    let paramOffset = 16 + node.params.length * 8
+                    // let paramOffset = 16 + node.params.length * 8
+                    let paramOffset = 16 + node.params.reduce((acc, cur) => {
+                        assert(cur.type.size && cur.type.size > 0)
+                        return acc + cur.type.size
+                    }, 0)
+
                     for (let param of node.params) {
-                        paramOffset -= 8
+                        // paramOffset -= 8
+                        paramOffset -= param.type.size
                         locals.set(param, paramOffset)
-                        // console.log(`param ${param.name} = [rbp+${paramOffset}]`)
+                        console.log(`param ${param.name} = [rbp+${paramOffset}]`)
                     }
 
                     let varOffset = 0
@@ -222,9 +232,10 @@ ${[...data.keys()]
                             // console.log(`const ${vr.name} = ${emitVar(vr)}`)
                         } else {
                             assert(vr.expr == null, 'initalized locals not supported')
-                            varOffset -= 8
+                            // varOffset -= 8
+                            varOffset -= vr.type.size
                             locals.set(vr, varOffset)
-                            // console.log(`var ${vr.name} = ${emitVar(vr)}`)
+                            console.log(`var ${vr.name} = ${emitVar(vr)}`)
                         }
                     }
 
@@ -298,12 +309,16 @@ ${[...data.keys()]
 
                             off -= arg.type.size
 
+                            // TODO: just call emitExpr
                             if (arg.kind === 'stringLiteral') {
-                                console.log(arg)
-                                const l = label(arg.value)
-                                lines.push(`mov qword [rsp+${off + 8}], ${arg.len}`)
-                                lines.push(`mov qword [rsp+${off}], ${l}`)
-                                // assert(false)
+                                if (arg.type.type == 'cstring') {
+                                    const l = label(arg.value)
+                                    lines.push(`mov qword [rsp+${off}], ${l}`)
+                                } else {
+                                    const l = label(arg.value)
+                                    lines.push(`mov qword [rsp+${off + 8}], ${arg.len}`)
+                                    lines.push(`mov qword [rsp+${off}], ${l}`)
+                                }
                             } else {
                                 assert(arg.kind == 'numberLiteral')
 
@@ -350,7 +365,7 @@ ${[...data.keys()]
                 }
                 case 'reference': {
                     assert(shouldReturn, 'reference should not be called at top level')
-                    lines.push(`push qword ${emitVar(node.symbol)}`)
+                    lines.push(`push qword ${emitVar(node.symbol)} ; ${node.symbol.name}`)
                     return
                 }
                 case 'readProp': {
