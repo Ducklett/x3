@@ -1,6 +1,11 @@
 const { assert } = require('./compiler')
+const { fileMap } = require('./parser')
 
 function bind(files) {
+    function spanFromRange(from, to) {
+        return { ...from, to: to.to }
+    }
+
     const bodies = new Map()
     const usings = []
     const ast = []
@@ -17,6 +22,7 @@ function bind(files) {
         'string': { type: 'string', size: 16 },
         'cstring': { type: 'cstring', size: 8 },
         'char': { type: 'char', size: 1 },
+        'bool': { type: 'bool', size: 1 },
         'pointer': { type: 'pointer', size: 8, to: undefined },
     }
 
@@ -258,6 +264,22 @@ function bind(files) {
 
                 return it
             }
+            case 'if': {
+                const it = {
+                    kind: 'if',
+                    cond: bindExpression(node.condition),
+                    then: bindBlock(node.thenBlock),
+                    els: node.elseBlock ? bindBlock(node.elseBlock) : null,
+                }
+                return it
+            }
+            case 'return': {
+                const it = {
+                    kind: 'return',
+                    expr: node.expr ? bindExpression(node.expr) : null
+                }
+                return it
+            }
             case 'terminated expression': {
                 return bindExpression(node.expr)
             }
@@ -276,7 +298,9 @@ function bind(files) {
             assert(name.kind == 'property access')
             name = name.property
         }
-        return name.value
+
+        // TODO: get the full span
+        return [name.value, name.span]
 
         // if (name.kind == 'symbol') return name.value
 
@@ -289,19 +313,23 @@ function bind(files) {
 
         switch (node.kind) {
             case 'type atom': {
-                const name = getTypePath(node.name)
+                const [name, span] = getTypePath(node.name)
                 const type = typeMap[name]
                 assert(type, `'${name}' is a legal type`)
+                type.span = span
                 return type
             }
             case 'type array': {
                 // HACK: string buffer type; reinterpret as string
                 assert(node.of.kind == 'type atom' && node.of.name.value == 'char')
-                return typeMap.string
+                const type = typeMap.string
+                type.span = spanFromRange(node.begin.span, node.of.name.span)
+                return type
             }
             case 'type pointer': {
                 const it = typeMap.pointer
                 it.to = bindType(node.to)
+                it.span = spanFromRange(node.pointer.span, it.to.span)
                 return it
             }
             case 'type mutable': {
@@ -328,7 +356,7 @@ function bind(files) {
     function bindExpression(node, inScope) {
         switch (node.kind) {
             case 'number':
-                return { kind: 'numberLiteral', n: node.value, type: typeMap.int }
+                return { kind: 'numberLiteral', n: node.value, type: typeMap.int, span: node.span }
             case 'string':
                 return {
                     kind: 'stringLiteral',
@@ -336,18 +364,19 @@ function bind(files) {
                     len: node.value.length,
                     type: node.value.endsWith('\0')
                         ? typeMap.cstring
-                        : typeMap.string
+                        : typeMap.string,
+                    span: node.span
                 }
             case 'parenthesized expression': {
                 const expr = bindExpression(node.expr);
                 assert(expr.type)
                 const type = expr.type
-                return { kind: 'parenthesized expression', expr, type }
+                return { kind: 'parenthesized expression', expr, type, span: spanFromRange(node.open.span, node.close.span) }
             }
             case 'symbol': {
                 // string length hack
                 if (node.value == 'length') {
-                    return { kind: 'string length', type: typeMap.u64 }
+                    return { kind: 'string length', type: typeMap.u64, span: node.span }
                 }
 
                 const symbol = findSymbol(node.value, inScope)
@@ -356,7 +385,8 @@ function bind(files) {
                 const it = {
                     kind: 'reference',
                     symbol,
-                    type
+                    type,
+                    span: node.span
                 }
 
 
@@ -368,7 +398,6 @@ function bind(files) {
                 assert(left.symbol.scope || node.property.value == 'length', `property access is either string length hack OR module`)
 
                 const right = bindExpression(node.property, left.symbol?.scope)
-                console.log(right)
                 assert(right.type)
                 const type = right.type
 
@@ -376,7 +405,8 @@ function bind(files) {
                     kind: 'readProp',
                     left,
                     prop: right,
-                    type
+                    type,
+                    span: spanFromRange(left.span, right.span)
                 }
                 return it
             }
@@ -393,7 +423,8 @@ function bind(files) {
                         kind: 'syscall',
                         code: def.symbol.notes.get('syscall')[0],
                         args: bindArguments(node.argumentList),
-                        type
+                        type,
+                        span: spanFromRange(node.name.span, node.argumentList.end.span)
                     }
                     return it
                 } else {
@@ -401,32 +432,59 @@ function bind(files) {
                         kind: 'call',
                         def,
                         args: bindArguments(node.argumentList),
-                        type
+                        type,
+                        span: spanFromRange(node.name.span, node.argumentList.end.span)
                     }
+
+
+                    // assert argument injection hack
+                    if (node.name.value == 'assert') {
+                        // TODO: unhardcode this
+
+                        // inject message
+                        if (it.args.length == 1) {
+                            const expr = it.args[0]
+                            const sourcecode = fileMap.get(expr.span.file)
+                            assert(sourcecode)
+                            const exprText = sourcecode.slice(expr.span.from, expr.span.to)
+                            assert(exprText)
+                            it.args.push(bindExpression({ kind: 'string', value: exprText }))
+                        }
+
+                        // inject 'called at'
+                        // TODO: calculate line number and column number based on span
+                        if (it.args.length == 2) {
+                            it.args.push(bindExpression({ kind: 'string', value: `${node.name.span.file}` }))
+                        }
+                    }
+
                     return it
                 }
             }
             case 'binary': {
                 const a = bindExpression(node.lhs)
                 const b = bindExpression(node.rhs)
-                console.log(a)
                 assert(a.type)
                 assert(b.type)
                 assert(a.type == b.type)
 
                 const op = node.op.value
                 const type = a.type
-                const it = { kind: 'binary', a, op, b, type }
+                const it = { kind: 'binary', a, op, b, type, span: spanFromRange(a.span, b.span) }
                 return it
             }
             case 'assignment': {
                 const varDec = bindExpression(node.name)
                 assert(varDec, `symbol "${node.name.value}" is defined`)
+
+                assert(node.operator.value == '=')
+
                 const expr = bindExpression(node.expr)
                 const it = {
                     kind: 'assignVar',
                     varDec,
-                    expr
+                    expr,
+                    span: spanFromRange(node.name.span, node.expr.span)
                 }
                 return it
             }
@@ -440,14 +498,16 @@ function bind(files) {
             const it = {
                 kind: 'parameter',
                 name: p.name.value,
-                type: bindType(p.type)
+                type: bindType(p.type),
             }
+            it.span = spanFromRange(p.name.span, it.type.span)
             addSymbol(it.name, it)
             return it
         })
     }
     function bindScopeParameters(params) {
         return params.items.filter((_, i) => i % 2 == 0).map(p => {
+            // TODO: type check these?
             const it = { kind: 'scope parameter' }
             const name = p.name.value
             assert(name)
@@ -455,6 +515,7 @@ function bind(files) {
             assert(symbol)
             it.symbol = symbol
             currentScope().symbols.set(name, symbol)
+            it.span = spanFromRange(p.name.span, p.type.span)
             return it
         })
     }
@@ -464,7 +525,12 @@ function bind(files) {
         })
     }
     function bindBlock(body, isExpression = false) {
-        return { kind: 'block', isExpression, statements: body.statements.map(bindDeclaration) }
+        return {
+            kind: 'block',
+            isExpression,
+            statements: body.statements.map(bindDeclaration),
+            span: spanFromRange(body.begin.span, body.end.span)
+        }
     }
 }
 
@@ -515,11 +581,31 @@ function lower(ast) {
             case 'type alias':
             case 'use': return []
 
+            case 'numberLiteral':
+            case 'stringLiteral': return [node]
+
+            case 'return': {
+                if (node.expr) {
+                    const expr = lowerNode(node.expr)
+                    assert(expr.length && expr.length == 1)
+                    node.expr = expr[0]
+                }
+                return [node]
+            }
+
             case 'parenthesized expression': return lowerNode(node.expr)
 
             case 'module': return lowerNodeList(node.declarations.statements)
 
             case 'scope': return lowerNodeList(node.instructions.statements)
+            case 'if': {
+                const cond = lowerNode(node.cond)
+                assert(cond.length && cond.length == 1)
+                node.cond = cond[0]
+                node.then = lowerNodeList(node.then.statements)
+                if (node.els) node.els = lowerNodeList(node.els.statements)
+                return [node]
+            }
 
             case 'declareVar': {
                 node.name = mangleName(node)
@@ -573,7 +659,7 @@ function lower(ast) {
                 if (node.a.kind == 'numberLiteral' && node.b.kind == 'numberLiteral') {
                     // NOTE: tight coupling between x3 and js operators
                     const newValue = eval(`node.a.n ${node.op} node.b.n`)
-                    const it = { ...node.a, n: newValue }
+                    const it = { ...node.a, n: Number(newValue) }
                     return [it]
 
                 }
@@ -596,8 +682,6 @@ function lower(ast) {
 
                 return [node]
             }
-            case 'numberLiteral':
-            case 'stringLiteral': return [node]
 
             case 'syscall':
             case 'call': {
