@@ -268,11 +268,13 @@ function parse(source) {
         function expect(kind, value = null) {
             const got = current()
             if (got.kind != kind) {
-                throw (`expected token of kind ${kind}, got ${got.kind}::${got.value}`)
+                const at = `${source.path}:${got.span.from}`
+                throw (`${at}: expected token of kind ${kind}, got ${got.kind}::${got.value}`)
             }
 
             if (value !== null && got.value != value) {
-                throw (`expected token with value ${value}, got ${got.value}`)
+                const at = `${source.path}:${got.span.from}`
+                throw (`${at}: expected token with value ${value}, got ${got.value}`)
             }
         }
 
@@ -385,8 +387,6 @@ function parse(source) {
         }
 
         function parseDeclaration() {
-            const tags = parseTags()
-
             const cur = current().value
             if (cur != 'import') isTopLevel = false
 
@@ -396,19 +396,19 @@ function parse(source) {
                     const keyword = take('keyword', 'import')
                     const path = take('string')
                     filesToImport.add(path)
-                    return { kind: 'import', keyword, path, tags }
+                    return { kind: 'import', keyword, path }
                 }
                 case 'use': {
                     const keyword = take('keyword', 'use')
                     const path = parsePath()
-                    const it = { kind: 'use', keyword, path, tags }
+                    const it = { kind: 'use', keyword, path }
                     return it
                 }
                 case 'module': {
                     const keyword = take('keyword', 'module')
                     const name = take('symbol')
                     const block = parseBlock('module', true, false)
-                    return { kind: 'module', keyword, name, block, tags }
+                    return { kind: 'module', keyword, name, block }
                 }
                 case 'type': {
                     const keyword = take('keyword', 'type')
@@ -426,6 +426,7 @@ function parse(source) {
                         arrow = take('operator', '->')
                         returnType = parseType()
                     }
+                    const tags = parseTags()
                     let body
                     if (is('operator', ';')) {
                         body = take('operator', ';')
@@ -438,6 +439,7 @@ function parse(source) {
                     const keyword = take('keyword', 'scope')
                     const name = take('symbol')
                     const parameters = parseList(parseTypedSymbol)
+                    const tags = parseTags()
                     let body = parseBlock('proc', true, true)
                     return { kind: 'scope', keyword, name, parameters, body, tags }
                 }
@@ -445,6 +447,7 @@ function parse(source) {
                     const keyword = take('keyword', 'struct')
                     const name = take('symbol')
                     const parameters = parseList(parseTypedSymbol)
+                    const tags = parseTags()
                     return { kind: 'struct', keyword, name, parameters, tags }
                 }
                 case 'const':
@@ -461,6 +464,7 @@ function parse(source) {
                         equals = take('operator', '=')
                         expr = parseExpression()
                     }
+                    const tags = parseTags()
                     terminator = take('operator', ';')
                     return { kind: 'var', keyword, name, colon, type, equals, expr, terminator, tags }
                 }
@@ -491,8 +495,6 @@ function parse(source) {
                     return { kind: 'return', keyword, expr, terminator }
                 }
                 default:
-                    if (tags.length) throw `tags with out declaration, got ${current().kind} ${current().value}`
-
                     return false
             }
         }
@@ -502,10 +504,11 @@ function parse(source) {
         }
 
         function parseTypedSymbol() {
-            const tags = parseTags()
             const name = take('symbol')
             const colon = take('operator', ':')
             const type = parseType()
+            const tags = parseTags()
+
             return { kind: 'typed symbol', name, colon, type, tags }
         }
 
