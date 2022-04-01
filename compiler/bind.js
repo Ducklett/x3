@@ -418,6 +418,8 @@ function bind(files) {
 
                 const isSyscall = def.symbol.notes.has('syscall')
 
+                const params = def.symbol.params;
+
                 if (isSyscall) {
                     const it = {
                         kind: 'syscall',
@@ -426,6 +428,7 @@ function bind(files) {
                         type,
                         span: spanFromRange(node.name.span, node.argumentList.end.span)
                     }
+                    it.args = validateArguments(it.args, params, node.name.span.file)
                     return it
                 } else {
                     const it = {
@@ -435,28 +438,7 @@ function bind(files) {
                         type,
                         span: spanFromRange(node.name.span, node.argumentList.end.span)
                     }
-
-
-                    // assert argument injection hack
-                    if (node.name.value == 'assert') {
-                        // TODO: unhardcode this
-
-                        // inject message
-                        if (it.args.length == 1) {
-                            const expr = it.args[0]
-                            const sourcecode = fileMap.get(expr.span.file)
-                            assert(sourcecode)
-                            const exprText = sourcecode.slice(expr.span.from, expr.span.to)
-                            assert(exprText)
-                            it.args.push(bindExpression({ kind: 'string', value: exprText }))
-                        }
-
-                        // inject 'called at'
-                        // TODO: calculate line number and column number based on span
-                        if (it.args.length == 2) {
-                            it.args.push(bindExpression({ kind: 'string', value: `${node.name.span.file}` }))
-                        }
-                    }
+                    it.args = validateArguments(it.args, params, node.name.span.file)
 
                     return it
                 }
@@ -469,7 +451,9 @@ function bind(files) {
                 assert(a.type == b.type)
 
                 const op = node.op.value
-                const type = a.type
+                const logicalOperators = new Set(['>', '>=', '<', '<=', '==', '!='])
+                const isLogical = logicalOperators.has(op)
+                const type = isLogical ? typeMap.bool : a.type
                 const it = { kind: 'binary', a, op, b, type, span: spanFromRange(a.span, b.span) }
                 return it
             }
@@ -493,15 +477,82 @@ function bind(files) {
         }
     }
 
+    function validateArguments(args, params, callsite) {
+        for (let i = 0; i < params.length; i++) {
+            const param = params[i]
+
+            if (param.notes.size > 0) {
+                // TODO: handle notes in switch and throw on unhandled note
+                if (param.notes.has('callee span')) {
+                    const context = param.notes.get('callee span')
+                    assert(context.length == 1)
+                    const targetParam = context[0]
+                    assert(targetParam.kind == 'reference' && targetParam.symbol.kind == 'parameter')
+                    const index = params.indexOf(targetParam.symbol)
+                    assert(index > -1)
+                    if (!args[index]) {
+                        // inject callee span ;)
+                        const expr = args[i]
+                        assert(args[i])
+                        const sourcecode = fileMap.get(expr.span.file)
+                        assert(sourcecode)
+                        const exprText = sourcecode.slice(expr.span.from, expr.span.to)
+                        assert(exprText)
+                        args[index] = bindExpression({ kind: 'string', value: exprText })
+                    }
+                } else if (param.notes.has('call site')) {
+                    assert(param.notes.get('call site').length == 0)
+                    if (!args[i]) {
+                        // inject call site ;3
+                        args[i] = bindExpression({ kind: 'string', value: callsite })
+                    }
+
+                } else {
+                    console.log('unhandled notes?')
+                    console.log(param.notes)
+                    assert(false)
+                }
+            }
+
+            assert(args[i], `argument supplied for each parameter`)
+
+            let arg = args[i]
+
+            assert(param.type, `arument has a type`)
+            assert(arg.type, `arument has a type`)
+
+            if (param.type.type == 'pointer' && arg.type.type == 'string') {
+                const toType = param.type.to.type
+                if (toType == 'u0' || toType == 'char') {
+                    const cast = { kind: 'implicit cast', type: param.type, expr: arg }
+                    arg = cast
+                    args[i] = arg
+                }
+            }
+
+            assert(param.type.type == arg.type.type, 'parameter type matches argument type')
+        }
+
+        return args
+    }
+
     function bindParameters(params) {
         return params.items.filter((_, i) => i % 2 == 0).map(p => {
             const it = {
                 kind: 'parameter',
                 name: p.name.value,
                 type: bindType(p.type),
+                notes: new Map(),
             }
+
             it.span = spanFromRange(p.name.span, it.type.span)
             addSymbol(it.name, it)
+            return [p, it]
+        }).map(([p, it]) => {
+            // tags may reference other parameters, so we bind them in a second pass
+            for (let n of p.tags) {
+                it.notes.set(...bindTag(n))
+            }
             return it
         })
     }
@@ -581,6 +632,9 @@ function lower(ast) {
             case 'type alias':
             case 'use': return []
 
+            // TODO: make implicit cast do something
+            case 'implicit cast': return lowerNode(node.expr)
+
             case 'numberLiteral':
             case 'stringLiteral': return [node]
 
@@ -659,7 +713,7 @@ function lower(ast) {
                 if (node.a.kind == 'numberLiteral' && node.b.kind == 'numberLiteral') {
                     // NOTE: tight coupling between x3 and js operators
                     const newValue = eval(`node.a.n ${node.op} node.b.n`)
-                    const it = { ...node.a, n: Number(newValue) }
+                    const it = { ...node.a, n: Number(newValue), type: node.type }
                     return [it]
 
                 }

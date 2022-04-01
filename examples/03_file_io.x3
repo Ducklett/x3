@@ -16,6 +16,5 @@ proc main[] {
     append text(c"out.txt", "- qux\n");
     append text(c"out.txt", "- quuuuux\n");
 
-    assert(10>20);
     exit(0);
 }

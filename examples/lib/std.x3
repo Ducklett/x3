@@ -10,8 +10,6 @@ module std {
         sys.write(sys.stdout, msg, msg.length);
     }
 
-    ((TODO: support optional parameters))
-    ((TODO: implement something like `#calleespan(conditionText) condition:bool, conditionText:string)` so we can print the condition))
     proc assert[
         #callee span(message) condition:bool,
         message:string,
@@ -23,6 +21,23 @@ module std {
         write(" assertion failed: ");
         write(message);
         write("\n");
+        exit(1);
+    }
+
+    proc panic[
+        message:string,
+        #call site' call site:string
+    ] {
+        write(call site);
+        write(" PANIC: ");
+        write(message);
+        write("\n");
+        exit(1);
+    }
+
+    proc TODO[#call site' call site:string] {
+        write(call site);
+        write(" not implemented.\n");
         exit(1);
     }
 
