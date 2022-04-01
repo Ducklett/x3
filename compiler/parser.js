@@ -101,6 +101,7 @@ function parse(source) {
                 // TODO: unify this with the symbol parser below
                 if (current() == "'") lexerIndex++
                 while (isLegalSymbol(current())) lexerIndex++
+                while (isWhitespace(peek(-1))) lexerIndex--
                 const value = code.slice(from, lexerIndex)
                 if (current() == "'") lexerIndex++
                 if (lexerIndex == from) throw 'expected symbol after pound symbol'

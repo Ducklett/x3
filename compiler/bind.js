@@ -254,6 +254,7 @@ function bind(files) {
                 for (let n of node.tags) {
                     it.notes.set(...bindTag(n))
                 }
+
                 addSymbol(it.name, it)
                 it.scope = pushScope(null, it.name)
                 it.params = bindParameters(node.parameters)
@@ -586,7 +587,10 @@ function bind(files) {
 }
 
 function lower(ast) {
-    return lowerNodeList(ast)
+    let entrypoint
+
+    const loweredAst = lowerNodeList(ast)
+    return [loweredAst, { entrypoint }]
 
     function mangleName(node) {
         function mangleSegment(str) {
@@ -693,6 +697,28 @@ function lower(ast) {
             case 'function': {
                 // NOTE: we can't create a new copy because this would break the symbol
                 node.name = mangleName(node)
+
+                function compilerSpan() { return { file: '<compiler>', from: 0, to: 0 } }
+
+                const isEntrypoint = node.notes.has('entrypoint')
+                if (isEntrypoint) {
+                    assert(!entrypoint)
+                    entrypoint = node;
+                    // this looks overcomplicated..
+                    // if (!node.notes.has('explicit exit')) {
+                    //     const exitCode = 0x3c
+                    //     const exitCall = {
+                    //         kind: 'syscall',
+                    //         code: exitCode,
+                    //         args: [
+                    //             { kind: 'numberLiteral', n: 0, type: typeMap.int, span: compilerSpan() }
+                    //         ],
+                    //         type: typeMap.u0,
+                    //         span: compilerSpan()
+                    //     }
+                    //     node.instructions?.statements.push(exitCall)
+                    // }
+                }
                 node.instructions = lowerNodeList(node.instructions?.statements)
                 return [
                     node

@@ -1,12 +1,18 @@
-proc write[fd:int,msg:*void,msg length:int] #syscall(0x001);
+((use the #syscall tag to declare syscalls))
+proc write[fd:int,msg:*u0,msg length:int] #syscall(0x001);
 proc exit[code:int]                         #syscall(0x03c);
 
-
-proc main[] #entrypoint
+((
+by default the main function will be called and
+exit with status code 0. you can choose your own
+entrypoint and explicitly exit by annotating a
+function with the #entrypoint and #explicit exit' tags respectively
+))
+proc custom entrypoint[] #entrypoint #explicit exit
 {
     const stdout = 1;
     const msg = "Hello world!\n";
 
     write(stdout, msg, msg.length);
-    exit(0);
+    exit(42);
 }

@@ -1,6 +1,6 @@
 import "./lib/sys" use sys
 
-proc main[] #entrypoint
+proc main[]
 {
     const name:[40]char;
     var len:int;
@@ -19,6 +19,4 @@ proc main[] #entrypoint
         write(stdout, name, len);
         write(stdout, end, end.length);
     }
-
-    exit(0);
 }

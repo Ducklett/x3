@@ -4,16 +4,18 @@ const { inspect } = require('util')
 const { emitAsm, read } = require('./compiler')
 const { outputHtml } = require('./tool/outputHtml')
 
-compile('examples/03_file_io.x3')
+compile('examples/00_hello_world.x3')
 
 function compile(filename) {
     const file = ({ path: filename, code: read(filename) })
     const syntaxTree = parse(file)
-    let ast = bind(syntaxTree)
-    ast = lower(ast)
+    const ast = bind(syntaxTree)
+    const [loweredAst, meta] = lower(ast)
+
+    const entrypoint = meta.entrypoint?.name || 'main'
 
     //outputHtml(st)
-    emitAsm(ast)
+    emitAsm(loweredAst, { entrypoint })
 
     // console.log(inspect(ast, { depth: 2 }))
 }

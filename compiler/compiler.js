@@ -57,7 +57,7 @@ const api = {
     num: n => ({ kind: 'numberLiteral', n }),
     str: value => ({ kind: 'stringLiteral', value, len: value.length }),
 
-    emitAsm(ast, dest = 'out/out.asm') {
+    emitAsm(ast, { dest = 'out/out.asm', entrypoint = 'main' } = {}) {
         let locals
 
         // variable => label lookup
@@ -87,7 +87,7 @@ const api = {
         }
 
         const lines = []
-        let hasMain = false
+        let hasEntrypoint = false
         let returnLabel = null
 
         // ==================
@@ -101,7 +101,7 @@ const api = {
             if (node.kind != 'declareVar') emitTop(node)
         }
 
-        assert(hasMain, 'the program defines a main function')
+        assert(hasEntrypoint, 'the program defines a main function')
         const source = `
 section .text
 global _start
@@ -189,10 +189,11 @@ ${[...data.keys()]
                     returnLabel = label()
                     locals = new Map()
                     let name = node.name
-                    const isMain = name === 'main'
-                    if (isMain) {
-                        hasMain = true
-                        name = 'start'
+                    const isEntrypoint = name === entrypoint
+                    if (isEntrypoint) {
+                        assert(!hasEntrypoint, `only has one entrypoint`)
+                        hasEntrypoint = true
+                        lines.push(`_start:`)
                     }
 
                     const vars = node.instructions.filter(n => n.kind === 'declareVar')
@@ -247,7 +248,16 @@ ${[...data.keys()]
                         })
                     }
 
+
                     lines.push(`${returnLabel}:`)
+
+                    if (isEntrypoint && !node.notes.has('explicit exit')) {
+                        lines.push(`; injected exit`)
+                        lines.push(`mov rax, 0x3c`)
+                        lines.push(`mov rdi, 0`)
+                        lines.push(`syscall`)
+                    }
+
                     lines.push(`; epilogue`)
                     lines.push(`mov rsp, rbp`)
                     lines.push(`pop rbp`)
