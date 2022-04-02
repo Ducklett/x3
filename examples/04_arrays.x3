@@ -3,17 +3,9 @@ import "./lib/standard" use standard
 proc main {
     const names = ["foo", "bar", "baz", "quux"]
 
-    var i = 0
-    label begin:
-    if (i>=names.length) goto end
-    write line(names[i])
-    i++
-    goto begin
-    label end:
+    each name : names {
+        write line(name)
+    }
 
     exit(names.length)
-
-    (( each name : names {
-        write line(name)
-    } ))
 }

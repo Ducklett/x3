@@ -1,5 +1,19 @@
-const { assert } = require('./compiler')
+const { assert, declareVar, num, binary, ref, readProp, unary, label, goto, assignVar, offsetAccess } = require('./compiler')
 const { fileMap } = require('./parser')
+
+// TODO: actually have different int types
+const typeMap = {
+    'int': { type: 'int', size: 8 },
+    'uint': { type: 'int', size: 8 },
+    'u64': { type: 'int', size: 8 },
+    'i64': { type: 'int', size: 8 },
+    'u0': { type: 'u0', size: 0 },
+    'string': { type: 'string', size: 16 },
+    'cstring': { type: 'cstring', size: 8 },
+    'char': { type: 'char', size: 1 },
+    'bool': { type: 'bool', size: 1 },
+    'pointer': { type: 'pointer', size: 8, to: undefined },
+}
 
 function bind(files) {
     function compilerSpan() { return { file: '<compiler>', from: 0, to: 0 } }
@@ -13,19 +27,6 @@ function bind(files) {
     const scopeStack = []
     const fileScopes = []
 
-    // TODO: actually have different int types
-    const typeMap = {
-        'int': { type: 'int', size: 8 },
-        'uint': { type: 'int', size: 8 },
-        'u64': { type: 'int', size: 8 },
-        'i64': { type: 'int', size: 8 },
-        'u0': { type: 'u0', size: 0 },
-        'string': { type: 'string', size: 16 },
-        'cstring': { type: 'cstring', size: 8 },
-        'char': { type: 'char', size: 1 },
-        'bool': { type: 'bool', size: 1 },
-        'pointer': { type: 'pointer', size: 8, to: undefined },
-    }
 
     pushScope(null, 'root', 'global')
 
@@ -806,6 +807,7 @@ function lower(ast) {
 
             case 'numberLiteral':
             case 'label':
+            case 'unary':
             case 'stringLiteral': return [node]
 
             case 'goto': {
@@ -844,8 +846,16 @@ function lower(ast) {
                 return [node]
             }
             case 'each': {
-                node.block = lowerNode(node.block)
-                return [node]
+                let i = declareVar('i', num(0, typeMap.int))
+                let begin = label('begin')
+                let end = label('end')
+                let condition = goto(end, binary('>=', ref(i), readProp(ref(node.list), { kind: 'string length' })))
+                let item = node.item
+                let setItem = assignVar(ref(item), offsetAccess(ref(node.list), ref(i)))
+                let body = node.block
+                let inc = unary('post++', ref(i))
+                let loop = goto(begin)
+                return lowerNodeList([i, begin, item, condition, setItem, body, inc, loop, end])
             }
             case 'return': {
                 if (node.expr) {

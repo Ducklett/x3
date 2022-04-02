@@ -24,6 +24,13 @@ function assert(expr, msg = '') {
     process.exit(0)
 }
 
+// compiler boilerplate injector
+function B(node) {
+    if (!node.span) node.span = { file: '<compiler>', from: 0, to: 0 }
+    if (!node.notes) node.notes = new Map()
+    return node
+}
+
 const api = {
     read,
     write,
@@ -42,20 +49,23 @@ const api = {
         params,
         instructions
     }),
-    If: (cond, then, els = null) => ({ kind: 'if', cond, then, els }),
-    call: (def, ...args) => ({ kind: 'call', def, args }),
-    syscall: (code, ...args) => ({ kind: 'syscall', code, args }),
-    param: name => ({ kind: 'parameter', name }),
-    declareVar: (name, expr) => ({ kind: 'declareVar', name, expr }),
-    assignVar: (varDec, expr) => ({ kind: 'assignVar', varDec, expr }),
-    readVar: varDec => ({ kind: 'readVar', varDec }),
-    readProp: (varDec, prop) => ({ kind: 'readProp', varDec, prop }),
-    binary: (op, a, b) => ({ kind: 'binary', op, a, b }),
-    unary: (op, expr) => ({ kind: 'unary', op, expr }),
-    ret: expr => ({ kind: 'return', expr }),
+    If: (cond, then, els = null) => B({ kind: 'if', cond, then, els }),
+    call: (def, ...args) => B({ kind: 'call', def, args }),
+    syscall: (code, ...args) => B({ kind: 'syscall', code, args }),
+    param: name => B({ kind: 'parameter', name }),
+    declareVar: (name, expr) => B({ kind: 'declareVar', name, expr, type: expr.type }),
+    assignVar: (varDec, expr) => B({ kind: 'assignVar', varDec, expr }),
+    ref: symbol => B({ kind: 'reference', symbol, type: symbol.type }),
+    readProp: (left, prop) => B({ kind: 'readProp', left, prop }),
+    offsetAccess: (left, index) => B({ kind: 'offsetAccess', left, index }),
+    binary: (op, a, b) => B({ kind: 'binary', op, a, b }),
+    unary: (op, expr) => B({ kind: 'unary', op, expr }),
+    ret: expr => B({ kind: 'return', expr }),
+    goto: (label, condition) => B({ kind: 'goto', condition, label }),
+    label: (name) => B({ kind: 'label', name }),
 
-    num: n => ({ kind: 'numberLiteral', n }),
-    str: value => ({ kind: 'stringLiteral', value, len: value.length }),
+    num: (n, type) => B({ kind: 'numberLiteral', n, type }),
+    str: (value, type) => B({ kind: 'stringLiteral', value, len: value.length, type }),
 
     emitAsm(ast, { dest = 'out/out.asm', entrypoint = 'main' } = {}) {
         let locals
@@ -153,6 +163,7 @@ ${[...data.keys()]
                         offset += ' + ' + fieldOffset
                     }
                 }
+                console.log(node)
                 assert(
                     offset !== undefined,
                     'referenced variable will either be a local or a global'
@@ -620,9 +631,20 @@ ${[...data.keys()]
 
                     emitExpr(node.expr)
                     lines.push(`; ${varDec.name} = expr`)
-                    lines.push(`pop rax`)
-                    lines.push(`mov ${emitVar(varDec)}, rax\n`)
-                    if (shouldReturn) lines.push(`push rax`)
+                    const size = varDec.type.size
+                    console.log(size)
+
+                    let i = 0
+                    while (i < size) {
+                        lines.push(`pop rax`)
+                        lines.push(`mov ${emitVar(varDec, i)}, rax\n`)
+                        i += 8
+                    }
+
+                    if (shouldReturn) {
+                        assert(size == 8)
+                        lines.push(`push rax`)
+                    }
                     return
                 }
                 default:
