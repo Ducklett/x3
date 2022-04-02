@@ -1,4 +1,4 @@
-import "./lib/std" use std
+import "./lib/standard" use standard
 
 proc main {
     const file content = "Demo file contents:

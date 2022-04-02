@@ -1,6 +1,6 @@
 import "./sys"
 
-module std {
+module standard {
     proc exit[code:int]
     {
         sys.exit(code);
