@@ -1,6 +1,5 @@
 import "./lib/std" use std
 
-proc main[]
-{
+proc main {
     write("Hello world!\n");
 }

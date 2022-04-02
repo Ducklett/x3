@@ -302,12 +302,6 @@ function bind(files) {
 
         // TODO: get the full span
         return [name.value, name.span]
-
-        // if (name.kind == 'symbol') return name.value
-
-        // assert(name.kind == 'property access')
-        // assert(name.scope.kind == 'symbol')
-        // return name.scope.value + '__' + getTypePath(name.property)
     }
 
     function bindType(node) {
@@ -449,7 +443,7 @@ function bind(files) {
                 const b = bindExpression(node.rhs)
                 assert(a.type)
                 assert(b.type)
-                assert(a.type == b.type)
+                assert(a.type.type == b.type.type)
 
                 const op = node.op.value
                 const logicalOperators = new Set(['>', '>=', '<', '<=', '==', '!='])
@@ -469,7 +463,7 @@ function bind(files) {
                     kind: 'assignVar',
                     varDec,
                     expr,
-                    span: spanFromRange(node.name.span, node.expr.span)
+                    span: spanFromRange(node.name.span, expr.span)
                 }
                 return it
             }
@@ -538,6 +532,7 @@ function bind(files) {
     }
 
     function bindParameters(params) {
+        if (!params) return []
         return params.items.filter((_, i) => i % 2 == 0).map(p => {
             const it = {
                 kind: 'parameter',
@@ -558,16 +553,20 @@ function bind(files) {
         })
     }
     function bindScopeParameters(params) {
+        if (!params) return []
         return params.items.filter((_, i) => i % 2 == 0).map(p => {
-            // TODO: type check these?
             const it = { kind: 'scope parameter' }
             const name = p.name.value
             assert(name)
+            const type = bindType(p.type)
             const symbol = findSymbol(name, currentScope().parent)
             assert(symbol)
+            assert(type)
+            assert(symbol.type)
+            assert(type == symbol.type)
             it.symbol = symbol
             currentScope().symbols.set(name, symbol)
-            it.span = spanFromRange(p.name.span, p.type.span)
+            it.span = spanFromRange(p.name.span, type.span)
             return it
         })
     }
@@ -704,20 +703,6 @@ function lower(ast) {
                 if (isEntrypoint) {
                     assert(!entrypoint)
                     entrypoint = node;
-                    // this looks overcomplicated..
-                    // if (!node.notes.has('explicit exit')) {
-                    //     const exitCode = 0x3c
-                    //     const exitCall = {
-                    //         kind: 'syscall',
-                    //         code: exitCode,
-                    //         args: [
-                    //             { kind: 'numberLiteral', n: 0, type: typeMap.int, span: compilerSpan() }
-                    //         ],
-                    //         type: typeMap.u0,
-                    //         span: compilerSpan()
-                    //     }
-                    //     node.instructions?.statements.push(exitCall)
-                    // }
                 }
                 node.instructions = lowerNodeList(node.instructions?.statements)
                 return [

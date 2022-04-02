@@ -421,7 +421,10 @@ function parse(source) {
                 case 'proc': {
                     const keyword = take('keyword', 'proc')
                     const name = take('symbol')
-                    const parameters = parseList(parseTypedSymbol)
+                    let parameters
+                    if (is('operator', '[')) {
+                        parameters = parseList(parseTypedSymbol)
+                    }
                     let arrow, returnType
                     if (is('operator', '->')) {
                         arrow = take('operator', '->')
@@ -439,7 +442,10 @@ function parse(source) {
                 case 'scope': {
                     const keyword = take('keyword', 'scope')
                     const name = take('symbol')
-                    const parameters = parseList(parseTypedSymbol)
+                    let parameters
+                    if (is('operator', '[')) {
+                        parameters = parseList(parseTypedSymbol)
+                    }
                     const tags = parseTags()
                     let body = parseBlock('proc', true, true)
                     return { kind: 'scope', keyword, name, parameters, body, tags }
@@ -594,56 +600,5 @@ function parse(source) {
         }
     }
 }
-
-// const code = `
-// module demo {
-// 	((this is a single line comment))
-// 	var foo:int = 0;
-// 	const PI:float = 3.1415;
-
-// 	((
-// 	proc stands for procedure
-// 	we don't guarantee mathematical purity
-// 	so calling them functions is a misnomer
-// 	))
-// 	proc square[n:int] -> int {
-// 		return n * n;
-// 	}
-
-// 	struct vec2[x:float, y:float]
-
-// 	((# is used for annotations, similar to hashtags in other domains))
-// 	#entrypoint
-// 	proc main[args:[]string] {
-// 		((note how the syntax is designed so
-// 		  we can have spaces in symbol names*))
-// 		var my vector = vec2(10,20);
-// 		((
-// 		dot syntax is unnatural
-// 		but > is already used by gt
-// 		and -> is more typing..
-// 		))
-// 		my vector.x += 3;
-// 		my vector.y *= 2;
-// 		assert(my vector.x == 13);
-// 		assert(my vector.y == 40);
-
-// 		each arg : args { print(arg); }
-
-// 		((TODO: more fun stuff here))
-// 	}
-
-// 	((
-// 	note how functions use [] for declaring their parameters
-// 	this makes more sense since they're a LIST of parameters
-// 	since our declaration syntax is universal you can take:
-// 	fn add[x:int,y:int]
-// 	and turn it into:
-// 	struct vec2i[x:int,y:int]
-// 	just by changing the keyword and name you've refactored
-// 	your function arguments into a separate data structure.
-// 	))
-// }
-// `.trim()
 
 module.exports = { parse, fileMap }
