@@ -302,6 +302,7 @@ function parse(source) {
             while (currentIsBinaryOperator()) {
                 const op = take('operator')
                 const rhs = parsePrimaryExpression()
+                assert(rhs)
                 lhs = { kind: 'binary', lhs, op, rhs }
             }
             return lhs
@@ -309,13 +310,17 @@ function parse(source) {
             function parsePrimaryExpression() {
                 switch (current().kind) {
                     case 'operator': {
-                        if (current().value == '{') return parseBlock('expression', true, true)
+                        const v = current().value
+                        if (v == '{') return parseBlock('expression', true, true)
+                        if (v == ';') return null
+                        if (v == '}') return null
                         if (is('operator', '(')) {
                             const open = take('operator', '(')
                             const expr = parseExpression()
                             const close = take('operator', ')')
                             return { kind: 'parenthesized expression', open, expr, close }
                         }
+                        console.log(current())
                         assert(false, `unexpected operator`)
                     }
                     case 'number': return take('number')
@@ -432,10 +437,10 @@ function parse(source) {
                     }
                     const tags = parseTags()
                     let body
-                    if (is('operator', ';')) {
-                        body = take('operator', ';')
-                    } else {
+                    if (is('operator', '{')) {
                         body = parseBlock('proc', true, true)
+                    } else if (is('operator', ';')) {
+                        body = take('operator', ';')
                     }
                     return { kind: 'proc', keyword, name, parameters, arrow, returnType, body, tags }
                 }
@@ -472,7 +477,7 @@ function parse(source) {
                         expr = parseExpression()
                     }
                     const tags = parseTags()
-                    terminator = take('operator', ';')
+                    if (is('operator', ';')) terminator = take('operator', ';')
                     return { kind: 'var', keyword, name, colon, type, equals, expr, terminator, tags }
                 }
                 case 'if': {
@@ -493,10 +498,10 @@ function parse(source) {
                     let expr, terminator
 
                     if (is('operator', ';')) {
-                        terminator = take('operator', ';')
+                        if (is('operator', ';')) terminator = take('operator', ';')
                     } else {
                         expr = parseExpression()
-                        terminator = take('operator', ';')
+                        if (is('operator', ';')) terminator = take('operator', ';')
                     }
 
                     return { kind: 'return', keyword, expr, terminator }
@@ -548,12 +553,14 @@ function parse(source) {
                     }
                 }
                 if (allowExpressions) {
-                    const needsTermination = new Set(['binary', 'unary', 'assignment', 'call', 'return', 'property access'])
+                    // TODO: looks like i'm handling return twice; fix this?
+                    const allowsTermination = new Set(['binary', 'unary', 'assignment', 'call', 'return', 'property access'])
                     let expr = parseExpression()
                     if (expr) {
-                        if (needsTermination.has(expr.kind)) {
+                        if (is('operator', ';') && allowsTermination.has(expr.kind)) {
                             expr = { kind: 'terminated expression', expr, terminator: take('operator', ';') }
                         }
+
                         statements.push(expr)
                         continue
                     }

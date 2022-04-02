@@ -3,12 +3,17 @@ import "./sys"
 module standard {
     proc exit[code:int]
     {
-        sys.exit(code);
+        sys.exit(code)
     }
 
     proc write[msg:string]
     {
-        sys.write(sys.stdout, msg, msg.length);
+        sys.write(sys.stdout, msg, msg.length)
+    }
+
+    proc write line[msg:string] {
+        write(msg)
+        write("\n")
     }
 
     proc assert[
@@ -16,36 +21,36 @@ module standard {
         message:string,
         call site:string    #call site
     ] {
-        if condition { return; }
+        if condition { return }
 
-        write(call site);
-        write(" assertion failed: ");
-        write(message);
-        write("\n");
-        exit(1);
+        write(call site)
+        write(" assertion failed: ")
+        write(message)
+        write("\n")
+        exit(1)
     }
 
     proc panic[
         message:string,
         call site:string #call site
     ] {
-        write(call site);
-        write(" PANIC: ");
-        write(message);
-        write("\n");
-        exit(1);
+        write(call site)
+        write(" PANIC: ")
+        write(message)
+        write("\n")
+        exit(1)
     }
 
     proc TODO[call site:string #call site']
     {
-        write(call site);
-        write(" not implemented.\n");
-        exit(1);
+        write(call site)
+        write(" not implemented.\n")
+        exit(1)
     }
 
     proc read[buffer:![]char] -> int
     {
-        sys.read(sys.stdin, buffer, buffer.length);
+        sys.read(sys.stdin, buffer, buffer.length)
     }
 
 
@@ -53,29 +58,29 @@ module standard {
     {
         ((TODO: support for non-constexpr const declarations))
         ((TODO: error checking))
-        var fd = sys.open(filename, flags, mode);
-        assert(fd>=0);
+        var fd = sys.open(filename, flags, mode)
+        assert(fd>=0)
 
-        sys.write(fd,content,content.length);
+        sys.write(fd,content,content.length)
 
-        var error = sys.close(fd);
-        assert(error == 0);
+        var error = sys.close(fd)
+        assert(error == 0)
     }
 
     proc write all text[filename:cstring, content:string]
     {
-        const flags = sys.O_CREAT|sys.O_WRONLY;
-        const mode = sys.S_IRUSR|sys.S_IWUSR;
+        const flags = sys.O_CREAT|sys.O_WRONLY
+        const mode = sys.S_IRUSR|sys.S_IWUSR
 
-        sys.unlink(filename);
-        write file text base(filename, content, flags, mode);
+        sys.unlink(filename)
+        write file text base(filename, content, flags, mode)
     }
 
     proc append text[filename:cstring, content:string]
     {
-        const flags = sys.O_CREAT|sys.O_WRONLY|sys.O_APPEND;
-        const mode = sys.S_IRUSR|sys.S_IWUSR;
+        const flags = sys.O_CREAT|sys.O_WRONLY|sys.O_APPEND
+        const mode = sys.S_IRUSR|sys.S_IWUSR
 
-        write file text base(filename, content, flags, mode);
+        write file text base(filename, content, flags, mode)
     }
 }

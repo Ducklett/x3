@@ -1,25 +1,25 @@
 import "./lib/sys" use sys
 
 proc main {
-    const name:[40]char;
-    var len:int;
+    const name:[40]char
+    var len:int
 
     scope prompt user for name {
-        const msg = "What's your name?\n";
-        write(stdout, msg, msg.length);
+        const msg = "What's your name?\n"
+        write(stdout, msg, msg.length)
     }
 
     ((TODO: maybe indicate then len is mutated))
     ((that way we know it should be passed by reference when refactored into a proc))
     scope read name[name:[]char,len:int] {
-        len = read(stdin, name, name.length) - 1;
+        len = read(stdin, name, name.length) - 1
     }
 
     scope greet user[name:[]char,len:int] {
-        const greet = "hello ";
-        const end = "!\n";
-        write(stdout, greet, greet.length);
-        write(stdout, name, len);
-        write(stdout, end, end.length);
+        const greet = "hello "
+        const end = "!\n"
+        write(stdout, greet, greet.length)
+        write(stdout, name, len)
+        write(stdout, end, end.length)
     }
 }

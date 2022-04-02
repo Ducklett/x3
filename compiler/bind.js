@@ -260,7 +260,7 @@ function bind(files) {
                 it.params = bindParameters(node.parameters)
                 popScope()
 
-                if (node.body.kind == 'block') bodies.set(it, node)
+                if (node.body && node.body.kind == 'block') bodies.set(it, node)
                 else it.instructions = null
 
                 return it
@@ -281,6 +281,16 @@ function bind(files) {
                 }
                 return it
             }
+
+            case 'binary':
+            case 'unary':
+            case 'assignment':
+            case 'call':
+            case 'return':
+            case 'property access': {
+                return bindExpression(node)
+            }
+
             case 'terminated expression': {
                 return bindExpression(node.expr)
             }

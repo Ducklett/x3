@@ -7,9 +7,13 @@ proc main {
 - foo
 - bar
 - baz
-";
+"
 
-    write all text(c"out.txt", file content);
-    append text(c"out.txt", "- qux\n");
-    append text(c"out.txt", "- quuuuux\n");
+    write all text(c"out.txt", file content)
+    append text(c"out.txt", "- qux\n")
+    append text(c"out.txt", "- quuuuux\n")
+
+    write line("==================")
+    write line("done writing file!")
+    write line("==================")
 }
