@@ -1,0 +1,15 @@
+import "./lib/standard" use standard
+
+proc main {
+    const names = ["foo", "bar", "baz", "quux"]
+
+    write line(names[0])
+    write line(names[1])
+    write line(names[2])
+    write line(names[3])
+    exit(names.length)
+
+    (( each name : names {
+        write line(name)
+    } ))
+}

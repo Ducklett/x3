@@ -2,6 +2,7 @@ const { assert } = require('./compiler')
 const { fileMap } = require('./parser')
 
 function bind(files) {
+    function compilerSpan() { return { file: '<compiler>', from: 0, to: 0 } }
     function spanFromRange(from, to) {
         return { ...from, to: to.to }
     }
@@ -274,6 +275,39 @@ function bind(files) {
                 }
                 return it
             }
+            case 'each': {
+                const scope = pushScope(null, null, 'each')
+
+                assert(node.item.kind == 'symbol')
+                const item = {
+                    kind: 'declareVar',
+                    name: node.item.value,
+                    expr: undefined,
+                    notes: new Map(),
+                    scope: currentScope()
+                }
+                addSymbol(item.name, item)
+
+                assert(node.list.kind == 'symbol')
+                const list = findSymbol(node.list.value)
+                assert(list)
+
+                assert(list.type.kind == 'type array')
+                item.type = list.type.of
+
+                const block = bindBlock(node.block)
+
+                addSymbol(item.name, item)
+                const it = {
+                    kind: 'each',
+                    item,
+                    list,
+                    block,
+                    scope,
+                    span: spanFromRange(node.keyword.span, node.block.end.span)
+                }
+                return it
+            }
             case 'return': {
                 const it = {
                     kind: 'return',
@@ -372,6 +406,33 @@ function bind(files) {
                         : typeMap.string,
                     span: node.span
                 }
+            case 'array literal': {
+                assert(node.items.length > 0, `array literal expressions cannot be empty`)
+                const it = {
+                    kind: 'arrayLiteral',
+                    entries: bindList(node.items, bindExpression),
+                    span: spanFromRange(node.begin, node.end),
+                    type: undefined
+                }
+
+                const entryType = it.entries[0].type
+
+                const arrayType = {
+                    kind: 'type array',
+                    count: it.entries.length,
+                    of: entryType,
+                    size: 16,
+                    span: compilerSpan()
+                }
+
+                it.type = arrayType
+
+                for (let i = 0; i < it.entries.length; i++) {
+                    assert(it.entries[i].type == entryType)
+                }
+
+                return it
+            }
             case 'parenthesized expression': {
                 const expr = bindExpression(node.expr);
                 assert(expr.type)
@@ -395,6 +456,24 @@ function bind(files) {
                 }
 
 
+                return it
+            }
+            case 'offset access': {
+                console.log(node)
+                const left = bindExpression(node.name)
+                assert(left)
+                assert(left.symbol.type.kind == 'type array', `can only access offset of arrays`)
+
+                const index = bindExpression(node.index)
+                assert(index.kind == 'numberLiteral')
+
+                const it = {
+                    kind: 'offsetAccess',
+                    left,
+                    index,
+                    type: left.symbol.type.of,
+                    span: spanFromRange(left, node.end.span)
+                }
                 return it
             }
             case 'property access': {
@@ -429,7 +508,7 @@ function bind(files) {
                     const it = {
                         kind: 'syscall',
                         code: def.symbol.notes.get('syscall')[0],
-                        args: bindArguments(node.argumentList),
+                        args: bindList(node.argumentList.items, bindExpression),
                         type,
                         span: spanFromRange(node.name.span, node.argumentList.end.span)
                     }
@@ -439,7 +518,7 @@ function bind(files) {
                     const it = {
                         kind: 'call',
                         def,
-                        args: bindArguments(node.argumentList),
+                        args: bindList(node.argumentList.items, bindExpression),
                         type,
                         span: spanFromRange(node.name.span, node.argumentList.end.span)
                     }
@@ -478,6 +557,7 @@ function bind(files) {
                 return it
             }
             default:
+                console.log(node)
                 assert(false, `unhandled kind "${node.kind}"`)
         }
     }
@@ -580,11 +660,14 @@ function bind(files) {
             return it
         })
     }
-    function bindArguments(args) {
-        return args.items.filter((_, i) => i % 2 == 0).map(p => {
-            return bindExpression(p)
+
+    function bindList(list, binder) {
+        if (!list) return []
+        return list.filter((_, i) => i % 2 == 0).map(p => {
+            return binder(p)
         })
     }
+
     function bindBlock(body, isExpression = false) {
         return {
             kind: 'block',
@@ -651,6 +734,14 @@ function lower(ast) {
             case 'numberLiteral':
             case 'stringLiteral': return [node]
 
+            case 'arrayLiteral': {
+                node.entries = lowerNodeList(node.entries)
+                return [node]
+            }
+            case 'each': {
+                node.block = lowerNode(node.block)
+                return [node]
+            }
             case 'return': {
                 if (node.expr) {
                     const expr = lowerNode(node.expr)
@@ -706,8 +797,6 @@ function lower(ast) {
             case 'function': {
                 // NOTE: we can't create a new copy because this would break the symbol
                 node.name = mangleName(node)
-
-                function compilerSpan() { return { file: '<compiler>', from: 0, to: 0 } }
 
                 const isEntrypoint = node.notes.has('entrypoint')
                 if (isEntrypoint) {
@@ -768,6 +857,9 @@ function lower(ast) {
                     })
                 }]
             }
+            case 'offsetAccess': {
+                return [node]
+            }
             case 'readProp': {
                 if (node.left.kind == 'reference' && node.left.symbol.kind == 'module') {
                     return lowerNode(node.prop)
@@ -776,6 +868,7 @@ function lower(ast) {
                 }
             }
             default:
+                console.log('??')
                 console.log(node)
                 throw `lowering not implemented for ${node.kind}`
         }

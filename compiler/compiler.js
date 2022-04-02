@@ -109,15 +109,20 @@ ${lines.join('\n')}
 section .data
 ${[...data.keys()]
                 .map(k => {
-                    let msg = data.get(k)
-                    if (typeof msg === 'number') {
-                        return `${k} equ ${msg}`
+                    let d = data.get(k)
+                    if (typeof d === 'number') {
+                        return `${k} equ ${d}`
                     }
 
-                    assert(typeof msg === 'string', 'only string data is supported')
+                    if (Array.isArray(d) && typeof d[0] == 'string') {
+                        // is string array
+                        return `${k} dq ${d.join(', ')} ; []string`
+                    }
 
-                    const bytes = [...msg].map(c => c.charCodeAt(0)).join(',')
-                    return `${k} db ${bytes} ; '${msg.slice(0, 20).replace(/(\n|\r|\0)/g, '')}'`
+                    assert(typeof d === 'string', 'only string data is supported')
+
+                    const bytes = [...d].map(c => c.charCodeAt(0)).join(',')
+                    return `${k} db ${bytes} ; '${d.slice(0, 20).replace(/(\n|\r|\0)/g, '')}'`
                 })
                 .join('\n')}
 `
@@ -142,8 +147,11 @@ ${[...data.keys()]
             } else {
                 offset = globals.get(node)
                 if (fieldOffset) {
-                    assert(typeof offset == 'number')
-                    offset += fieldOffset
+                    if (typeof offset == 'number') {
+                        offset += fieldOffset
+                    } else {
+                        offset += ' + ' + fieldOffset
+                    }
                 }
                 assert(
                     offset !== undefined,
@@ -168,6 +176,21 @@ ${[...data.keys()]
                         case 'numberLiteral': {
                             const l = label(node.expr.n)
                             globals.set(node, l)
+                            break
+                        }
+                        case 'arrayLiteral': {
+                            console.log(node.expr)
+                            const labels = []
+                            for (let entry of node.expr.entries) {
+                                assert(entry.kind == 'stringLiteral')
+                                console.log(entry)
+                                labels.push(label(entry.value))
+                            }
+
+                            const l = label(labels)
+                            globals.set(node, l)
+                            // const l = label(node.expr.n)
+                            // globals.set(node, l)
                             break
                         }
                         default:
@@ -396,6 +419,14 @@ ${[...data.keys()]
 
                     return
                 }
+                case 'each': {
+                    console.log(node)
+                    lines.push(`; each ${node.item.name} : ${node.list.name}`)
+
+                    console.log('TODO: implement each')
+
+                    return
+                }
                 case 'reference': {
                     assert(shouldReturn, 'reference should not be called at top level')
                     // TODO: unhack
@@ -406,6 +437,23 @@ ${[...data.keys()]
                     } else {
                         lines.push(`push qword ${emitVar(node.symbol)} ; ${node.symbol.name}`)
                     }
+                    return
+                }
+                case 'offsetAccess': {
+                    console.log(node)
+                    assert(node.left.kind == 'reference')
+                    assert(node.index.kind == 'numberLiteral')
+
+                    lines.push(`; ${node.left.symbol.name}[${node.index.n}]`)
+
+                    // HACK: push both the string pointer and length
+                    // TODO: find a better way to do this
+                    const len = node.left.symbol.expr.entries[node.index.n].value.length
+                    // NOTE: hardcoded element size
+                    const elementSize = 8
+                    lines.push(`push qword ${len}`)
+                    // NOTE: we follow the pointer to return the value instead of its address
+                    lines.push(`push qword [${emitVar(node.left.symbol, node.index.n * elementSize, true)}]`)
                     return
                 }
                 case 'readProp': {
@@ -421,10 +469,21 @@ ${[...data.keys()]
                         return
 
                     } else {
+                        // TODO: get rid of this constant version and use the stack allocated version above at all times
+
                         assert(node.left.symbol.kind == 'declareVar')
                         const varDec = node.left.symbol
 
                         assert(varDec.notes?.has('const'), 'should be a constant')
+
+
+                        if (varDec.type.kind == 'type array') {
+                            assert(node.prop.kind == 'string length', 'property should be length')
+                            const len = varDec.expr.type.count
+                            lines.push(`push ${len} ; ${varDec.name}.length`)
+                            return
+                        }
+
                         assert(
                             varDec.expr.kind == 'stringLiteral',
                             'should be initalized to a string literal'

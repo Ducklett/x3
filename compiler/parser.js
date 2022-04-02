@@ -314,11 +314,16 @@ function parse(source) {
                         if (v == '{') return parseBlock('expression', true, true)
                         if (v == ';') return null
                         if (v == '}') return null
-                        if (is('operator', '(')) {
+                        if (v == '(') {
                             const open = take('operator', '(')
                             const expr = parseExpression()
                             const close = take('operator', ')')
                             return { kind: 'parenthesized expression', open, expr, close }
+                        }
+                        if (v == '[') {
+                            const list = parseList(parsePrimaryExpression)
+                            list.kind = 'array literal'
+                            return list
                         }
                         console.log(current())
                         assert(false, `unexpected operator`)
@@ -342,6 +347,14 @@ function parse(source) {
                             // function call
                             const argumentList = parseList(parseExpression, "()")
                             return { kind: 'call', name, argumentList }
+                        }
+
+                        if (is('operator', '[')) {
+                            const begin = take('operator', '[')
+                            const index = parsePrimaryExpression()
+                            const end = take('operator', ']')
+                            const access = { kind: 'offset access', name, begin, index, end }
+                            return access
                         }
 
                         if (isAssignmentOperator(current())) {
@@ -554,7 +567,7 @@ function parse(source) {
                 }
                 if (allowExpressions) {
                     // TODO: looks like i'm handling return twice; fix this?
-                    const allowsTermination = new Set(['binary', 'unary', 'assignment', 'call', 'return', 'property access'])
+                    const allowsTermination = new Set(['number literal', 'string literal', 'array literal', 'binary', 'unary', 'assignment', 'call', 'return', 'property access'])
                     let expr = parseExpression()
                     if (expr) {
                         if (is('operator', ';') && allowsTermination.has(expr.kind)) {
