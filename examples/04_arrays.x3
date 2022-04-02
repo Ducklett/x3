@@ -3,10 +3,14 @@ import "./lib/standard" use standard
 proc main {
     const names = ["foo", "bar", "baz", "quux"]
 
-    write line(names[0])
-    write line(names[1])
-    write line(names[2])
-    write line(names[3])
+    var i = 0
+    label begin:
+    if (i>=names.length) goto end
+    write line(names[i])
+    i++
+    goto begin
+    label end:
+
     exit(names.length)
 
     (( each name : names {

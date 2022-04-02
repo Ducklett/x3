@@ -275,6 +275,36 @@ function bind(files) {
                 }
                 return it
             }
+            case 'goto': {
+                // TODO: stop recursing at the function scope (don't allow labels across stack bounds)
+                console.log('find label:' + node.label.value)
+                const label = findSymbol(node.label.value)
+                assert(label, `label is defined`)
+                const hasCondition = node.condition
+                let condition
+                if (hasCondition) {
+                    condition = bindExpression(node.condition)
+                    assert(condition.type.type == 'bool')
+                }
+                const it = {
+                    kind: 'goto',
+                    label,
+                    condition,
+                    span: spanFromRange(node.keyword.span, node.label.span) // todo: real span?
+                }
+                return it
+
+            }
+            case 'label': {
+                const it = {
+                    kind: 'label',
+                    name: node.label.value,
+                    span: spanFromRange(node.keyword.span, node.colon.span)
+                }
+                console.log('label:' + it.name)
+                addSymbol(it.name, it)
+                return it
+            }
             case 'each': {
                 const scope = pushScope(null, null, 'each')
 
@@ -321,6 +351,9 @@ function bind(files) {
             case 'assignment':
             case 'call':
             case 'return':
+            case 'pre unary':
+            case 'post unary':
+            case 'parenthesized expression':
             case 'property access': {
                 return bindExpression(node)
             }
@@ -439,6 +472,26 @@ function bind(files) {
                 const type = expr.type
                 return { kind: 'parenthesized expression', expr, type, span: spanFromRange(node.open.span, node.close.span) }
             }
+            case 'post unary': {
+                const it = {
+                    kind: 'postUnary',
+                    op: node.op.value,
+                    expr: bindExpression(node.expr),
+                }
+                it.type = it.expr.type
+                it.span = spanFromRange(it.expr.span, node.op.span)
+                return it
+            }
+            case 'pre unary': {
+                const it = {
+                    kind: 'preUnary',
+                    op: node.op.value,
+                    expr: bindExpression(node.expr),
+                }
+                it.type = it.expr.type
+                it.span = spanFromRange(it.expr.span, node.op.span)
+                return it
+            }
             case 'symbol': {
                 // string length hack
                 if (node.value == 'length') {
@@ -465,7 +518,6 @@ function bind(files) {
                 assert(left.symbol.type.kind == 'type array', `can only access offset of arrays`)
 
                 const index = bindExpression(node.index)
-                assert(index.kind == 'numberLiteral')
 
                 const it = {
                     kind: 'offsetAccess',
@@ -669,10 +721,31 @@ function bind(files) {
     }
 
     function bindBlock(body, isExpression = false) {
+        let boundStatements = new Array(body.statements.length)
+
+        // first pass: declarations
+        for (let i in body.statements) {
+            const stmt = body.statements[i]
+            if (stmt.kind == 'label') {
+                console.log('label first')
+                boundStatements[i] = bindDeclaration(stmt)
+            }
+        }
+
+        // second pass: expressions
+        for (let i in body.statements) {
+            const stmt = body.statements[i]
+            if (!boundStatements[i]) {
+
+                if (stmt.kind == 'goto') console.log('goto :)')
+                boundStatements[i] = bindDeclaration(stmt)
+            }
+        }
+
         return {
             kind: 'block',
             isExpression,
-            statements: body.statements.map(bindDeclaration),
+            statements: boundStatements,
             span: spanFromRange(body.begin.span, body.end.span)
         }
     }
@@ -732,10 +805,42 @@ function lower(ast) {
             case 'implicit cast': return lowerNode(node.expr)
 
             case 'numberLiteral':
+            case 'label':
             case 'stringLiteral': return [node]
+
+            case 'goto': {
+                if (node.condition) {
+                    const cond = lowerNode(node.condition)
+                    assert(cond.length == 1)
+                    node.condition = cond[0]
+                }
+                return [node]
+            }
 
             case 'arrayLiteral': {
                 node.entries = lowerNodeList(node.entries)
+                return [node]
+            }
+            case 'postUnary': {
+                const expr = lowerNode(node.expr)
+                assert(expr.length == 1)
+                node.expr = expr[0]
+                if (node.op == '++') node.op = 'post++'
+                else if (node.op == '--') node.op = 'post--'
+
+                node.kind = 'unary'
+
+                return [node]
+            }
+            case 'preUnary': {
+                const expr = lowerNode(node.expr)
+                assert(expr.length == 1)
+                node.expr = expr[0]
+                if (node.op == '++') node.op = 'pre++'
+                else if (node.op == '--') node.op = 'pre--'
+
+                node.kind = 'unary'
+
                 return [node]
             }
             case 'each': {
@@ -751,7 +856,10 @@ function lower(ast) {
                 return [node]
             }
 
-            case 'parenthesized expression': return lowerNode(node.expr)
+            case 'parenthesized expression': {
+                const expr = lowerNode(node.expr)
+                return expr
+            }
 
             case 'module': return lowerNodeList(node.declarations.statements)
 

@@ -51,7 +51,7 @@ const api = {
     readVar: varDec => ({ kind: 'readVar', varDec }),
     readProp: (varDec, prop) => ({ kind: 'readProp', varDec, prop }),
     binary: (op, a, b) => ({ kind: 'binary', op, a, b }),
-    unary: (op, a) => ({ kind: 'unary', op, a }),
+    unary: (op, expr) => ({ kind: 'unary', op, expr }),
     ret: expr => ({ kind: 'return', expr }),
 
     num: n => ({ kind: 'numberLiteral', n }),
@@ -116,7 +116,7 @@ ${[...data.keys()]
 
                     if (Array.isArray(d) && typeof d[0] == 'string') {
                         // is string array
-                        return `${k} dq ${d.join(', ')} ; []string`
+                        return `${k} dq ${d.map(v => `${v},${data.get(v).length}`).join(', ')} ; []string`
                     }
 
                     assert(typeof d === 'string', 'only string data is supported')
@@ -419,6 +419,23 @@ ${[...data.keys()]
 
                     return
                 }
+                case 'goto': {
+                    if (node.condition) {
+                        emitExpr(node.condition)
+                        lines.push(`pop rax`)
+                        lines.push(`cmp rax, 1`)
+                        // TODO: mangle to be globally unique?
+                        lines.push(`je .${node.label.name}`)
+                    } else {
+                        lines.push(`jmp .${node.label.name}`)
+                    }
+
+                    return
+                }
+                case 'label': {
+                    lines.push(`.${node.name}:`)
+                    return
+                }
                 case 'each': {
                     console.log(node)
                     lines.push(`; each ${node.item.name} : ${node.list.name}`)
@@ -442,18 +459,23 @@ ${[...data.keys()]
                 case 'offsetAccess': {
                     console.log(node)
                     assert(node.left.kind == 'reference')
-                    assert(node.index.kind == 'numberLiteral')
 
-                    lines.push(`; ${node.left.symbol.name}[${node.index.n}]`)
+                    const elementType = node.left.type.of
+                    const elementSize = elementType.size
+                    assert(elementType.type == 'string')
 
-                    // HACK: push both the string pointer and length
-                    // TODO: find a better way to do this
-                    const len = node.left.symbol.expr.entries[node.index.n].value.length
-                    // NOTE: hardcoded element size
-                    const elementSize = 8
-                    lines.push(`push qword ${len}`)
+                    lines.push(`; ${node.left.symbol.name}[expr]`)
+
+                    // index on the stack
+                    emitExpr(node.index)
+                    lines.push(`pop r15`)
+                    lines.push(`imul r15, ${elementSize}`)
+
                     // NOTE: we follow the pointer to return the value instead of its address
-                    lines.push(`push qword [${emitVar(node.left.symbol, node.index.n * elementSize, true)}]`)
+                    // len
+                    lines.push(`push qword [${emitVar(node.left.symbol, 8)}+r15]`)
+                    // char*
+                    lines.push(`push qword [${emitVar(node.left.symbol)}+r15]`)
                     return
                 }
                 case 'readProp': {
@@ -553,13 +575,17 @@ ${[...data.keys()]
                         '!': 'not',
                         '-': 'neg'
                     }
-                    assert(node.a.kind == 'readVar')
+                    assert(node.expr.kind == 'reference')
                     const op = ops[node.op]
                     assert(op !== undefined, `illegal unary operator ${node.op}`)
 
-                    if (shouldReturn && node.op.startsWith('pre')) emitExpr(node.a)
-                    lines.push(`${op} qword ${emitVar(node.a.varDec)}`)
-                    if (shouldReturn && node.op.startsWith('post')) emitExpr(node.a)
+                    if (shouldReturn && node.op.startsWith('pre')) {
+                        emitExpr(node.expr)
+                    }
+                    lines.push(`${op} qword ${emitVar(node.expr.symbol)}`)
+                    if (shouldReturn && node.op.startsWith('post')) {
+                        emitExpr(node.expr)
+                    }
                     return
                 }
                 case 'numberLiteral': {

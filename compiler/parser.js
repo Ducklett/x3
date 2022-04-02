@@ -9,9 +9,11 @@ function parse(source) {
 
     const code = source.code
 
-    const keywords = new Set(["module", "import", "use", "type", "struct", "union", "proc", "scope", "return", "break", "continue", "goto", "var", "const", "for", "do", "while", "each", "enum", "if", "else", "switch", "true", "false"])
+    const keywords = new Set(["module", "import", "use", "type", "struct", "union", "proc", "scope", "return", "break", "continue", "goto", "label", "var", "const", "for", "do", "while", "each", "enum", "if", "else", "switch", "true", "false"])
     const operators = new Set(["<<=", ">>=", "&&=", "||=", "==", "!=", ">=", "<=", "<<", ">>", "->", "&&", "||", "++", "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "~=", "=", "!", ">", "<", "+", "-", "/", "*", "%", "^", "~", "&", "|", "(", ")", "[", "]", "{", "}", "?", ":", ";", ".", ","])
     const binaryOperators = new Set(["==", "!=", ">=", "<=", "<<", ">>", "&&", "||", ">", "<", "+", "-", "/", "*", "%", "^", "&", "|"])
+    const preUnaryOperators = new Set(["++", "--", "!"])
+    const postUnaryOperators = new Set(["++", "--"])
     const assignmentOperators = new Set(["<<=", ">>=", "&&=", "||=", "=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "~=", "=",])
 
     const tokens = lex(code)
@@ -258,6 +260,14 @@ function parse(source) {
             const got = current()
             return got.kind == kind && (value === null || got.value === value)
         }
+        function currentIsPreUnaryOperator() {
+            const cur = current()
+            return cur.kind == 'operator' && preUnaryOperators.has(cur.value)
+        }
+        function currentIsPostUnaryOperator() {
+            const cur = current()
+            return cur.kind == 'operator' && postUnaryOperators.has(cur.value)
+        }
         function currentIsBinaryOperator() {
             const cur = current()
             return cur.kind == 'operator' && binaryOperators.has(cur.value)
@@ -298,9 +308,25 @@ function parse(source) {
         }
 
         function parseExpression() {
-            let lhs = parsePrimaryExpression()
+            let lhs
+            if (currentIsPreUnaryOperator()) {
+                const op = take('operator')
+                const expr = parsePrimaryExpression()
+                lhs = { kind: 'pre unary', expr, op }
+            } else {
+                const expr = parsePrimaryExpression()
+                if (currentIsPostUnaryOperator()) {
+                    const op = take('operator')
+                    lhs = { kind: 'post unary', expr, op }
+                } else {
+                    lhs = expr
+                }
+            }
+
             while (currentIsBinaryOperator()) {
                 const op = take('operator')
+                // TODO: precedence climbing
+                // NOTE: only the first part of parseExpression can currently have unary operator
                 const rhs = parsePrimaryExpression()
                 assert(rhs)
                 lhs = { kind: 'binary', lhs, op, rhs }
@@ -493,18 +519,43 @@ function parse(source) {
                     if (is('operator', ';')) terminator = take('operator', ';')
                     return { kind: 'var', keyword, name, colon, type, equals, expr, terminator, tags }
                 }
+                case 'goto': {
+                    const keyword = take('keyword', 'goto')
+                    const label = take('symbol')
+                    let terminator
+                    if (is('operator', ';')) {
+                        terminator = take('operator', ';')
+                    }
+                    return { kind: 'goto', keyword, label, terminator }
+                }
+                case 'label': {
+                    const keyword = take('keyword', 'label')
+                    const label = take('symbol')
+                    const colon = take('operator', ':')
+                    return { kind: 'label', keyword, label, colon }
+                }
                 case 'if': {
                     const keyword = take('keyword', 'if')
                     const condition = parseExpression()
-                    // TODO: don't allow 'real' declarations in if statement block, just control flow stuff
-                    const thenBlock = parseBlock('if', true, true)
-                    let elseKeyword, elseBlock
-                    if (is('keyword', 'else')) {
-                        elseKeyword = take('keyword', 'else')
-                        elseBlock = parseBlock('if', true, true)
-                    }
+                    if (is('keyword', 'goto')) {
+                        const gotoKeyword = take('keyword', 'goto')
+                        const label = take('symbol')
+                        let terminator
+                        if (is('operator', ';')) {
+                            terminator = take('operator', ';')
+                        }
+                        return { kind: 'goto', keyword: gotoKeyword, label, ifKeyword: keyword, condition, terminator }
+                    } else {
+                        const thenBlock = parseBlock('if', true, true)
+                        let elseKeyword, elseBlock
+                        if (is('keyword', 'else')) {
+                            elseKeyword = take('keyword', 'else')
+                            // TODO: don't allow 'real' declarations in if statement block, just control flow stuff
+                            elseBlock = parseBlock('if', true, true)
+                        }
 
-                    return { kind: 'if', keyword, condition, thenBlock, elseKeyword, elseBlock }
+                        return { kind: 'if', keyword, condition, thenBlock, elseKeyword, elseBlock }
+                    }
                 }
                 case 'return': {
                     const keyword = take('keyword', 'return')
