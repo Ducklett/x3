@@ -646,6 +646,34 @@ ${[...data.keys()]
                     return
                 }
                 case 'assignVar': {
+                    if (node.varDec.kind == 'offsetAccess') {
+                        assert(node.varDec.left.kind == 'reference', 'must be reference')
+                        assert(node.varDec.left.symbol.kind == 'declareVar', 'must reference variable')
+                        assert(!shouldReturn)
+
+                        const varDec = node.varDec.left.symbol
+                        const index = node.varDec.index
+                        assert(index.kind == 'numberLiteral')
+                        const indexValue = index.n
+                        const size = varDec.type.size
+                        assert(size % 8 == 0)
+
+                        emitExpr(node.expr)
+                        lines.push(`; ${varDec.name}[${indexValue}] = expr`)
+
+                        lines.push(`mov r15, ${emitVar(varDec)}`)
+                        lines.push(`add r15, ${indexValue * size}`)
+
+                        let i = 0
+                        while (i < size) {
+                            lines.push(`pop rax`)
+                            lines.push(`mov [r15+${i}], rax\n`)
+                            i += 8
+                        }
+
+                        return
+                    }
+
                     assert(node.varDec.kind == 'reference', 'must be reference')
                     assert(node.varDec.symbol.kind == 'declareVar', 'must reference variable')
                     const varDec = node.varDec.symbol
@@ -653,6 +681,7 @@ ${[...data.keys()]
                     emitExpr(node.expr)
                     lines.push(`; ${varDec.name} = expr`)
                     const size = varDec.type.size
+                    assert(size % 8 == 0)
 
                     let i = 0
                     while (i < size) {

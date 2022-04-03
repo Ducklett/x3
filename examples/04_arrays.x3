@@ -8,6 +8,8 @@ proc print list[list:[]string]  {
 
 proc main {
     const names = ["foo", "bar", "baz", "quux"]
+    names[1] = "billy"
+    names[3] = "a longer string"
 
     print list(names)
 

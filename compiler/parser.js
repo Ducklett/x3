@@ -358,39 +358,46 @@ function parse(source) {
                     case 'string': return take('string')
 
                     case 'symbol': {
-                        let name = take('symbol')
+                        let lhs = take('symbol')
 
-                        if (is('operator', '.')) {
-                            // property acces
-                            const dot = take('operator', '.')
-                            const property = parsePrimaryExpression()
+                        // TODO: find a nicer way to do this..
+                        while (true) {
+                            if (is('operator', '.')) {
+                                // property acces
+                                const dot = take('operator', '.')
+                                const property = parsePrimaryExpression()
 
-                            // use property access as lhs, try for assignement
-                            return { kind: 'property access', scope: name, dot, property }
+                                // use property access as lhs, try for assignement
+                                lhs = { kind: 'property access', scope: lhs, dot, property }
+                                continue
+                            }
+
+                            if (is('operator', '(')) {
+                                // function call
+                                const argumentList = parseList(parseExpression, "()")
+                                lhs = { kind: 'call', name: lhs, argumentList }
+                                continue
+                            }
+
+                            if (is('operator', '[')) {
+                                const begin = take('operator', '[')
+                                const index = parsePrimaryExpression()
+                                const end = take('operator', ']')
+                                lhs = { kind: 'offset access', name: lhs, begin, index, end }
+                                continue
+                            }
+
+                            if (isAssignmentOperator(current())) {
+                                const operator = take('operator')
+                                const expr = parseExpression()
+                                lhs = { kind: 'assignment', name: lhs, operator, expr }
+                                continue
+                            }
+
+                            break
                         }
 
-                        if (is('operator', '(')) {
-                            // function call
-                            const argumentList = parseList(parseExpression, "()")
-                            return { kind: 'call', name, argumentList }
-                        }
-
-                        if (is('operator', '[')) {
-                            const begin = take('operator', '[')
-                            const index = parsePrimaryExpression()
-                            const end = take('operator', ']')
-                            const access = { kind: 'offset access', name, begin, index, end }
-                            return access
-                        }
-
-                        if (isAssignmentOperator(current())) {
-                            const operator = take('operator')
-                            const expr = parseExpression()
-                            return { kind: 'assignment', name, operator, expr }
-                        }
-
-                        // just a plain symbol
-                        return name
+                        return lhs
                     }
                     case 'keyword': {
                         switch (current().value) {
