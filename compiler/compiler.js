@@ -163,7 +163,6 @@ ${[...data.keys()]
                         offset += ' + ' + fieldOffset
                     }
                 }
-                console.log(node)
                 assert(
                     offset !== undefined,
                     'referenced variable will either be a local or a global'
@@ -190,15 +189,17 @@ ${[...data.keys()]
                             break
                         }
                         case 'arrayLiteral': {
-                            console.log(node.expr)
                             const labels = []
                             for (let entry of node.expr.entries) {
                                 assert(entry.kind == 'stringLiteral')
-                                console.log(entry)
                                 labels.push(label(entry.value))
                             }
 
                             const l = label(labels)
+
+                            // HACK: put label on expr so we can reference it there
+                            node.expr.l = l
+
                             globals.set(node, l)
                             // const l = label(node.expr.n)
                             // globals.set(node, l)
@@ -447,28 +448,35 @@ ${[...data.keys()]
                     lines.push(`.${node.name}:`)
                     return
                 }
-                case 'each': {
-                    console.log(node)
-                    lines.push(`; each ${node.item.name} : ${node.list.name}`)
-
-                    console.log('TODO: implement each')
-
-                    return
-                }
                 case 'reference': {
                     assert(shouldReturn, 'reference should not be called at top level')
-                    // TODO: unhack
+                    // NOTE: reference should only be used for stack allocated values
+                    // for constants the literals should be statically allocated and inlined
 
-                    if (node.type.type == 'string') {
-                        lines.push(`push qword ${emitVar(node.symbol, 8)} ; ${node.symbol.name}.length`)
-                        lines.push(`push qword ${emitVar(node.symbol)} ; ${node.symbol.name}`)
-                    } else {
-                        lines.push(`push qword ${emitVar(node.symbol)} ; ${node.symbol.name}`)
+                    console.log(node.type)
+                    assert(node.type.size && node.type.size > 0)
+
+                    const size = node.type.size == 1 ? 8 : node.type.size
+                    assert(size % 8 == 0)
+
+                    let i = node.type.size - 8
+                    lines.push(`; push ${node.symbol.name}`)
+                    while (i >= 0) {
+                        lines.push(`push qword ${emitVar(node.symbol, i)}`)
+                        // lines.push(`pop rax`)
+                        // lines.push(` ${emitVar(varDec, i)}, rax\n`)
+                        i -= 8
                     }
+
+                    // if (node.type.type == 'string') {
+                    //     lines.push(`push qword ${emitVar(node.symbol, 8)} ; ${node.symbol.name}.length`)
+                    //     lines.push(`push qword ${emitVar(node.symbol)} ; ${node.symbol.name}`)
+                    // } else {
+                    //     lines.push(`push qword ${emitVar(node.symbol)} ; ${node.symbol.name}`)
+                    // }
                     return
                 }
                 case 'offsetAccess': {
-                    console.log(node)
                     assert(node.left.kind == 'reference')
 
                     const elementType = node.left.type.of
@@ -484,9 +492,12 @@ ${[...data.keys()]
 
                     // NOTE: we follow the pointer to return the value instead of its address
                     // len
-                    lines.push(`push qword [${emitVar(node.left.symbol, 8)}+r15]`)
+                    lines.push(`mov rax, ${emitVar(node.left.symbol)}`)
+                    lines.push(`push qword [rax+r15+8]`)
+                    // lines.push(`push qword [${emitVar(node.left.symbol, 8)}+r15]`)
                     // char*
-                    lines.push(`push qword [${emitVar(node.left.symbol)}+r15]`)
+                    lines.push(`push qword [rax+r15]`)
+                    // lines.push(`push qword [${emitVar(node.left.symbol)}+r15]`)
                     return
                 }
                 case 'readProp': {
@@ -509,8 +520,7 @@ ${[...data.keys()]
 
                         assert(varDec.notes?.has('const'), 'should be a constant')
 
-
-                        if (varDec.type.kind == 'type array') {
+                        if (varDec.type.type == 'array') {
                             assert(node.prop.kind == 'string length', 'property should be length')
                             const len = varDec.expr.type.count
                             lines.push(`push ${len} ; ${varDec.name}.length`)
@@ -605,6 +615,17 @@ ${[...data.keys()]
                     lines.push(`push ${node.n}`)
                     return
                 }
+                case 'arrayLiteral': {
+                    assert(
+                        shouldReturn,
+                        'array literal should not be called at top level'
+                    )
+                    const l = node.l
+                    assert(l)
+                    lines.push(`push ${node.type.count}`)
+                    lines.push(`push ${l}`)
+                    return
+                }
                 case 'stringLiteral': {
                     assert(
                         shouldReturn,
@@ -632,7 +653,6 @@ ${[...data.keys()]
                     emitExpr(node.expr)
                     lines.push(`; ${varDec.name} = expr`)
                     const size = varDec.type.size
-                    console.log(size)
 
                     let i = 0
                     while (i < size) {
@@ -650,7 +670,7 @@ ${[...data.keys()]
                 default:
                     console.log("IT:")
                     console.log(node)
-                    assert(false, `unsupported node kind ${node.kind}`)
+                    throw `unsupported node kind ${node.kind}`
             }
         }
 

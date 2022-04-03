@@ -8,11 +8,16 @@ const typeMap = {
     'u64': { type: 'int', size: 8 },
     'i64': { type: 'int', size: 8 },
     'u0': { type: 'u0', size: 0 },
-    'string': { type: 'string', size: 16 },
-    'cstring': { type: 'cstring', size: 8 },
+    'string': { type: 'string', size: 16 },  // *char, length
+    'cstring': { type: 'cstring', size: 8 }, // *char
+    'array': { type: 'array', size: 16 },    // *values,length
     'char': { type: 'char', size: 1 },
     'bool': { type: 'bool', size: 1 },
     'pointer': { type: 'pointer', size: 8, to: undefined },
+}
+
+function cloneType(t) {
+    return { ...t }
 }
 
 function bind(files) {
@@ -194,7 +199,7 @@ function bind(files) {
 
                 // character buffer hack
                 // TODO: implement real buffer type
-                const isCharBuffer = node.type && node.type.kind == 'type array'
+                const isCharBuffer = node.type && node.type.type == 'array'
                 if (isConst && isCharBuffer) {
                     assert(node.type.size, `const array must have size`)
                     assert(node.type.of.kind == 'type atom', `must not be nested array`)
@@ -212,7 +217,8 @@ function bind(files) {
                 }
 
                 assert(it.type, 'type must be either provided or inferred from expression')
-                if (it.expr) assert(it.expr.type == it.type, `type matches ${it.expr.type.type} ${it.type.type}`)
+                // TODO: better type matching than just comparing the base type
+                if (it.expr) assert(it.expr.type.type == it.type.type, `type matches ${it.expr.type.type} ${it.type.type}`)
 
                 return it
             }
@@ -278,7 +284,6 @@ function bind(files) {
             }
             case 'goto': {
                 // TODO: stop recursing at the function scope (don't allow labels across stack bounds)
-                console.log('find label:' + node.label.value)
                 const label = findSymbol(node.label.value)
                 assert(label, `label is defined`)
                 const hasCondition = node.condition
@@ -302,7 +307,6 @@ function bind(files) {
                     name: node.label.value,
                     span: spanFromRange(node.keyword.span, node.colon.span)
                 }
-                console.log('label:' + it.name)
                 addSymbol(it.name, it)
                 return it
             }
@@ -323,7 +327,7 @@ function bind(files) {
                 const list = findSymbol(node.list.value)
                 assert(list)
 
-                assert(list.type.kind == 'type array')
+                assert(list.type.type == 'array')
                 item.type = list.type.of
 
                 const block = bindBlock(node.block)
@@ -387,20 +391,27 @@ function bind(files) {
         switch (node.kind) {
             case 'type atom': {
                 const [name, span] = getTypePath(node.name)
-                const type = typeMap[name]
+                const type = cloneType(typeMap[name])
                 assert(type, `'${name}' is a legal type`)
                 type.span = span
                 return type
             }
             case 'type array': {
                 // HACK: string buffer type; reinterpret as string
-                assert(node.of.kind == 'type atom' && node.of.name.value == 'char')
-                const type = typeMap.string
+                // assert(node.of.kind == 'type atom' && node.of.name.value == 'char')
+                // const type = typeMap.string
+                // type.span = spanFromRange(node.begin.span, node.of.name.span)
+                const type = cloneType(typeMap.array)
+                type.of = bindType(node.of)
+                if (node.size) {
+                    assert(node.size.kind == 'number literal')
+                    type.count = node.size.n
+                }
                 type.span = spanFromRange(node.begin.span, node.of.name.span)
                 return type
             }
             case 'type pointer': {
-                const it = typeMap.pointer
+                const it = cloneType(typeMap.pointer)
                 it.to = bindType(node.to)
                 it.span = spanFromRange(node.pointer.span, it.to.span)
                 return it
@@ -429,15 +440,15 @@ function bind(files) {
     function bindExpression(node, inScope) {
         switch (node.kind) {
             case 'number':
-                return { kind: 'numberLiteral', n: node.value, type: typeMap.int, span: node.span }
+                return { kind: 'numberLiteral', n: node.value, type: cloneType(typeMap.int), span: node.span }
             case 'string':
                 return {
                     kind: 'stringLiteral',
                     value: node.value,
                     len: node.value.length,
                     type: node.value.endsWith('\0')
-                        ? typeMap.cstring
-                        : typeMap.string,
+                        ? cloneType(typeMap.cstring)
+                        : cloneType(typeMap.string),
                     span: node.span
                 }
             case 'array literal': {
@@ -452,7 +463,7 @@ function bind(files) {
                 const entryType = it.entries[0].type
 
                 const arrayType = {
-                    kind: 'type array',
+                    type: 'array',
                     count: it.entries.length,
                     of: entryType,
                     size: 16,
@@ -462,7 +473,7 @@ function bind(files) {
                 it.type = arrayType
 
                 for (let i = 0; i < it.entries.length; i++) {
-                    assert(it.entries[i].type == entryType)
+                    assert(it.entries[i].type.type == entryType.type)
                 }
 
                 return it
@@ -496,7 +507,7 @@ function bind(files) {
             case 'symbol': {
                 // string length hack
                 if (node.value == 'length') {
-                    return { kind: 'string length', type: typeMap.u64, span: node.span }
+                    return { kind: 'string length', type: cloneType(typeMap.u64), span: node.span }
                 }
 
                 const symbol = findSymbol(node.value, inScope)
@@ -513,10 +524,9 @@ function bind(files) {
                 return it
             }
             case 'offset access': {
-                console.log(node)
                 const left = bindExpression(node.name)
                 assert(left)
-                assert(left.symbol.type.kind == 'type array', `can only access offset of arrays`)
+                assert(left.symbol.type.type == 'array', `can only access offset of arrays`)
 
                 const index = bindExpression(node.index)
 
@@ -590,7 +600,7 @@ function bind(files) {
                 const op = node.op.value
                 const logicalOperators = new Set(['>', '>=', '<', '<=', '==', '!='])
                 const isLogical = logicalOperators.has(op)
-                const type = isLogical ? typeMap.bool : a.type
+                const type = isLogical ? cloneType(typeMap.bool) : a.type
                 const it = { kind: 'binary', a, op, b, type, span: spanFromRange(a.span, b.span) }
                 return it
             }
@@ -659,9 +669,19 @@ function bind(files) {
             assert(param.type, `arument has a type`)
             assert(arg.type, `arument has a type`)
 
+            // implicit string -> *char AND string -> *u0 cast
             if (param.type.type == 'pointer' && arg.type.type == 'string') {
                 const toType = param.type.to.type
                 if (toType == 'u0' || toType == 'char') {
+                    const cast = { kind: 'implicit cast', type: param.type, expr: arg }
+                    arg = cast
+                    args[i] = arg
+                }
+            }
+
+            // implicit []foo -> *foo cast
+            if (param.type.type == 'pointer' && arg.type.type == 'array') {
+                if (param.type.to.type == arg.type.of.type) {
                     const cast = { kind: 'implicit cast', type: param.type, expr: arg }
                     arg = cast
                     args[i] = arg
@@ -846,7 +866,7 @@ function lower(ast) {
                 return [node]
             }
             case 'each': {
-                let i = declareVar('i', num(0, typeMap.int))
+                let i = declareVar('i', num(0, cloneType(typeMap.int)))
                 let begin = label('begin')
                 let end = label('end')
                 let condition = goto(end, binary('>=', ref(i), readProp(ref(node.list), { kind: 'string length' })))
