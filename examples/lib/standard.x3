@@ -11,6 +11,11 @@ module standard {
         sys.write(sys.stdout, msg, msg.length)
     }
 
+    proc write char[c:char]
+    {
+        sys.write(sys.stdout, &c, 1)
+    }
+
     proc write line[msg:string] {
         write(msg)
         write("\n")

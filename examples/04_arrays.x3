@@ -13,5 +13,11 @@ proc main {
 
     print list(names)
 
+    const msg = "hello"
+    each char : msg {
+        write char(char)
+        write line("")
+    }
+
     exit(names.length)
 }

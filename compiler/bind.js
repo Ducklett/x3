@@ -327,8 +327,12 @@ function bind(files) {
                 const list = findSymbol(node.list.value)
                 assert(list)
 
-                assert(list.type.type == 'array')
-                item.type = list.type.of
+                assert(list.type.type == 'array' || list.type.type == 'string')
+                if (list.type.type == 'array') {
+                    item.type = list.type.of
+                } else {
+                    item.type = typeMap.char
+                }
 
                 const block = bindBlock(node.block)
 
@@ -500,7 +504,12 @@ function bind(files) {
                     op: node.op.value,
                     expr: bindExpression(node.expr),
                 }
-                it.type = it.expr.type
+                if (it.op == '&') {
+                    it.type = cloneType(typeMap.pointer)
+                    it.type.to = it.expr.type
+                } else {
+                    it.type = it.expr.type
+                }
                 it.span = spanFromRange(it.expr.span, node.op.span)
                 return it
             }
@@ -526,15 +535,16 @@ function bind(files) {
             case 'offset access': {
                 const left = bindExpression(node.name)
                 assert(left)
-                assert(left.symbol.type.type == 'array', `can only access offset of arrays`)
+                assert(left.symbol.type.type == 'array' || left.symbol.type.type == 'string', `can only access offset of arrays or strings`)
 
                 const index = bindExpression(node.index)
 
+                const returnType = left.symbol.type.type == 'array' ? left.symbol.type.of : typeMap.char
                 const it = {
                     kind: 'offsetAccess',
                     left,
                     index,
-                    type: left.symbol.type.of,
+                    type: returnType,
                     span: spanFromRange(left, node.end.span)
                 }
                 return it
@@ -688,6 +698,8 @@ function bind(files) {
                 }
             }
 
+            // console.log(param.type)
+            // console.log(arg.type)
             assert(param.type.type == arg.type.type, 'parameter type matches argument type')
         }
 

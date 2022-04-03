@@ -57,7 +57,14 @@ const api = {
     assignVar: (varDec, expr) => B({ kind: 'assignVar', varDec, expr }),
     ref: symbol => B({ kind: 'reference', symbol, type: symbol.type }),
     readProp: (left, prop) => B({ kind: 'readProp', left, prop }),
-    offsetAccess: (left, index) => B({ kind: 'offsetAccess', left, index }),
+    offsetAccess: (left, index) => B({
+        kind: 'offsetAccess', left, index, type: (() => {
+            if (left.type.type == 'array') return left.type.of
+            if (left.type.type == 'string') return { type: 'char', size: 1 }
+            console.log(left.type)
+            throw 'illegal type of offset access'
+        })()
+    }),
     binary: (op, a, b) => B({ kind: 'binary', op, a, b }),
     unary: (op, expr) => B({ kind: 'unary', op, expr }),
     ret: expr => B({ kind: 'return', expr }),
@@ -239,6 +246,8 @@ ${[...data.keys()]
                     // const localSize = vars.length * 8
                     const localSize = vars.reduce((acc, cur) => {
                         assert(cur.type.size && cur.type.size > 0)
+
+                        return acc + Math.ceil(cur.type.size / 8) * 8 // alignment hack
                         return acc + cur.type.size
                     }, 0)
 
@@ -250,12 +259,14 @@ ${[...data.keys()]
                     // let paramOffset = 16 + node.params.length * 8
                     let paramOffset = 16 + node.params.reduce((acc, cur) => {
                         assert(cur.type.size && cur.type.size > 0)
-                        return acc + cur.type.size
+                        return acc + Math.ceil(cur.type.size / 8) * 8 // alignment hack
+                        // return acc + cur.type.size
                     }, 0)
 
                     for (let param of node.params) {
                         // paramOffset -= 8
-                        paramOffset -= param.type.size
+                        paramOffset -= Math.ceil(param.type.size / 8) * 8 // alignment hack
+                        // paramOffset -= param.type.size
                         locals.set(param, paramOffset)
                         console.log(`param ${param.name} = [rbp+${paramOffset}]`)
                     }
@@ -269,7 +280,8 @@ ${[...data.keys()]
                         } else {
                             assert(vr.expr == null, 'initalized locals not supported')
                             // varOffset -= 8
-                            varOffset -= vr.type.size
+                            varOffset -= Math.ceil(vr.type.size / 8) * 8 // alignment hack
+                            // varOffset -= vr.type.size
                             locals.set(vr, varOffset)
                             console.log(`var ${vr.name} = ${emitVar(vr)}`)
                         }
@@ -353,7 +365,8 @@ ${[...data.keys()]
                     const args = node.args
                     const argSize = args.reduce((acc, cur, i) => {
                         assert(cur.type, `has a type`)
-                        const size = cur.type.size
+                        // TODO: switch to C-style calling convention so we can have 1-byte arguments
+                        const size = Math.ceil(cur.type.size / 8) * 8 // alignment hack
                         assert(size > 0, `type has size`)
                         return acc + size
                     }, 0)
@@ -456,7 +469,14 @@ ${[...data.keys()]
                     console.log(node.type)
                     assert(node.type.size && node.type.size > 0)
 
-                    const size = node.type.size == 1 ? 8 : node.type.size
+                    const size = node.type.size
+
+                    // char hack
+                    if (size == 1) {
+                        lines.push(`push qword ${emitVar(node.symbol)}`)
+                        return
+                    }
+
                     assert(size % 8 == 0)
 
                     let i = node.type.size - 8
@@ -478,10 +498,32 @@ ${[...data.keys()]
                 }
                 case 'offsetAccess': {
                     assert(node.left.kind == 'reference')
+                    console.log(node)
+                    assert(node.left.type.type == 'array' || node.left.type.type == 'string')
 
-                    const elementType = node.left.type.of
-                    const elementSize = elementType.size
-                    assert(elementType.type == 'string')
+                    const elementType = node.type
+                    let elementSize = elementType.size
+                    assert(elementSize > 0)
+
+                    // TODO: allow values of less than 8 bytes on the stack
+                    // char hack
+                    if (elementSize == 1) {
+                        lines.push(`; ${node.left.symbol.name}[expr] CHAR`)
+
+                        // index on the stack
+                        emitExpr(node.index)
+                        lines.push(`pop r15`)
+
+                        // NOTE: we follow the pointer to return the value instead of its address
+                        // len
+                        lines.push(`mov rax, ${emitVar(node.left.symbol)}`)
+
+                        // TODO: figure out how to do this without pushing an antrie qword??
+                        lines.push(`push qword [rax+r15]`)
+                        return
+                    }
+
+                    assert(elementSize % 8 == 0)
 
                     lines.push(`; ${node.left.symbol.name}[expr]`)
 
@@ -493,11 +535,10 @@ ${[...data.keys()]
                     // NOTE: we follow the pointer to return the value instead of its address
                     // len
                     lines.push(`mov rax, ${emitVar(node.left.symbol)}`)
-                    lines.push(`push qword [rax+r15+8]`)
-                    // lines.push(`push qword [${emitVar(node.left.symbol, 8)}+r15]`)
-                    // char*
-                    lines.push(`push qword [rax+r15]`)
-                    // lines.push(`push qword [${emitVar(node.left.symbol)}+r15]`)
+
+                    for (let i = elementSize - 8; i >= 0; i -= 8) {
+                        lines.push(`push qword [rax+r15+${i}]`)
+                    }
                     return
                 }
                 case 'readProp': {
@@ -597,6 +638,14 @@ ${[...data.keys()]
                         '-': 'neg'
                     }
                     assert(node.expr.kind == 'reference')
+
+                    // pointer to address
+                    if (node.op == '&') {
+                        lines.push(`lea rax, ${emitVar(node.expr.symbol)}`)
+                        lines.push(`push qword rax`)
+                        return
+                    }
+
                     const op = ops[node.op]
                     assert(op !== undefined, `illegal unary operator ${node.op}`)
 
@@ -680,7 +729,10 @@ ${[...data.keys()]
 
                     emitExpr(node.expr)
                     lines.push(`; ${varDec.name} = expr`)
-                    const size = varDec.type.size
+                    let size = varDec.type.size
+                    // TODO: properly handle size 1
+                    if (size == 1) size = 8
+
                     assert(size % 8 == 0)
 
                     let i = 0

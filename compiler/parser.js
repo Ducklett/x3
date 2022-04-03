@@ -12,7 +12,7 @@ function parse(source) {
     const keywords = new Set(["module", "import", "use", "type", "struct", "union", "proc", "scope", "return", "break", "continue", "goto", "label", "var", "const", "for", "do", "while", "each", "enum", "if", "else", "switch", "true", "false"])
     const operators = new Set(["<<=", ">>=", "&&=", "||=", "==", "!=", ">=", "<=", "<<", ">>", "->", "&&", "||", "++", "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "~=", "=", "!", ">", "<", "+", "-", "/", "*", "%", "^", "~", "&", "|", "(", ")", "[", "]", "{", "}", "?", ":", ";", ".", ","])
     const binaryOperators = new Set(["==", "!=", ">=", "<=", "<<", ">>", "&&", "||", ">", "<", "+", "-", "/", "*", "%", "^", "&", "|"])
-    const preUnaryOperators = new Set(["++", "--", "!"])
+    const preUnaryOperators = new Set(["++", "--", "!", "-", "&"])
     const postUnaryOperators = new Set(["++", "--"])
     const assignmentOperators = new Set(["<<=", ">>=", "&&=", "||=", "=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "~=", "=",])
 
