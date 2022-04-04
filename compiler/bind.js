@@ -1,4 +1,4 @@
-const { assert, declareVar, num, binary, ref, readProp, unary, label, goto, assignVar, offsetAccess } = require('./compiler')
+const { assert, declareVar, num, binary, ref, readProp, unary, label, goto, assignVar, offsetAccess, nop } = require('./compiler')
 const { fileMap } = require('./parser')
 
 // TODO: actually have different int types
@@ -310,6 +310,49 @@ function bind(files) {
                 addSymbol(it.name, it)
                 return it
             }
+            case 'while': {
+                const scope = pushScope(null, null, 'while')
+
+                const condition = bindExpression(node.condition)
+                assert(condition.type.type == 'bool')
+                const block = bindBlock(node.block)
+
+                popScope()
+
+                const it = {
+                    kind: 'while',
+                    scope,
+                    condition,
+                    block,
+                    span: spanFromRange(node.keyword.span, node.block.end.span)
+                }
+                return it
+            }
+            case 'for': {
+                const scope = pushScope(null, null, 'for')
+
+                const preCondition = node.preCondition ? bindDeclaration(node.preCondition) : null
+                const condition = node.condition ? bindExpression(node.condition) : null
+                const postCondition = node.postCondition ? bindExpression(node.postCondition) : null
+
+                assert(condition.type.type == 'bool')
+
+                const block = bindBlock(node.block)
+
+                popScope()
+
+                const it = {
+                    kind: 'for',
+                    scope,
+                    preCondition,
+                    condition,
+                    postCondition,
+                    block,
+                    span: spanFromRange(node.keyword.span, node.block.end.span)
+                }
+                return it
+            }
+
             case 'each': {
                 const scope = pushScope(null, null, 'each')
 
@@ -335,6 +378,8 @@ function bind(files) {
                 }
 
                 const block = bindBlock(node.block)
+
+                popScope()
 
                 addSymbol(item.name, item)
                 const it = {
@@ -785,10 +830,20 @@ function bind(files) {
 }
 
 function lower(ast) {
+    const labelCount = new Map()
     let entrypoint
 
     const loweredAst = lowerNodeList(ast)
     return [loweredAst, { entrypoint }]
+
+    function mangleLabel(name) {
+        const count = labelCount.get(name) ?? 0
+        labelCount.set(name, count + 1)
+        const newName = count == 0
+            ? name
+            : name + btoa(count).replace(/=/g, '')
+        return newName
+    }
 
     function mangleName(node) {
         function mangleSegment(str) {
@@ -838,9 +893,13 @@ function lower(ast) {
             case 'implicit cast': return lowerNode(node.expr)
 
             case 'numberLiteral':
-            case 'label':
             case 'unary':
             case 'stringLiteral': return [node]
+
+            case 'label': {
+                node.name = mangleLabel(node.name)
+                return [node]
+            }
 
             case 'goto': {
                 if (node.condition) {
@@ -876,6 +935,40 @@ function lower(ast) {
                 node.kind = 'unary'
 
                 return [node]
+            }
+            case 'while': {
+                // goto condition
+                // label begin:
+                // body
+                // condition:
+                // if condition goto begin
+
+                let conditionLabel = label('condition')
+                let beginLabel = label('begin')
+                let jumpToCondition = goto(conditionLabel)
+                let body = node.block
+                let jumpToBegin = goto(beginLabel, node.condition)
+
+                return lowerNodeList([jumpToCondition, beginLabel, body, conditionLabel, jumpToBegin])
+            }
+            case 'for': {
+                // precondition
+                // goto condition
+                // label begin:
+                // body
+                // postcondition
+                // condition:
+                // if condition goto begin
+
+                let conditionLabel = label('condition')
+                let beginLabel = label('begin')
+                let jumpToCondition = goto(conditionLabel)
+                let body = node.block
+                let precondition = node.preCondition ?? nop()
+                let jumpToBegin = goto(beginLabel, node.condition)
+                let postCondition = node.postCondition ?? nop()
+
+                return lowerNodeList([precondition, jumpToCondition, beginLabel, body, postCondition, conditionLabel, jumpToBegin])
             }
             case 'each': {
                 let i = declareVar('i', num(0, cloneType(typeMap.int)))

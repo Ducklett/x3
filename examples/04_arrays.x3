@@ -14,7 +14,23 @@ proc main {
     print list(names)
 
     const msg = "hello"
-    each char : msg {
+
+    write line("while loop")
+    var i = 0
+    while(i<msg.length) {
+        write char(msg[i])
+        write line("")
+        i++
+    }
+
+    write line("for loop")
+    for (var i = 0;i<msg.length;i++) {
+        write char(msg[i])
+        write line("")
+    }
+
+    write line("each loop")
+    each (char : msg) {
         write char(char)
         write line("")
     }

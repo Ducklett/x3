@@ -408,15 +408,6 @@ function parse(source) {
                                 const expr = parseExpression()
                                 return { kind: 'return', keyword, expr }
                             }
-                            case 'each': {
-                                const keyword = take('keyword', 'each')
-                                const item = take('symbol')
-                                const colon = take('operator', ':')
-                                const list = take('symbol')
-                                const block = parseBlock('each', true, true)
-
-                                return { kind: 'each', keyword, item, colon, list, block }
-                            }
                             default: throw `unexpected token ${current().kind}::${current().value} for expression`
                         }
                     }
@@ -438,7 +429,7 @@ function parse(source) {
             return tags
         }
 
-        function parseDeclaration() {
+        function parseDeclaration(takeTerminator = true) {
             const cur = current().value
             if (cur != 'import') isTopLevel = false
 
@@ -523,14 +514,14 @@ function parse(source) {
                         expr = parseExpression()
                     }
                     const tags = parseTags()
-                    if (is('operator', ';')) terminator = take('operator', ';')
+                    if (takeTerminator && is('operator', ';')) terminator = take('operator', ';')
                     return { kind: 'var', keyword, name, colon, type, equals, expr, terminator, tags }
                 }
                 case 'goto': {
                     const keyword = take('keyword', 'goto')
                     const label = take('symbol')
                     let terminator
-                    if (is('operator', ';')) {
+                    if (takeTerminator && is('operator', ';')) {
                         terminator = take('operator', ';')
                     }
                     return { kind: 'goto', keyword, label, terminator }
@@ -548,7 +539,7 @@ function parse(source) {
                         const gotoKeyword = take('keyword', 'goto')
                         const label = take('symbol')
                         let terminator
-                        if (is('operator', ';')) {
+                        if (takeTerminator && is('operator', ';')) {
                             terminator = take('operator', ';')
                         }
                         return { kind: 'goto', keyword: gotoKeyword, label, ifKeyword: keyword, condition, terminator }
@@ -563,6 +554,76 @@ function parse(source) {
 
                         return { kind: 'if', keyword, condition, thenBlock, elseKeyword, elseBlock }
                     }
+                }
+                case 'while': {
+                    const keyword = take('keyword', 'while')
+                    // NOTE: condition may be parenthesized which allows for C-like while() syntax
+                    const condition = parseExpression()
+                    // TODO: don't allow 'real' declarations in while statement block, just control flow stuff
+                    const block = parseBlock('while', true, true)
+                    return { kind: 'while', keyword, condition, block }
+                }
+                case 'do': {
+                    const keyword = take('keyword', 'do')
+                    // TODO: don't allow 'real' declarations in do while statement block, just control flow stuff
+                    const block = parseBlock('do while', true, true)
+                    const whileKeyword = take('keyword', 'while')
+                    const condition = parseExpression()
+                    return { kind: 'do while', keyword, block, whileKeyword, condition }
+                }
+                case 'for': {
+                    const keyword = take('keyword', 'for')
+
+                    let hasParens, begin, end
+                    let preCondition, terminator1, condition, terminator2, postCondition
+
+                    if (is('operator', '(')) {
+                        hasParens = true
+                        begin = take('operator', '(')
+                    }
+
+                    if (is('operator', ';')) {
+                        terminator1 = take('operator', ';')
+                    } else {
+                        preCondition = parseDeclaration(false)
+                        terminator1 = take('operator', ';')
+                    }
+
+                    if (is('operator', ';')) {
+                        terminator2 = take('operator', ';')
+                    } else {
+                        condition = parseExpression()
+                        terminator2 = take('operator', ';')
+                    }
+
+                    if ((hasParens && !is('operator', ')')) || !is('operator', '{')) {
+                        postCondition = parseExpression()
+                    }
+
+                    if (hasParens) {
+                        end = take('operator', ')')
+                    }
+
+                    // TODO: don't allow 'real' declarations in for statement block, just control flow stuff
+                    const block = parseBlock('for', true, true)
+                    return { kind: 'for', keyword, begin, preCondition, terminator1, condition, terminator2, postCondition, end, block }
+                }
+                case 'each': {
+                    const keyword = take('keyword', 'each')
+                    let hasParens, begin, end
+                    if (is('operator', '(')) {
+                        hasParens = true
+                        begin = take('operator', '(')
+                    }
+                    const item = take('symbol')
+                    const colon = take('operator', ':')
+                    const list = take('symbol')
+                    if (hasParens) {
+                        end = take('operator', ')')
+                    }
+                    const block = parseBlock('each', true, true)
+
+                    return { kind: 'each', keyword, begin, item, colon, list, end, block }
                 }
                 case 'return': {
                     const keyword = take('keyword', 'return')

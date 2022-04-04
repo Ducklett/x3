@@ -42,6 +42,7 @@ const api = {
         stderr: 2
     },
 
+    nop: () => B({ kind: 'nop' }),
     MARK: (...notes) => node => ({ ...node, notes: new Set(notes) }),
     fn: (name, params, instructions) => ({
         kind: 'function',
