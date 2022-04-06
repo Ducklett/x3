@@ -55,7 +55,7 @@ module standard {
 
     proc read[buffer:![]char] -> int
     {
-        sys.read(sys.stdin, buffer, buffer.length)
+        return sys.read(sys.stdin, buffer, buffer.length)
     }
 
 

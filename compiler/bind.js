@@ -453,7 +453,7 @@ function bind(files) {
                 const type = cloneType(typeMap.array)
                 type.of = bindType(node.of)
                 if (node.size) {
-                    assert(node.size.kind == 'number literal')
+                    assert(node.size.kind == 'number')
                     type.count = node.size.n
                 }
                 type.span = spanFromRange(node.begin.span, node.of.name.span)
@@ -748,9 +748,9 @@ function bind(files) {
                 }
             }
 
-            // implicit []foo -> *foo cast
+            // implicit []foo -> *foo cast AND []foo -> *u0 cast
             if (param.type.type == 'pointer' && arg.type.type == 'array') {
-                if (param.type.to.type == arg.type.of.type) {
+                if (param.type.to.type == arg.type.of.type || param.type.to.type == 'u0') {
                     const cast = { kind: 'implicit cast', type: param.type, expr: arg }
                     arg = cast
                     args[i] = arg

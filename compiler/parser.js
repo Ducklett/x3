@@ -686,7 +686,7 @@ function parse(source) {
                 }
                 if (allowExpressions) {
                     // TODO: looks like i'm handling return twice; fix this?
-                    const allowsTermination = new Set(['number literal', 'string literal', 'array literal', 'binary', 'unary', 'assignment', 'call', 'return', 'property access'])
+                    const allowsTermination = new Set(['number', 'string', 'array literal', 'binary', 'unary', 'assignment', 'call', 'return', 'property access'])
                     let expr = parseExpression()
                     if (expr) {
                         if (is('operator', ';') && allowsTermination.has(expr.kind)) {

@@ -62,7 +62,6 @@ const api = {
         kind: 'offsetAccess', left, index, type: (() => {
             if (left.type.type == 'array') return left.type.of
             if (left.type.type == 'string') return { type: 'char', size: 1 }
-            console.log(left.type)
             throw 'illegal type of offset access'
         })()
     }),
@@ -467,7 +466,6 @@ ${[...data.keys()]
                     // NOTE: reference should only be used for stack allocated values
                     // for constants the literals should be statically allocated and inlined
 
-                    console.log(node.type)
                     assert(node.type.size && node.type.size > 0)
 
                     const size = node.type.size
@@ -499,7 +497,6 @@ ${[...data.keys()]
                 }
                 case 'offsetAccess': {
                     assert(node.left.kind == 'reference')
-                    console.log(node)
                     assert(node.left.type.type == 'array' || node.left.type.type == 'string')
 
                     const elementType = node.type
