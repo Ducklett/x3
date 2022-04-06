@@ -584,13 +584,17 @@ function bind(files) {
 
                 const index = bindExpression(node.index)
 
-                const returnType = left.symbol.type.type == 'array' ? left.symbol.type.of : typeMap.char
                 const it = {
                     kind: 'offsetAccess',
                     left,
                     index,
-                    type: returnType,
                     span: spanFromRange(left, node.end.span)
+                }
+                if (left.symbol.type.type == 'array') {
+                    it.type = left.symbol.type.of
+                } else {
+                    assert(left.symbol.type.type == 'string')
+                    it.type = typeMap.char
                 }
                 return it
             }
@@ -666,6 +670,16 @@ function bind(files) {
                 assert(node.operator.value == '=')
 
                 const expr = bindExpression(node.expr)
+
+                // TODO: real type coersion
+                if (varDec.type.type == 'char' && expr.kind == 'stringLiteral') {
+                    assert(expr.len == 1)
+                    expr.kind = 'charLiteral'
+                    expr.type = cloneType(typeMap.char)
+                }
+
+                assert(varDec.type.type == expr.type.type)
+
                 const it = {
                     kind: 'assignVar',
                     varDec,
@@ -893,6 +907,7 @@ function lower(ast) {
             case 'implicit cast': return lowerNode(node.expr)
 
             case 'numberLiteral':
+            case 'charLiteral':
             case 'unary':
             case 'stringLiteral': return [node]
 

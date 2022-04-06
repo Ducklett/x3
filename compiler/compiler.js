@@ -676,6 +676,10 @@ ${[...data.keys()]
                     lines.push(`push ${l}`)
                     return
                 }
+                case 'charLiteral': {
+                    lines.push(`push qword '${node.value}'`)
+                    return
+                }
                 case 'stringLiteral': {
                     assert(
                         shouldReturn,
@@ -705,7 +709,24 @@ ${[...data.keys()]
                         const index = node.varDec.index
                         assert(index.kind == 'numberLiteral')
                         const indexValue = index.n
-                        const size = varDec.type.size
+
+                        // TODO: unhack
+                        if (varDec.type.type == 'string') {
+                            emitExpr(node.expr)
+                            lines.push(`; ${varDec.name}[${indexValue}] = expr`)
+
+                            lines.push(`mov r15, ${emitVar(varDec)}`)
+                            lines.push(`add r15, ${indexValue}`)
+
+                            lines.push(`pop rax`)
+                            // NOTE: char is only one byte, so read it from al
+                            lines.push(`mov [r15], al\n`)
+
+                            return
+                        }
+
+                        assert(varDec.type.type == 'array')
+                        const size = varDec.type.of.size
                         assert(size % 8 == 0)
 
                         emitExpr(node.expr)

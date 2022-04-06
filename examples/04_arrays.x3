@@ -7,13 +7,16 @@ proc print list[list:[]string]  {
 }
 
 proc main {
+    ((TODO: enforce constant))
     const names = ["foo", "bar", "baz", "quux"]
     names[1] = "billy"
     names[3] = "a longer string"
 
     print list(names)
 
-    const msg = "hello"
+    const msg = "yellw"
+    msg[0] = "h"
+    msg[4] = "o"
 
     write line("while loop")
     var i = 0
