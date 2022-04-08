@@ -248,7 +248,7 @@ ${[...data.keys()]
                         assert(cur.type.size && cur.type.size > 0)
 
                         return acc + Math.ceil(cur.type.size / 8) * 8 // alignment hack
-                        return acc + cur.type.size
+                        // return acc + cur.type.size
                     }, 0)
 
                     lines.push(`; prologue`)
@@ -273,18 +273,18 @@ ${[...data.keys()]
 
                     let varOffset = 0
                     for (let vr of vars) {
-                        if (vr.notes.has('const')) {
-                            // hoist that bitch!
-                            emitTop(vr)
-                            // console.log(`const ${vr.name} = ${emitVar(vr)}`)
-                        } else {
-                            assert(vr.expr == null, 'initalized locals not supported')
-                            // varOffset -= 8
-                            varOffset -= Math.ceil(vr.type.size / 8) * 8 // alignment hack
-                            // varOffset -= vr.type.size
-                            locals.set(vr, varOffset)
-                            console.log(`var ${vr.name} = ${emitVar(vr)}`)
-                        }
+                        // if (vr.notes.has('const')) {
+                        // hoist that bitch!
+                        // emitTop(vr)
+                        // console.log(`const ${vr.name} = ${emitVar(vr)}`)
+                        // } else {
+                        console.log(vr.expr)
+                        assert(vr.expr == null, 'initalized locals not supported')
+                        varOffset -= Math.ceil(vr.type.size / 8) * 8 // alignment hack
+                        // varOffset -= vr.type.size
+                        locals.set(vr, varOffset)
+                        console.log(`var ${vr.name} = ${emitVar(vr)}`)
+                        // }
                     }
 
                     lines.push(`; body`)
@@ -344,10 +344,14 @@ ${[...data.keys()]
                         if (arg.type.type == 'string') {
                             hackType = true
                             arg.type.type = 'cstring'
+                            arg.type.size = 8
                         }
                         emitExpr(arg)
 
-                        if (hackType) arg.type.type = 'string'
+                        if (hackType) {
+                            arg.type.type = 'string'
+                            arg.type.size = 16
+                        }
 
                         lines.push(`pop ${argRegisters[i]}`)
                         // lines.push(`mov ${argRegisters[i]}, ${emitVar(arg.varDec)}`);
@@ -376,38 +380,6 @@ ${[...data.keys()]
                             emitExpr(arg)
                         }
                     }
-                    // if (argSize) {
-                    //     lines.push(`sub rsp, ${argSize}`)
-                    //     let off = argSize
-                    //     for (let arg of args) {
-
-                    //         off -= arg.type.size
-
-                    //         // TODO: just call emitExpr
-                    //         if (arg.kind === 'stringLiteral') {
-                    //             if (arg.type.type == 'cstring') {
-                    //                 const l = label(arg.value)
-                    //                 lines.push(`mov qword [rsp+${off}], ${l}`)
-                    //             } else {
-                    //                 const l = label(arg.value)
-                    //                 lines.push(`mov qword [rsp+${off + 8}], ${arg.len}`)
-                    //                 lines.push(`mov qword [rsp+${off}], ${l}`)
-                    //             }
-                    //         } else {
-                    //             console.log(arg)
-                    //             if (arg.kind == 'reference') {
-                    //                 lines.push(`mov rax, ${emitVar(arg.symbol)} ; ${arg.symbol.name}`)
-                    //                 lines.push(`mov qword [rsp+${off}], rax`)
-                    //                 // lines.push(`mov qword [rsp+${off}], ${arg.n}`)
-                    //             } else {
-                    //                 assert(arg.kind == 'numberLiteral')
-
-                    //                 lines.push(`mov qword [rsp+${off}], ${arg.n}`)
-                    //                 console.log(`arg [rsp+${off}] = ${arg.n}`)
-                    //             }
-                    //         }
-                    //     }
-                    // }
                     lines.push(`call _${node.def.symbol.name}`)
                     if (argSize) {
                         lines.push(`add rsp, ${argSize}`)
@@ -449,7 +421,6 @@ ${[...data.keys()]
                         emitExpr(node.condition)
                         lines.push(`pop rax`)
                         lines.push(`cmp rax, 1`)
-                        // TODO: mangle to be globally unique?
                         lines.push(`je .${node.label.name}`)
                     } else {
                         lines.push(`jmp .${node.label.name}`)
@@ -478,13 +449,13 @@ ${[...data.keys()]
 
                     assert(size % 8 == 0)
 
-                    let i = node.type.size - 8
+                    let i = 0//node.type.size - 8
                     lines.push(`; push ${node.symbol.name}`)
-                    while (i >= 0) {
+                    while (i < node.type.size) {
                         lines.push(`push qword ${emitVar(node.symbol, i)}`)
                         // lines.push(`pop rax`)
                         // lines.push(` ${emitVar(varDec, i)}, rax\n`)
-                        i -= 8
+                        i += 8
                     }
 
                     // if (node.type.type == 'string') {
@@ -541,40 +512,42 @@ ${[...data.keys()]
                 }
                 case 'readProp': {
                     assert(node.left.kind == 'reference')
-                    if (node.left.symbol.kind == 'parameter') {
-                        assert(node.prop.kind == 'string length', 'property should be length')
-                        // console.error("NOT IMPLEMENTED: running this will cause bad stuff to happen")
-                        // console.log(node)
-                        // assert(false)
+                    const kind = node.left.symbol.kind
+                    assert(kind == 'parameter' || kind == 'declareVar')
 
-                        assert(shouldReturn, 'reference should not be called at top level')
-                        lines.push(`push qword ${emitVar(node.left.symbol, 8)} ; ${node.left.symbol.name}.length`)
-                        return
+                    assert(node.prop.kind == 'string length', 'property should be length')
+                    // console.error("NOT IMPLEMENTED: running this will cause bad stuff to happen")
+                    // console.log(node)
+                    // assert(false)
 
-                    } else {
-                        // TODO: get rid of this constant version and use the stack allocated version above at all times
+                    assert(shouldReturn, 'reference should not be called at top level')
+                    lines.push(`push qword ${emitVar(node.left.symbol, 8)} ; ${node.left.symbol.name}.length`)
+                    return
 
-                        assert(node.left.symbol.kind == 'declareVar')
-                        const varDec = node.left.symbol
+                    // else {
+                    //     // TODO: get rid of this constant version and use the stack allocated version above at all times
 
-                        assert(varDec.notes?.has('const'), 'should be a constant')
+                    //     assert(node.left.symbol.kind == 'declareVar')
+                    //     const varDec = node.left.symbol
 
-                        if (varDec.type.type == 'array') {
-                            assert(node.prop.kind == 'string length', 'property should be length')
-                            const len = varDec.expr.type.count
-                            lines.push(`push ${len} ; ${varDec.name}.length`)
-                            return
-                        }
+                    //     assert(varDec.notes?.has('const'), 'should be a constant')
 
-                        assert(
-                            varDec.expr.kind == 'stringLiteral',
-                            'should be initalized to a string literal'
-                        )
+                    //     if (varDec.type.type == 'array') {
+                    //         assert(node.prop.kind == 'string length', 'property should be length')
+                    //         const len = varDec.expr.type.count
+                    //         lines.push(`push ${len} ; ${varDec.name}.length`)
+                    //         return
+                    //     }
 
-                        assert(node.prop.kind == 'string length', 'property should be length')
+                    //     assert(
+                    //         varDec.expr.kind == 'stringLiteral',
+                    //         'should be initalized to a string literal'
+                    //     )
 
-                        lines.push(`push ${varDec.expr.value.length}`)
-                    }
+                    //     assert(node.prop.kind == 'string length', 'property should be length')
+
+                    //     lines.push(`push ${varDec.expr.value.length}`)
+                    // }
 
 
                     return
@@ -683,17 +656,38 @@ ${[...data.keys()]
                         'string literal should not be called at top level'
                     )
 
-                    if (node.type.type == 'cstring') {
-                        const l = label(node.value)
-                        lines.push(`push ${l}`)
-                    } else {
-                        assert(node.type.type == 'string')
-                        const l = label(node.value)
-                        lines.push(`push ${node.len}`)
-                        lines.push(`push ${l}`)
+                    // if (node.type.type == 'cstring') {
+                    //     const l = label(node.value)
+                    //     lines.push(`push ${l}`)
+                    // } else {
+                    //     assert(node.type.type == 'string')
+                    //     const l = label(node.value)
+                    //     lines.push(`push ${node.len}`)
+                    //     lines.push(`push ${l}`)
+                    // }
+
+                    const bufferLen = Math.ceil(node.len / 8) * 8
+                    const value = node.value.padEnd(bufferLen, '\0')
+
+                    lines.push(`sub rsp,${bufferLen}`)
+
+                    for (let i = 0; i < bufferLen; i += 8) {
+                        const chunk = value.slice(i, i + 8)
+                            .replace(/\n/g, '\\n')
+                            .replace(/\0/g, '\\0')
+
+                        lines.push(`mov rax, \`${chunk}\``)
+                        lines.push(`mov [rsp+${i}], rax`)
                     }
 
-                    // lines.push(`push ${label(node.value)}`)
+                    lines.push(`push rsp`)
+
+                    if (node.type.type == 'cstring') {
+                    } else {
+                        assert(node.type.type == 'string')
+                        lines.push(`push ${node.len}`)
+                    }
+
                     return
                 }
                 case 'assignVar': {
@@ -732,11 +726,11 @@ ${[...data.keys()]
                         lines.push(`mov r15, ${emitVar(varDec)}`)
                         lines.push(`add r15, ${indexValue * size}`)
 
-                        let i = 0
-                        while (i < size) {
+                        let i = size
+                        while (i >= 0) {
+                            y -= 8
                             lines.push(`pop rax`)
                             lines.push(`mov [r15+${i}], rax\n`)
-                            i += 8
                         }
 
                         return
@@ -754,11 +748,11 @@ ${[...data.keys()]
 
                     assert(size % 8 == 0)
 
-                    let i = 0
-                    while (i < size) {
+                    let i = size
+                    while (i > 0) {
+                        i -= 8
                         lines.push(`pop rax`)
                         lines.push(`mov ${emitVar(varDec, i)}, rax\n`)
-                        i += 8
                     }
 
                     if (shouldReturn) {

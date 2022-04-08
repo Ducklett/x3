@@ -197,19 +197,6 @@ function bind(files) {
                     it.type = bindType(node.type)
                 }
 
-                // character buffer hack
-                // TODO: implement real buffer type
-                const isCharBuffer = node.type && node.type.type == 'array'
-                if (isConst && isCharBuffer) {
-                    assert(node.type.size, `const array must have size`)
-                    assert(node.type.of.kind == 'type atom', `must not be nested array`)
-                    assert(node.type.of.name.value == 'char', `must be char`)
-                    node.expr = {
-                        kind: 'string',
-                        value: "".padStart(node.type.size.value, ' '),
-                    }
-                }
-
                 if (node.expr) {
                     it.expr = bindExpression(node.expr)
                     assert(it.expr.type, `expressions must have a type`)
@@ -797,7 +784,7 @@ function bind(files) {
             assert(symbol)
             assert(type)
             assert(symbol.type)
-            assert(type == symbol.type)
+            assert(type.type == symbol.type.type)
             it.symbol = symbol
             currentScope().symbols.set(name, symbol)
             it.span = spanFromRange(p.name.span, type.span)
@@ -1034,9 +1021,14 @@ function lower(ast) {
                     // TODO: still add some comment to nasm so we know what the number represents
                     if (node.expr.kind == 'numberLiteral') {
                         return []
-                    } else {
-                        return [node]
                     }
+
+                    // just treat it as a normal variable for now
+                    // only difference is that we prevent you from reassigning the value
+
+                    // else {
+                    //     return [node]
+                    // }
                 }
 
                 if (node.expr) {
@@ -1097,7 +1089,7 @@ function lower(ast) {
             }
             case 'reference': {
                 if (node.symbol.kind == 'declareVar') {
-                    if (node.symbol.notes.has('const')) {
+                    if (node.symbol.notes.has('const') && node.symbol.expr) {
                         return lowerNode(node.symbol.expr)
                     }
                 }
