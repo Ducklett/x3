@@ -1,0 +1,9 @@
+import "./lib/standard" use standard
+
+
+proc main {
+    for(var i = -100;i<100;i++) {
+        write number(i)
+        write char("\n")
+    }
+}

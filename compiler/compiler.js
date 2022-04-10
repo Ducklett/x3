@@ -581,6 +581,7 @@ ${[...data.keys()]
                         // TODO: figure out if this is safe?
                         // we save the result in al but push rax
                         // so we're possibly saving garbage data from the upper bytes
+                        lines.push(`mov rax, 0`)
                         lines.push(`${op} al`)
                     } else if (op == 'idiv') {
                         // as seen in C -> asm view on godbolt
@@ -656,6 +657,16 @@ ${[...data.keys()]
                         'string literal should not be called at top level'
                     )
 
+                    function escapeCharSequence(c) {
+                        return c.replace(/\n/g, '\\n')
+                            .replace(/\0/g, '\\0')
+                    }
+
+                    if (node.type.type == 'char') {
+                        lines.push(`push qword \`${escapeCharSequence(node.value)}\``)
+                        return
+                    }
+
                     // if (node.type.type == 'cstring') {
                     //     const l = label(node.value)
                     //     lines.push(`push ${l}`)
@@ -672,20 +683,20 @@ ${[...data.keys()]
                     lines.push(`sub rsp,${bufferLen}`)
 
                     for (let i = 0; i < bufferLen; i += 8) {
-                        const chunk = value.slice(i, i + 8)
-                            .replace(/\n/g, '\\n')
-                            .replace(/\0/g, '\\0')
+                        const chunk = escapeCharSequence(value.slice(i, i + 8))
+
 
                         lines.push(`mov rax, \`${chunk}\``)
                         lines.push(`mov [rsp+${i}], rax`)
                     }
 
-                    lines.push(`push rsp`)
-
                     if (node.type.type == 'cstring') {
+                        lines.push(`push rsp`)
                     } else {
                         assert(node.type.type == 'string')
+                        lines.push(`mov rax, rsp`)
                         lines.push(`push ${node.len}`)
+                        lines.push(`push rax`)
                     }
 
                     return
@@ -693,7 +704,7 @@ ${[...data.keys()]
                 case 'assignVar': {
                     if (node.varDec.kind == 'offsetAccess') {
                         assert(node.varDec.left.kind == 'reference', 'must be reference')
-                        assert(node.varDec.left.symbol.kind == 'declareVar', 'must reference variable')
+                        assert(node.varDec.left.symbol.kind == 'declareVar' || node.varDec.symbol.kind == 'parameter', 'must reference variable')
                         assert(!shouldReturn)
 
                         const varDec = node.varDec.left.symbol
@@ -726,18 +737,18 @@ ${[...data.keys()]
                         lines.push(`mov r15, ${emitVar(varDec)}`)
                         lines.push(`add r15, ${indexValue * size}`)
 
-                        let i = size
-                        while (i >= 0) {
-                            y -= 8
+                        let i = 0
+                        while (i < size) {
                             lines.push(`pop rax`)
                             lines.push(`mov [r15+${i}], rax\n`)
+                            i += 8
                         }
 
                         return
                     }
 
                     assert(node.varDec.kind == 'reference', 'must be reference')
-                    assert(node.varDec.symbol.kind == 'declareVar', 'must reference variable')
+                    assert(node.varDec.symbol.kind == 'declareVar' || node.varDec.symbol.kind == 'parameter', 'must reference variable')
                     const varDec = node.varDec.symbol
 
                     emitExpr(node.expr)
@@ -748,11 +759,11 @@ ${[...data.keys()]
 
                     assert(size % 8 == 0)
 
-                    let i = size
-                    while (i > 0) {
-                        i -= 8
+                    let i = 0
+                    while (i < size) {
                         lines.push(`pop rax`)
                         lines.push(`mov ${emitVar(varDec, i)}, rax\n`)
+                        i += 8
                     }
 
                     if (shouldReturn) {

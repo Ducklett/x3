@@ -16,6 +16,35 @@ module standard {
         sys.write(sys.stdout, &c, 1)
     }
 
+    proc write number[number:int] {
+        if (number == 0) {
+            write char("0")
+            return
+        }
+
+        if (number < 0) {
+            write char("-")
+            number = 0 - number
+        }
+
+        ((find highest decimal place))
+        var decimal place = 1
+        while (number > decimal place) {
+            decimal place = decimal place * 10
+        }
+        if (number / decimal place == 0) {
+            decimal place = decimal place / 10
+        }
+
+        ((work our way down, printing along the way))
+        while (decimal place>0) {
+            var digit = number / decimal place
+            write char("0" + digit)
+            number = number - (digit * decimal place)
+            decimal place = decimal place / 10
+        }
+    }
+
     proc write line[msg:string] {
         write(msg)
         write("\n")

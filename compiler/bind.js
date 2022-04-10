@@ -641,7 +641,18 @@ function bind(files) {
                 const b = bindExpression(node.rhs)
                 assert(a.type)
                 assert(b.type)
-                assert(a.type.type == b.type.type)
+                if (a.kind == 'stringLiteral' && b.type.type == 'int') {
+                    a.type = typeMap.char
+                }
+                if (b.kind == 'stringLiteral' && a.type.type == 'int') {
+                    b.type = typeMap.char
+                }
+                if (a.type.type == 'char' && b.type.type == 'int' || b.type.type == 'char' && a.type.type == 'int') {
+                    // allow it
+                } else {
+                    assert(a.type.type == b.type.type)
+                }
+
 
                 const op = node.op.value
                 const logicalOperators = new Set(['>', '>=', '<', '<=', '==', '!='])
@@ -725,6 +736,14 @@ function bind(files) {
             assert(param.type, `arument has a type`)
             assert(arg.type, `arument has a type`)
 
+            // string literal -> char literal
+            if (arg.kind == 'stringLiteral') {
+                if (param.type.type == 'char' && arg.type.type == 'string') {
+                    assert(arg.len == 1)
+                    arg.type = typeMap.char
+                }
+            }
+
             // implicit string -> *char AND string -> *u0 cast
             if (param.type.type == 'pointer' && arg.type.type == 'string') {
                 const toType = param.type.to.type
@@ -744,8 +763,8 @@ function bind(files) {
                 }
             }
 
-            // console.log(param.type)
-            // console.log(arg.type)
+            console.log(param.type)
+            console.log(arg.type)
             assert(param.type.type == arg.type.type, 'parameter type matches argument type')
         }
 
@@ -892,11 +911,39 @@ function lower(ast) {
 
             // TODO: make implicit cast do something
             case 'implicit cast': return lowerNode(node.expr)
-
+            case 'unary':
             case 'numberLiteral':
             case 'charLiteral':
-            case 'unary':
             case 'stringLiteral': return [node]
+
+            case 'postUnary': {
+                const expr = lowerNode(node.expr)
+                assert(expr.length == 1)
+                node.expr = expr[0]
+                if (node.op == '++') node.op = 'post++'
+                else if (node.op == '--') node.op = 'post--'
+
+                node.kind = 'unary'
+
+                return [node]
+            }
+            case 'preUnary': {
+                const expr = lowerNode(node.expr)
+                assert(expr.length == 1)
+                node.expr = expr[0]
+
+                if (node.op == '-' && node.expr.kind == 'numberLiteral') {
+                    node.expr.n = -node.expr.n
+                    return [node.expr]
+                }
+
+                if (node.op == '++') node.op = 'pre++'
+                else if (node.op == '--') node.op = 'pre--'
+
+                node.kind = 'unary'
+
+                return [node]
+            }
 
             case 'label': {
                 node.name = mangleLabel(node.name)
@@ -914,28 +961,6 @@ function lower(ast) {
 
             case 'arrayLiteral': {
                 node.entries = lowerNodeList(node.entries)
-                return [node]
-            }
-            case 'postUnary': {
-                const expr = lowerNode(node.expr)
-                assert(expr.length == 1)
-                node.expr = expr[0]
-                if (node.op == '++') node.op = 'post++'
-                else if (node.op == '--') node.op = 'post--'
-
-                node.kind = 'unary'
-
-                return [node]
-            }
-            case 'preUnary': {
-                const expr = lowerNode(node.expr)
-                assert(expr.length == 1)
-                node.expr = expr[0]
-                if (node.op == '++') node.op = 'pre++'
-                else if (node.op == '--') node.op = 'pre--'
-
-                node.kind = 'unary'
-
                 return [node]
             }
             case 'while': {

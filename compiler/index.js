@@ -4,7 +4,7 @@ const { inspect } = require('util')
 const { emitAsm, read } = require('./compiler')
 const { outputHtml } = require('./tool/outputHtml')
 
-compile('examples/02_read_stdin.x3')
+compile('examples/05_print.x3')
 
 function compile(filename) {
     const file = ({ path: filename, code: read(filename) })
