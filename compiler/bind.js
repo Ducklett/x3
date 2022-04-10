@@ -665,8 +665,6 @@ function bind(files) {
                 const varDec = bindExpression(node.name)
                 assert(varDec, `symbol "${node.name.value}" is defined`)
 
-                assert(node.operator.value == '=')
-
                 const expr = bindExpression(node.expr)
 
                 // TODO: real type coersion
@@ -680,6 +678,7 @@ function bind(files) {
 
                 const it = {
                     kind: 'assignVar',
+                    op: node.operator.value,
                     varDec,
                     expr,
                     span: spanFromRange(node.name.span, expr.span)
@@ -1107,7 +1106,16 @@ function lower(ast) {
             }
 
             case 'assignVar': {
+                if (node.op !== '=') {
+                    const opLen = node.op.length - 1
+                    const binaryOp = node.op.slice(0, opLen)
+                    console.log(binaryOp)
+                    node.op = '='
+                    node.expr = binary(binaryOp, node.varDec, node.expr)
+                }
+
                 const expr = lowerNode(node.expr)
+
                 assert(expr.length == 1)
                 node.expr = expr[0]
                 return [node]
