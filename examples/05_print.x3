@@ -1,9 +1,11 @@
 import "./lib/standard" use standard
 
-
 proc main {
-    for(var i = 0;i<100;i++) {
-        write hex(i)
+    for var n = 1; n <= 100; n++ {
+        if n % 15 == 0 { write("FizzBuzz") }
+        else if n % 3 == 0 { write("Fizz") }
+        else if n % 5 == 0 { write("Buzz") }
+        else { write number(n) }
         write char("\n")
     }
 }

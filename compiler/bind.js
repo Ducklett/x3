@@ -264,8 +264,8 @@ function bind(files) {
                 const it = {
                     kind: 'if',
                     cond: bindExpression(node.condition),
-                    then: bindBlock(node.thenBlock),
-                    els: node.elseBlock ? bindBlock(node.elseBlock) : null,
+                    then: bindDeclaration(node.thenBlock),
+                    els: node.elseBlock ? bindDeclaration(node.elseBlock) : null,
                 }
                 return it
             }
@@ -1030,7 +1030,14 @@ function lower(ast) {
                 assert(cond.length && cond.length == 1)
                 node.cond = cond[0]
                 node.then = lowerNodeList(node.then.statements)
-                if (node.els) node.els = lowerNodeList(node.els.statements)
+                if (node.els) {
+                    if (node.els.kind == 'if') {
+                        node.els = lowerNode(node.els)
+                    } else {
+                        assert(node.els.kind == 'block')
+                        node.els = lowerNodeList(node.els.statements)
+                    }
+                }
                 return [node]
             }
 

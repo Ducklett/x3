@@ -548,8 +548,12 @@ function parse(source) {
                         let elseKeyword, elseBlock
                         if (is('keyword', 'else')) {
                             elseKeyword = take('keyword', 'else')
-                            // TODO: don't allow 'real' declarations in if statement block, just control flow stuff
-                            elseBlock = parseBlock('if', true, true)
+                            if (is('keyword', 'if')) {
+                                elseBlock = parseDeclaration()
+                            } else {
+                                // TODO: don't allow 'real' declarations in if statement block, just control flow stuff
+                                elseBlock = parseBlock('if', true, true)
+                            }
                         }
 
                         return { kind: 'if', keyword, condition, thenBlock, elseKeyword, elseBlock }
