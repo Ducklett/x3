@@ -762,8 +762,8 @@ function bind(files) {
                 }
             }
 
-            console.log(param.type)
-            console.log(arg.type)
+            // console.log(param.type)
+            // console.log(arg.type)
             assert(param.type.type == arg.type.type, 'parameter type matches argument type')
         }
 
@@ -1109,7 +1109,6 @@ function lower(ast) {
                 if (node.op !== '=') {
                     const opLen = node.op.length - 1
                     const binaryOp = node.op.slice(0, opLen)
-                    console.log(binaryOp)
                     node.op = '='
                     node.expr = binary(binaryOp, node.varDec, node.expr)
                 }
@@ -1141,7 +1140,6 @@ function lower(ast) {
                 }]
             }
             case 'offsetAccess': {
-                console.log(node)
                 const expr = lowerNode(node.index)
                 assert(expr.length == 1)
                 node.index = expr[0]
