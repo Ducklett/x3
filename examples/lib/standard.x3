@@ -46,6 +46,16 @@ module standard {
         }
     }
 
+    proc write hex[number:int] {
+        write char("0")
+        write char("x")
+        ((TODO: switch to normal comment syntax, this bracket stuff doesn't mesh well with parenthesized expressions))
+        const lut = "0123456789ABCDEF"
+        for var i = 60; i >= 0; i-=4 {
+            write char(lut[(number>>i) & 0xF])
+        }
+    }
+
     proc write line[msg:string] {
         write(msg)
         write("\n")

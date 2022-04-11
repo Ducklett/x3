@@ -2,8 +2,8 @@ import "./lib/standard" use standard
 
 
 proc main {
-    for(var i = -100;i<100;i++) {
-        write number(i)
+    for(var i = 0;i<100;i++) {
+        write hex(i)
         write char("\n")
     }
 }

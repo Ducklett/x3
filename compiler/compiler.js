@@ -565,7 +565,11 @@ ${[...data.keys()]
                         '<': 'setl',
                         '<=': 'setle',
                         '==': 'sete',
-                        '!=': 'setne'
+                        '!=': 'setne',
+                        '>>': 'shr', // TODO: research difference between shl/sal
+                        '<<': 'shl',
+                        '&': 'and',
+                        '|': 'or',
                     }
                     const op = ops[node.op]
                     assert(op, `illegal binary operator ${node.op}`)
@@ -574,6 +578,16 @@ ${[...data.keys()]
 
                     emitExpr(node.a)
                     emitExpr(node.b)
+
+                    if (node.op == '>>' || node.op == '<<') {
+                        lines.push(`pop rcx`)
+                        lines.push(`pop rax`)
+                        // variable shift uses cl register https://stackoverflow.com/questions/25644445/
+                        lines.push(`${op} rax, cl`)
+                        if (shouldReturn) lines.push(`push ${resultRegister}`)
+                        return
+                    }
+
                     lines.push(`pop rcx`)
                     lines.push(`pop rax`)
                     if (op.startsWith('set')) {

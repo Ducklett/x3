@@ -1141,6 +1141,10 @@ function lower(ast) {
                 }]
             }
             case 'offsetAccess': {
+                console.log(node)
+                const expr = lowerNode(node.index)
+                assert(expr.length == 1)
+                node.index = expr[0]
                 return [node]
             }
             case 'readProp': {

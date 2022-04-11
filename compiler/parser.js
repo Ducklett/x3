@@ -381,7 +381,7 @@ function parse(source) {
 
                             if (is('operator', '[')) {
                                 const begin = take('operator', '[')
-                                const index = parsePrimaryExpression()
+                                const index = parseExpression()
                                 const end = take('operator', ']')
                                 lhs = { kind: 'offset access', name: lhs, begin, index, end }
                                 continue
