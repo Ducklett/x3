@@ -351,7 +351,21 @@ function bind(files) {
                     notes: new Map(),
                     scope: currentScope()
                 }
+
                 addSymbol(item.name, item)
+
+                let index
+                if (node.index) {
+                    index = {
+                        kind: 'declareVar',
+                        name: node.index.value,
+                        expr: undefined,
+                        notes: new Map(),
+                        scope: currentScope(),
+                        type: typeMap.int
+                    }
+                    addSymbol(index.name, index)
+                }
 
                 assert(node.list.kind == 'symbol')
                 const list = findSymbol(node.list.value)
@@ -372,6 +386,7 @@ function bind(files) {
                 const it = {
                     kind: 'each',
                     item,
+                    index,
                     list,
                     block,
                     scope,
@@ -997,7 +1012,9 @@ function lower(ast) {
                 return lowerNodeList([precondition, jumpToCondition, beginLabel, body, postCondition, conditionLabel, jumpToBegin])
             }
             case 'each': {
-                let i = declareVar('i', num(0, cloneType(typeMap.int)))
+                let indexInitializer = num(0, cloneType(typeMap.int))
+                if (node.index) node.index.expr = indexInitializer
+                let i = node.index ?? declareVar('i', indexInitializer)
                 let begin = label('begin')
                 let end = label('end')
                 let condition = goto(end, binary('>=', ref(i), readProp(ref(node.list), { kind: 'string length' })))
@@ -1113,7 +1130,7 @@ function lower(ast) {
             }
 
             case 'assignVar': {
-                if (node.op !== '=') {
+                if (node.op && node.op !== '=') {
                     const opLen = node.op.length - 1
                     const binaryOp = node.op.slice(0, opLen)
                     node.op = '='

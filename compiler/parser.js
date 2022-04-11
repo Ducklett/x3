@@ -620,6 +620,11 @@ function parse(source) {
                         begin = take('operator', '(')
                     }
                     const item = take('symbol')
+                    let comma, index
+                    if (is('operator', ',')) {
+                        comma = take('operator', ',')
+                        index = take('symbol')
+                    }
                     const colon = take('operator', ':')
                     const list = take('symbol')
                     if (hasParens) {
@@ -627,7 +632,7 @@ function parse(source) {
                     }
                     const block = parseBlock('each', true, true)
 
-                    return { kind: 'each', keyword, begin, item, colon, list, end, block }
+                    return { kind: 'each', keyword, begin, item, comma, index, colon, list, end, block }
                 }
                 case 'return': {
                     const keyword = take('keyword', 'return')

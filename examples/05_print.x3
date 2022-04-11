@@ -8,4 +8,13 @@ proc main {
         else { write number(n) }
         write char("\n")
     }
+
+    (( const names = ["foo", "bar", "baz", "qux"] ))
+    const chars = "Hello world"
+    each char,idx : chars {
+        write number(idx)
+        write char(":")
+        write char(char)
+        write char("\n")
+    }
 }
