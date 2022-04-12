@@ -1,6 +1,10 @@
 const path = require('path')
 const fs = require('fs')
 
+function escapeCharSequence(c) {
+    return c.replace(/\n/g, '\\n')
+        .replace(/\0/g, '\\0')
+}
 function read(filename) {
     return fs.readFileSync(filename, 'utf-8')
 }
@@ -149,7 +153,7 @@ ${[...data.keys()]
 
         function emitVar(node, fieldOffset = 0) {
             assert(
-                node.kind == 'declareVar' || node.kind == 'parameter',
+                node.kind == 'declareVar' || node.kind == 'parameter' || node.kind == 'stringLiteral' || node.kind == 'arrayLiteral',
                 `expected declareVar, got ${node.kind}`
             )
             let offset = locals.get(node)
@@ -238,13 +242,24 @@ ${[...data.keys()]
                         lines.push(`_start:`)
                     }
 
-                    const vars = node.instructions.filter(n => n.kind === 'declareVar')
-                    const exprs = node.instructions.filter(n => n.kind !== 'declareVar')
+                    const vars = node.instructions.filter(n => n.kind === 'declareVar' || n.kind == 'buffer')
+                    const exprs = node.instructions.filter(n => n.kind !== 'declareVar' && n.kind != 'buffer')
 
                     lines.push(`_${name}:`)
 
                     // const localSize = vars.length * 8
-                    const localSize = vars.reduce((acc, cur) => {
+                    let localSize = vars.reduce((acc, cur) => {
+                        if (cur.kind == 'buffer') {
+                            if (cur.data.kind == 'arrayLiteral') {
+                                const size = cur.data.type.count * cur.data.type.size
+                                assert(size % 8 == 0)
+                                return acc + size
+                            } else {
+                                assert(cur.data.kind == 'stringLiteral')
+                                const count = Math.ceil(cur.data.len / 8) * 8
+                                return acc + count
+                            }
+                        }
                         assert(cur.type.size && cur.type.size > 0)
 
                         return acc + Math.ceil(cur.type.size / 8) * 8 // alignment hack
@@ -273,18 +288,50 @@ ${[...data.keys()]
 
                     let varOffset = 0
                     for (let vr of vars) {
-                        // if (vr.notes.has('const')) {
-                        // hoist that bitch!
-                        // emitTop(vr)
-                        // console.log(`const ${vr.name} = ${emitVar(vr)}`)
-                        // } else {
-                        console.log(vr.expr)
-                        assert(vr.expr == null, 'initalized locals not supported')
-                        varOffset -= Math.ceil(vr.type.size / 8) * 8 // alignment hack
-                        // varOffset -= vr.type.size
-                        locals.set(vr, varOffset)
-                        console.log(`var ${vr.name} = ${emitVar(vr)}`)
-                        // }
+                        if (vr.kind == 'buffer') {
+                            const node = vr.data
+
+                            if (node.kind == 'stringLiteral') {
+                                const bufferLen = Math.ceil(node.len / 8) * 8
+                                const value = node.value.padEnd(bufferLen, '\0')
+
+                                // lines.push(`sub rsp,${bufferLen}`)
+
+                                for (let i = bufferLen - 8; i >= 0; i -= 8) {
+                                    const chunk = escapeCharSequence(value.slice(i, i + 8))
+
+                                    varOffset -= 8
+
+                                    lines.push(`mov rax, \`${chunk}\``)
+                                    lines.push(`mov [rbp-${Math.abs(varOffset)}], rax`)
+                                    console.log(`var [rbp-${Math.abs(varOffset)}] = "${chunk}"`)
+                                }
+                                locals.set(node, varOffset)
+                                console.log(`string = ${emitVar(node)}`)
+                            } else {
+                                assert(node.kind == 'arrayLiteral')
+
+                                // NOTE: we will only initialize the members once we emit the array literal
+                                const size = node.type.count * node.type.size
+                                assert(size % 8 == 0)
+                                varOffset -= size
+                                locals.set(node, varOffset)
+                                console.log(`array = ${emitVar(node)}`)
+                            }
+                        } else {
+                            // if (vr.notes.has('const')) {
+                            // hoist that bitch!
+                            // emitTop(vr)
+                            // console.log(`const ${vr.name} = ${emitVar(vr)}`)
+                            // } else {
+                            assert(vr.kind == 'declareVar')
+                            assert(vr.expr == null, 'initalized locals not supported')
+                            varOffset -= Math.ceil(vr.type.size / 8) * 8 // alignment hack
+                            // varOffset -= vr.type.size
+                            locals.set(vr, varOffset)
+                            console.log(`var ${vr.name} = ${emitVar(vr)}`)
+                            // }
+                        }
                     }
 
                     lines.push(`; body`)
@@ -294,7 +341,6 @@ ${[...data.keys()]
                             lastOfFunc: i == exprs.length - 1
                         })
                     }
-
 
                     lines.push(`${returnLabel}:`)
 
@@ -449,14 +495,17 @@ ${[...data.keys()]
 
                     assert(size % 8 == 0)
 
-                    let i = 0//node.type.size - 8
+                    // let i = 0//
                     lines.push(`; push ${node.symbol.name}`)
-                    while (i < node.type.size) {
+                    for (let i = node.type.size - 8; i >= 0; i -= 8) {
                         lines.push(`push qword ${emitVar(node.symbol, i)}`)
-                        // lines.push(`pop rax`)
-                        // lines.push(` ${emitVar(varDec, i)}, rax\n`)
-                        i += 8
                     }
+                    // while (i < node.type.size) {
+                    //     lines.push(`push qword ${emitVar(node.symbol, i)}`)
+                    //     // lines.push(`pop rax`)
+                    //     // lines.push(` ${emitVar(varDec, i)}, rax\n`)
+                    //     i += 8
+                    // }
 
                     // if (node.type.type == 'string') {
                     //     lines.push(`push qword ${emitVar(node.symbol, 8)} ; ${node.symbol.name}.length`)
@@ -655,10 +704,30 @@ ${[...data.keys()]
                         shouldReturn,
                         'array literal should not be called at top level'
                     )
-                    const l = node.l
-                    assert(l)
+                    // const l = node.l
+                    // assert(l)
+                    // lines.push(`push ${node.type.count}`)
+                    // lines.push(`push ${l}`)
+
+                    const buffer = emitVar(node)
+                    assert(buffer)
+                    assert(node.type && node.type.count)
+
+                    lines.push(`; initializing array literal`)
+                    for (let i = 0; i < node.entries.length; i++) {
+                        emitExpr(node.entries[i])
+                        assert(node.type.of.size % 8 == 0)
+                        for (let j = 0; j < node.type.of.size; j += 8) {
+                            const offset = i * node.type.of.size + j
+                            lines.push(`pop rax`)
+                            lines.push(`mov ${emitVar(node, offset)}, rax`)
+                        }
+                    }
+
                     lines.push(`push ${node.type.count}`)
-                    lines.push(`push ${l}`)
+                    lines.push(`lea rax, ${buffer}`)
+                    lines.push(`push rax`)
+
                     return
                 }
                 case 'charLiteral': {
@@ -671,10 +740,6 @@ ${[...data.keys()]
                         'string literal should not be called at top level'
                     )
 
-                    function escapeCharSequence(c) {
-                        return c.replace(/\n/g, '\\n')
-                            .replace(/\0/g, '\\0')
-                    }
 
                     if (node.type.type == 'char') {
                         lines.push(`push qword \`${escapeCharSequence(node.value)}\``)
@@ -691,25 +756,17 @@ ${[...data.keys()]
                     //     lines.push(`push ${l}`)
                     // }
 
-                    const bufferLen = Math.ceil(node.len / 8) * 8
-                    const value = node.value.padEnd(bufferLen, '\0')
-
-                    lines.push(`sub rsp,${bufferLen}`)
-
-                    for (let i = 0; i < bufferLen; i += 8) {
-                        const chunk = escapeCharSequence(value.slice(i, i + 8))
-
-
-                        lines.push(`mov rax, \`${chunk}\``)
-                        lines.push(`mov [rsp+${i}], rax`)
-                    }
-
                     if (node.type.type == 'cstring') {
-                        lines.push(`push rsp`)
+                        const l = emitVar(node)
+                        assert(l)
+                        lines.push(`lea rax, ${l}`)
+                        lines.push(`push rax`)
                     } else {
                         assert(node.type.type == 'string')
-                        lines.push(`mov rax, rsp`)
+                        const l = emitVar(node)
+                        assert(l)
                         lines.push(`push ${node.len}`)
+                        lines.push(`lea rax, ${l}`)
                         lines.push(`push rax`)
                     }
 

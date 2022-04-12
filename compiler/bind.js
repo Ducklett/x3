@@ -866,6 +866,7 @@ function bind(files) {
 function lower(ast) {
     const labelCount = new Map()
     let entrypoint
+    let buffers = []
 
     const loweredAst = lowerNodeList(ast)
     return [loweredAst, { entrypoint }]
@@ -927,8 +928,7 @@ function lower(ast) {
             case 'implicit cast': return lowerNode(node.expr)
             case 'unary':
             case 'numberLiteral':
-            case 'charLiteral':
-            case 'stringLiteral': return [node]
+            case 'charLiteral': return [node]
 
             case 'postUnary': {
                 const expr = lowerNode(node.expr)
@@ -973,8 +973,44 @@ function lower(ast) {
                 return [node]
             }
 
+            case 'stringLiteral': {
+
+                if (node.type.type != 'char') {
+                    if (buffers.includes(node)) {
+                        throw "bruh"
+                    } else {
+                        buffers.push(node)
+                    }
+                }
+
+                return [node]
+            }
+
             case 'arrayLiteral': {
                 node.entries = lowerNodeList(node.entries)
+
+                if (buffers.includes(node)) {
+                    throw "bruh"
+                } else {
+                    buffers.push(node)
+                }
+
+                // how it works:
+                // - array is split into 'array' and 'buffer'
+                // - the buffer is allocated at the start of the function
+                // - the array is allocated when needed; it points to the buffer
+                //
+                // if we don't do this we get problems with functions calls:
+                // push number
+                // push buffer
+                // push array (containing data)
+                // push number
+                // call foo()
+                //
+                // foo takes the number and array off the stack, then it starts eating the instead of the last number, because that's the next up on the stack
+
+                // actually this is gonna be a nightmare with the current lowererer; so i'm just gonna do a hack in the x86 part for now
+
                 return [node]
             }
             case 'while': {
@@ -1060,8 +1096,10 @@ function lower(ast) {
 
             case 'declareVar': {
                 node.name = mangleName(node)
+                let expr
                 if (node.notes.has('const')) {
-                    const expr = lowerNode(node.expr)
+                    assert(node.expr)
+                    expr = lowerNode(node.expr)
                     assert(expr.length == 1)
                     node.expr = expr[0]
 
@@ -1081,7 +1119,10 @@ function lower(ast) {
 
                 if (node.expr) {
                     const varDec = node
-                    let expr = node.expr ? lowerNode(node.expr) : null
+                    // don't lower if we already did so above
+                    if (!expr) {
+                        expr = node.expr ? lowerNode(node.expr) : null
+                    }
                     assert(!expr || expr.length == 1)
                     expr = expr[0]
                     const ref = { kind: 'reference', symbol: varDec, type: varDec.type }
@@ -1101,7 +1142,14 @@ function lower(ast) {
                     assert(!entrypoint)
                     entrypoint = node;
                 }
-                node.instructions = lowerNodeList(node.instructions?.statements)
+                const instructions = lowerNodeList(node.instructions?.statements)
+                if (instructions) {
+                    if (buffers.length) {
+                        buffers = buffers.map(b => ({ kind: 'buffer', data: b }))
+                    }
+                    node.instructions = [...buffers, ...instructions]
+                }
+                buffers = []
                 return [
                     node
                 ]

@@ -9,12 +9,36 @@ proc main {
         write char("\n")
     }
 
-    (( const names = ["foo", "bar", "baz", "qux"] ))
-    const chars = "Hello world"
-    each char,idx : chars {
+    const names = ["foo", "bar", "baz", "qux"]
+
+    names[0] = "hello"
+    names[3] = "arrays"
+
+    write line("=======")
+    write line(names[0])
+    write line("=======")
+
+    write names(names)
+
+    write line("=======")
+
+    write numbers([10,20,30,40,66])
+}
+
+proc write names[names:[]string] {
+    each name,idx : names {
         write number(idx)
         write char(":")
-        write char(char)
+        write(name)
         write char("\n")
+    }
+}
+
+proc write numbers[nums:[]int] {
+    each num,i:nums {
+        write number(i);
+        write char(":");
+        write number(num);
+        write char("\n");
     }
 }
