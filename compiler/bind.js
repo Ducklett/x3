@@ -209,6 +209,39 @@ function bind(files) {
 
                 return it
             }
+            case 'struct': {
+                const scope = pushScope(null, node.name.value, 'struct')
+                const name = node.name.value
+                const it = {
+                    kind: 'struct',
+                    name: name,
+                    type: name,
+                    fields: bindParameters(node.parameters),
+                    scope,
+                    notes: new Map(),
+                    span: spanFromRange(node.keyword.span, node.parameters.end.span)
+                }
+
+                popScope(scope)
+
+                addSymbol(name, it)
+
+                it.size = 0
+
+                for (let field of it.fields) {
+                    assert(field.type)
+                    assert(field.type.size)
+                    field.kind = 'field'
+                    // TODO: alignment
+                    assert(it.size % 8 == 0)
+                    field.offset = it.size
+                    it.size += field.type.size
+                }
+
+                assert(it.size > 0)
+
+                return it
+            }
             case 'scope': {
                 const it = {
                     kind: 'scope',
@@ -442,8 +475,13 @@ function bind(files) {
         switch (node.kind) {
             case 'type atom': {
                 const [name, span] = getTypePath(node.name)
-                const type = cloneType(typeMap[name])
-                assert(type, `'${name}' is a legal type`)
+                let type = typeMap[name]
+                if (type) type = cloneType(type)
+                else {
+                    type = findSymbol(name)
+                    assert(type)
+                }
+                assert(type.type, `'${name}' is a legal type`)
                 type.span = span
                 return type
             }
@@ -603,9 +641,9 @@ function bind(files) {
             case 'property access': {
                 const left = bindExpression(node.scope, inScope)
                 assert(left)
-                assert(left.symbol.scope || node.property.value == 'length', `property access is either string length hack OR module`)
+                assert(left.symbol?.type?.kind == 'struct' || left.symbol.scope || node.property.value == 'length', `property access is either string length hack,module or struct`)
 
-                const right = bindExpression(node.property, left.symbol?.scope)
+                const right = bindExpression(node.property, left.symbol?.scope ?? left.symbol.type.scope)
                 assert(right.type)
                 const type = right.type
 
@@ -616,19 +654,30 @@ function bind(files) {
                     type,
                     span: spanFromRange(left.span, right.span)
                 }
+
                 return it
             }
             case 'call': {
                 const def = bindExpression(node.name, inScope)
 
-                assert(def.symbol.returnType)
-                const type = def.symbol.returnType
+                const isStruct = def.symbol.kind == 'struct'
+
+                if (!isStruct) assert(def.symbol.returnType)
+                const type = isStruct ? def.symbol : def.symbol.returnType
 
                 const isSyscall = def.symbol.notes.has('syscall')
 
-                const params = def.symbol.params;
-
-                if (isSyscall) {
+                const params = isStruct ? def.symbol.fields : def.symbol.params;
+                if (isStruct) {
+                    const it = {
+                        kind: 'ctorcall',
+                        args: bindList(node.argumentList.items, bindExpression),
+                        type,
+                        span: spanFromRange(node.name.span, node.argumentList.end.span)
+                    }
+                    it.args = validateArguments(it.args, params, node.name.span.file)
+                    return it
+                } else if (isSyscall) {
                     const it = {
                         kind: 'syscall',
                         code: def.symbol.notes.get('syscall')[0],
@@ -777,7 +826,9 @@ function bind(files) {
                 }
             }
 
+            // console.log("expected:")
             // console.log(param.type)
+            // console.log("got:")
             // console.log(arg.type)
             assert(param.type.type == arg.type.type, 'parameter type matches argument type')
         }
@@ -1154,6 +1205,10 @@ function lower(ast) {
                     node
                 ]
             }
+            case 'struct': {
+                node.name = mangleName(node)
+                return []
+            }
 
             case 'block': return lowerNodeList(node.statements)
 
@@ -1201,6 +1256,7 @@ function lower(ast) {
                 return [node]
             }
 
+            case 'ctorcall':
             case 'syscall':
             case 'call': {
                 return [{
@@ -1218,11 +1274,18 @@ function lower(ast) {
                 return [node]
             }
             case 'readProp': {
-                if (node.left.kind == 'reference' && node.left.symbol.kind == 'module') {
-                    return lowerNode(node.prop)
-                } else {
+
+                if (node.prop.kind == 'string length') {
                     return [node]
                 }
+
+                if (node.left.kind == 'reference') {
+                    if (node.left.symbol.kind == 'module') {
+                        return lowerNode(node.prop)
+                    }
+                }
+
+                return [node]
             }
             default:
                 console.log('??')

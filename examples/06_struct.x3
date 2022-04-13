@@ -1,0 +1,21 @@
+import "./lib/standard" use standard
+
+struct vec3[x:int,y:int,z:int]
+
+proc write vec3[v:vec3]
+{
+    write("{ ")
+    write number(v.x)
+    write(", ")
+    write number(v.y)
+    write(", ")
+    write number(v.z)
+    write(" }\n")
+}
+
+proc main
+{
+    var v = vec3(10, 20, 30)
+
+    write vec3(v)
+}

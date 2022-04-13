@@ -408,6 +408,17 @@ ${[...data.keys()]
                     lines.push('')
                     return
                 }
+                case 'ctorcall': {
+                    lines.push(`; new ${node.type.name}()`)
+                    const args = node.args
+                    // NOTE: we push the last item first, because the stack grows down
+                    // TODO: evaluate the args from left to right while still keeping the proper stack position
+                    // NOTE: currently the last arg is evaluated first, which may lead to some unexpected stuff happening if it mutates state
+                    for (let arg of [...args].reverse()) {
+                        emitExpr(arg)
+                    }
+                    return
+                }
                 case 'call': {
                     lines.push(
                         `; ${node.def.symbol.name}(${node.def.symbol.params.map(n => n.name).join(', ')})`
@@ -517,7 +528,7 @@ ${[...data.keys()]
                 }
                 case 'offsetAccess': {
                     assert(node.left.kind == 'reference')
-                    assert(node.left.type.type == 'array' || node.left.type.type == 'string')
+                    assert(node.left.type.kind == 'struct' || node.left.type.type == 'array' || node.left.type.type == 'string')
 
                     const elementType = node.type
                     let elementSize = elementType.size
@@ -564,13 +575,14 @@ ${[...data.keys()]
                     const kind = node.left.symbol.kind
                     assert(kind == 'parameter' || kind == 'declareVar')
 
-                    assert(node.prop.kind == 'string length', 'property should be length')
-                    // console.error("NOT IMPLEMENTED: running this will cause bad stuff to happen")
-                    // console.log(node)
-                    // assert(false)
-
                     assert(shouldReturn, 'reference should not be called at top level')
-                    lines.push(`push qword ${emitVar(node.left.symbol, 8)} ; ${node.left.symbol.name}.length`)
+
+                    if (node.prop.kind == 'string length') {
+                        lines.push(`push qword ${emitVar(node.left.symbol, 8)} ; ${node.left.symbol.name}.length`)
+                    } else {
+                        assert(node.prop.symbol.offset !== undefined)
+                        lines.push(`push qword ${emitVar(node.left.symbol, node.prop.symbol.offset)} ; ${node.left.symbol.name}.${node.prop.symbol.name}`)
+                    }
                     return
 
                     // else {
