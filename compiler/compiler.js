@@ -70,7 +70,7 @@ const api = {
             throw 'illegal type of offset access'
         })()
     }),
-    binary: (op, a, b) => B({ kind: 'binary', op, a, b }),
+    binary: (op, a, b) => B({ kind: 'binary', op, a, b, type: a.type }),
     unary: (op, expr) => B({ kind: 'unary', op, expr }),
     ret: expr => B({ kind: 'return', expr }),
     goto: (label, condition) => B({ kind: 'goto', condition, label }),
@@ -572,6 +572,14 @@ ${[...data.keys()]
                     return
                 }
                 case 'readProp': {
+                    console.log(node)
+                    if (node.left.kind == 'ctorcall') {
+                        const fieldIndex = node.left.type.fields.indexOf(node.prop.symbol)
+                        assert(fieldIndex != -1)
+                        const field = node.left.args[fieldIndex]
+                        emitExpr(field)
+                        return
+                    }
                     assert(node.left.kind == 'reference')
                     const kind = node.left.symbol.kind
                     assert(kind == 'parameter' || kind == 'declareVar')

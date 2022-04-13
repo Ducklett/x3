@@ -1217,8 +1217,10 @@ function lower(ast) {
 
             case 'binary': {
                 if (node.type?.kind == 'struct') {
-                    assert(node.type.notes.has('arithmetic'), 'operators are only implemented for #arithmetic structs')
+                    assert(node.type.notes.has('arithmetic'),
+                        'operators are only implemented for #arithmetic structs')
 
+                    // apply the operator piecewise, the only valid use case ;)
                     const fields = []
                     for (let i = 0; i < node.type.fields.length; i++) {
                         const left = readProp(node.a, ref(node.type.fields[i]))
