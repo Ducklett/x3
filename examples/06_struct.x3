@@ -1,6 +1,6 @@
 import "./lib/standard" use standard
 
-struct vec3[x:int,y:int,z:int]
+struct vec3[x:int,y:int,z:int] #arithmetic
 
 proc write vec3[v:vec3]
 {
@@ -15,7 +15,11 @@ proc write vec3[v:vec3]
 
 proc main
 {
-    var v = vec3(10, 20, 30)
+    var a = vec3(10, 20, 30)
+    var b = vec3(1, 2, 3)
+    var c = a + b; ((operator implemented by the #arithmetic tag))
 
-    write vec3(v)
+    write vec3(c)
+    write vec3(a*b)
+    write vec3(a/b)
 }

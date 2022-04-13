@@ -1,4 +1,4 @@
-const { assert, declareVar, num, binary, ref, readProp, unary, label, goto, assignVar, offsetAccess, nop } = require('./compiler')
+const { assert, declareVar, num, binary, ref, readProp, unary, label, goto, assignVar, offsetAccess, nop, call, ctor } = require('./compiler')
 const { fileMap } = require('./parser')
 
 // TODO: actually have different int types
@@ -220,6 +220,9 @@ function bind(files) {
                     scope,
                     notes: new Map(),
                     span: spanFromRange(node.keyword.span, node.parameters.end.span)
+                }
+                for (let n of node.tags) {
+                    it.notes.set(...bindTag(n))
                 }
 
                 popScope(scope)
@@ -1213,6 +1216,20 @@ function lower(ast) {
             case 'block': return lowerNodeList(node.statements)
 
             case 'binary': {
+                if (node.type?.kind == 'struct') {
+                    assert(node.type.notes.has('arithmetic'), 'operators are only implemented for #arithmetic structs')
+
+                    const fields = []
+                    for (let i = 0; i < node.type.fields.length; i++) {
+                        const left = readProp(node.a, ref(node.type.fields[i]))
+                        const right = readProp(node.b, ref(node.type.fields[i]))
+                        const bin = binary(node.op, left, right)
+                        fields.push(bin)
+                    }
+                    const it = ctor(node.type, ...fields)
+                    return lowerNode(it)
+                }
+
                 const left = lowerNode(node.a)
                 const right = lowerNode(node.b)
                 assert(left.length == 1)

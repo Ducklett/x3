@@ -56,6 +56,7 @@ const api = {
     }),
     If: (cond, then, els = null) => B({ kind: 'if', cond, then, els }),
     call: (def, ...args) => B({ kind: 'call', def, args }),
+    ctor: (def, ...args) => B({ kind: 'ctorcall', def, type: def, args }),
     syscall: (code, ...args) => B({ kind: 'syscall', code, args }),
     param: name => B({ kind: 'parameter', name }),
     declareVar: (name, expr) => B({ kind: 'declareVar', name, expr, type: expr.type }),
