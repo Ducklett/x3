@@ -124,9 +124,26 @@ const api = {
         }
 
         assert(hasEntrypoint, 'the program defines a main function')
+        const x3rt0 = `
+; x3rt0
+_start:
+xor rbp, rbp
+
+; call main(args: []cstring)
+lea rax, [rsp+8]    ; load argv first, because push will move rsp
+push qword [rsp]    ; argc
+push rax            ; argv
+call _main
+
+; call exit(0)
+mov rax, 0x3c
+mov rdi, 0
+syscall`
+
         const source = `
 section .text
 global _start
+${entrypoint == 'main' ? x3rt0 : ''}
 ${lines.join('\n')}
 section .data
 ${[...data.keys()]
@@ -151,6 +168,15 @@ ${[...data.keys()]
         write(dest, source)
 
         // ==================
+
+        function emitArgs(args) {
+            // NOTE: we push the last item first, because the stack grows down
+            // TODO: evaluate the args from left to right while still keeping the proper stack position
+            // NOTE: currently the last arg is evaluated first, which may lead to some unexpected stuff happening if it mutates state
+            for (let arg of [...args].reverse()) {
+                emitExpr(arg)
+            }
+        }
 
         function emitVar(node, fieldOffset = 0) {
             assert(
@@ -240,7 +266,8 @@ ${[...data.keys()]
                     if (isEntrypoint) {
                         assert(!hasEntrypoint, `only has one entrypoint`)
                         hasEntrypoint = true
-                        lines.push(`_start:`)
+                        // custom entrypoints skip x3rt0
+                        if (name != 'main') lines.push(`_start:`)
                     }
 
                     const vars = node.instructions.filter(n => n.kind === 'declareVar' || n.kind == 'buffer')
@@ -273,14 +300,14 @@ ${[...data.keys()]
                     if (!removeAlloc) lines.push(`sub rsp, ${localSize}\n`)
 
                     // let paramOffset = 16 + node.params.length * 8
-                    const paramStartOffset = isEntrypoint ? 8 : 16
+                    const paramStartOffset = 16
                     let paramOffset = paramStartOffset + node.params.reduce((acc, cur) => {
                         assert(cur.type.size && cur.type.size > 0)
                         return acc + Math.ceil(cur.type.size / 8) * 8 // alignment hack
                         // return acc + cur.type.size
                     }, 0)
 
-                    for (let param of node.params) {
+                    for (let param of [...node.params].reverse()) {
                         // paramOffset -= 8
                         paramOffset -= Math.ceil(param.type.size / 8) * 8 // alignment hack
                         // paramOffset -= param.type.size
@@ -346,13 +373,6 @@ ${[...data.keys()]
 
                     lines.push(`${returnLabel}:`)
 
-                    if (isEntrypoint && !node.notes.has('explicit exit')) {
-                        lines.push(`; injected exit`)
-                        lines.push(`mov rax, 0x3c`)
-                        lines.push(`mov rdi, 0`)
-                        lines.push(`syscall`)
-                    }
-
                     lines.push(`; epilogue`)
                     lines.push(`mov rsp, rbp`)
                     lines.push(`pop rbp`)
@@ -413,12 +433,7 @@ ${[...data.keys()]
                 case 'ctorcall': {
                     lines.push(`; new ${node.type.name}()`)
                     const args = node.args
-                    // NOTE: we push the last item first, because the stack grows down
-                    // TODO: evaluate the args from left to right while still keeping the proper stack position
-                    // NOTE: currently the last arg is evaluated first, which may lead to some unexpected stuff happening if it mutates state
-                    for (let arg of [...args].reverse()) {
-                        emitExpr(arg)
-                    }
+                    emitArgs(args)
                     return
                 }
                 case 'call': {
@@ -435,9 +450,7 @@ ${[...data.keys()]
                     }, 0)
 
                     if (argSize) {
-                        for (let arg of args) {
-                            emitExpr(arg)
-                        }
+                        emitArgs(args)
                     }
                     lines.push(`call _${node.def.symbol.name}`)
                     if (argSize) {
