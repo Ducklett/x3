@@ -1,16 +1,5 @@
 import "./lib/standard" use standard
 
-proc strlen[str:cstring] -> int
-{
-    var len = 0
-    while str[len] != 0 { len++ }
-    return len
-}
-
-proc write cstring[str:cstring] {
-    sys.write(sys.stdout, str, strlen(str))
-}
-
 proc main[args:[]cstring]
 {
     write("argc: ")
