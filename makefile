@@ -1,7 +1,7 @@
 test:
 	nasm -f elf64 test.asm -o out/test.o
 	ld out/test.o -o out/test
-	./out/test
+	./out/test these are some args
 
 # https://stackoverflow.com/questions/20737947/how-to-generate-a-nasm-compilable-assembly-code-from-c-source-code-on-linux
 testc:
@@ -28,7 +28,7 @@ run:
 	mkdir -p out
 	nasm -f elf64 out/out.asm -o out/out.o
 	ld out/out.o -o out/out
-	./out/out
+	./out/out these are some args
 
 clean:
 	rm -r out

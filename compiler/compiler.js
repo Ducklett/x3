@@ -273,7 +273,8 @@ ${[...data.keys()]
                     if (!removeAlloc) lines.push(`sub rsp, ${localSize}\n`)
 
                     // let paramOffset = 16 + node.params.length * 8
-                    let paramOffset = 16 + node.params.reduce((acc, cur) => {
+                    const paramStartOffset = isEntrypoint ? 8 : 16
+                    let paramOffset = paramStartOffset + node.params.reduce((acc, cur) => {
                         assert(cur.type.size && cur.type.size > 0)
                         return acc + Math.ceil(cur.type.size / 8) * 8 // alignment hack
                         // return acc + cur.type.size
@@ -529,7 +530,8 @@ ${[...data.keys()]
                 }
                 case 'offsetAccess': {
                     assert(node.left.kind == 'reference')
-                    assert(node.left.type.kind == 'struct' || node.left.type.type == 'array' || node.left.type.type == 'string')
+                    const legalTypes = ['array', 'pointer', 'string', 'cstring']
+                    assert(node.left.type.kind == 'struct' || legalTypes.includes(node.left.type.type))
 
                     const elementType = node.type
                     let elementSize = elementType.size
@@ -548,8 +550,10 @@ ${[...data.keys()]
                         // len
                         lines.push(`mov rax, ${emitVar(node.left.symbol)}`)
 
-                        // TODO: figure out how to do this without pushing an antrie qword??
-                        lines.push(`push qword [rax+r15]`)
+                        // TODO: figure out how to properly push just one byte
+                        lines.push(`mov rax, [rax+r15]`)
+                        lines.push(`and rax, 0xFF`)
+                        lines.push(`push qword rax`)
                         return
                     }
 
@@ -572,7 +576,6 @@ ${[...data.keys()]
                     return
                 }
                 case 'readProp': {
-                    console.log(node)
                     if (node.left.kind == 'ctorcall') {
                         const fieldIndex = node.left.type.fields.indexOf(node.prop.symbol)
                         assert(fieldIndex != -1)

@@ -1,0 +1,25 @@
+import "./lib/standard" use standard
+
+proc write cstring[str:cstring] {
+    var len = 0
+    while str[len] != 0 { len++ }
+    sys.write(sys.stdout,str,len)
+}
+
+proc main[argv:cstring,argc:int]
+{
+    write("argc: ")
+    write number(argc)
+    write("\n")
+
+
+    var args = &argv
+
+    for var i = 0; i < argc; i++ {
+        write("arg ")
+        write number(i)
+        write(": ")
+        write cstring(args[i])
+        write("\n")
+    }
+}

@@ -623,7 +623,8 @@ function bind(files) {
             case 'offset access': {
                 const left = bindExpression(node.name)
                 assert(left)
-                assert(left.symbol.type.type == 'array' || left.symbol.type.type == 'string', `can only access offset of arrays or strings`)
+                const legalTypes = ['array', 'string', 'cstring', 'pointer']
+                assert(legalTypes.includes(left.symbol.type.type), `can only access offset of arrays, strings,cstrings, pointers`)
 
                 const index = bindExpression(node.index)
 
@@ -633,12 +634,15 @@ function bind(files) {
                     index,
                     span: spanFromRange(left, node.end.span)
                 }
-                if (left.symbol.type.type == 'array') {
+                if (left.symbol.type.type == 'pointer') {
+                    it.type = left.symbol.type.to
+                } else if (left.symbol.type.type == 'array') {
                     it.type = left.symbol.type.of
                 } else {
-                    assert(left.symbol.type.type == 'string')
+                    assert(left.symbol.type.type == 'cstring' || left.symbol.type.type == 'string')
                     it.type = typeMap.char
                 }
+
                 return it
             }
             case 'property access': {
@@ -810,8 +814,9 @@ function bind(files) {
                 }
             }
 
+            // implicit cstring -> *char AND string -> *u0 cast
             // implicit string -> *char AND string -> *u0 cast
-            if (param.type.type == 'pointer' && arg.type.type == 'string') {
+            if (param.type.type == 'pointer' && (arg.type.type == 'cstring' || arg.type.type == 'string')) {
                 const toType = param.type.to.type
                 if (toType == 'u0' || toType == 'char') {
                     const cast = { kind: 'implicit cast', type: param.type, expr: arg }
@@ -827,6 +832,13 @@ function bind(files) {
                     arg = cast
                     args[i] = arg
                 }
+            }
+
+            // TODO: introduce explicit cast
+            if (param.type.type == 'int' && arg.type.type == 'char') {
+                const cast = { kind: 'implicit cast', type: param.type, expr: arg }
+                arg = cast
+                args[i] = arg
             }
 
             // console.log("expected:")
