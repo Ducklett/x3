@@ -123,6 +123,17 @@
 							"name": "keyword.operator.pseudo.x3"
 						}
 					}
+				},
+				{
+					"match": "(->)([a-zA-Z0-9_\\s]+)",
+					"captures": {
+						"1": {
+							"name": "storage.type.function.pipe.x3"
+						},
+						"2": {
+							"name": "entity.name.function.x3"
+						}
+					}
 				}
 
 			]
@@ -132,6 +143,10 @@
 				{
 					"name": "keyword.control.x3",
 					"match": "\\b(module|import|struct|union|proc|scope|return|break|continue|goto|label|var|const|for|do|while|each|enum|if|else|switch)\\b"
+				},
+				{
+					"name": "constant.language.boolean.x3",
+					"match": "\\b(true|false)\\b"
 				}
 			]
 		},

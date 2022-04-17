@@ -14,17 +14,13 @@ proc main {
             write number(number)
             write("\n")
             break
-        }
-
-        if guess == number {
+        } else if guess > number {
+            write line("Lower")
+        } else if guess < number {
+            write line("Higher")
+        } else {
             write line("You got it!")
             break
-        }
-
-        if guess > number {
-            write line("lower")
-        } else {
-            write line("higher")
         }
     }
 
