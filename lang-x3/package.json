@@ -1,8 +1,10 @@
 {
     "name": "lang-x3",
-    "displayName": "lang-x3",
+    "displayName": "X3",
     "description": "x3 language support",
     "version": "0.0.1",
+    "publisher": "Ivy Dingeman",
+    "icon": "icon.png",
     "engines": {
         "vscode": "^1.65.0"
     },
