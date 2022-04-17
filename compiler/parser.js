@@ -11,7 +11,7 @@ function parse(source) {
 
     const keywords = new Set(["module", "import", "use", "type", "struct", "union", "proc", "scope", "return", "break", "continue", "goto", "label", "var", "const", "for", "do", "while", "each", "enum", "if", "else", "switch", "true", "false"])
     const operators = new Set(["<<=", ">>=", "&&=", "||=", "==", "!=", ">=", "<=", "<<", ">>", "->", "&&", "||", "++", "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "~=", "=", "!", ">", "<", "+", "-", "/", "*", "%", "^", "~", "&", "|", "(", ")", "[", "]", "{", "}", "?", ":", ";", ".", ","])
-    const binaryOperators = new Set(["==", "!=", ">=", "<=", "<<", ">>", "&&", "||", ">", "<", "+", "-", "/", "*", "%", "^", "&", "|"])
+    const binaryOperators = new Set(["==", "!=", ">=", "<=", "<<", ">>", "&&", "||", "->", ">", "<", "+", "-", "/", "*", "%", "^", "&", "|"])
     const preUnaryOperators = new Set(["++", "--", "!", "-", "&"])
     const postUnaryOperators = new Set(["++", "--"])
     const assignmentOperators = new Set(["<<=", ">>=", "&&=", "||=", "=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "~=", "=",])
@@ -400,15 +400,17 @@ function parse(source) {
                         return lhs
                     }
                     case 'keyword': {
-                        switch (current().value) {
-                            case 'true': return { kind: 'boolean literal', value: true }
-                            case 'false': return { kind: 'boolean literal', value: false }
+                        const keyword = take('keyword')
+                        switch (keyword.value) {
+                            case 'true': return { kind: 'boolean literal', value: true, span: keyword.span }
+                            case 'false': return { kind: 'boolean literal', value: false, span: keyword.span }
+                            case 'break': return { kind: 'break', span: keyword.span }
+                            case 'continue': return { kind: 'continue', span: keyword.span }
                             case 'return': {
-                                const keyword = take('keyword', 'return')
                                 const expr = parseExpression()
                                 return { kind: 'return', keyword, expr }
                             }
-                            default: throw `unexpected token ${current().kind}::${current().value} for expression`
+                            default: throw `unexpected token ${keyword.kind}::${keyword.value} for expression`
                         }
                     }
                     default: throw `unexpected token ${current().kind}::${current().value} for expression`

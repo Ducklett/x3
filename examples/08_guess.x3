@@ -1,0 +1,32 @@
+import "./lib/standard" use standard
+
+proc main {
+    var number = random range(0,100)
+    var guessbuffer:[5]char
+
+    while true {
+        write("Please guess the number:")
+
+        var guess = read(guessbuffer) -> parse int
+
+        if guess.length <= 1 {
+            write("The correct answer was: ")
+            write number(number)
+            write("\n")
+            break
+        }
+
+        if guess == number {
+            write line("You got it!")
+            break
+        }
+
+        if guess > number {
+            write line("lower")
+        } else {
+            write line("higher")
+        }
+    }
+
+    write line("See ya!")
+}

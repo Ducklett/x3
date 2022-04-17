@@ -1,4 +1,4 @@
-const { assert, declareVar, num, binary, ref, readProp, unary, label, goto, assignVar, offsetAccess, nop, call, ctor } = require('./compiler')
+const { assert, declareVar, num, binary, ref, readProp, unary, label, goto, assignVar, offsetAccess, nop, call, ctor, struct, param } = require('./compiler')
 const { fileMap } = require('./parser')
 
 // TODO: actually have different int types
@@ -34,6 +34,21 @@ function bind(files) {
 
 
     pushScope(null, 'root', 'global')
+
+    // ========== declare builting functions and types ============
+    const str = struct('string', [
+        param('buffer', { ...typeMap.pointer, to: typeMap.char }),
+        param('length', typeMap.int)
+    ])
+    addSymbol('string', str)
+
+    const arr = struct('array', [
+        param('buffer', { ...typeMap.pointer, to: typeMap.u0 }),
+        param('length', typeMap.int)
+    ])
+    addSymbol('array', arr)
+
+    // ============================================================
 
     function currentScope() { return scopeStack[scopeStack.length - 1]; }
 
@@ -93,6 +108,11 @@ function bind(files) {
         // try find symbol at the top level of *other* file scopes
         if (scope.kind == 'file') {
             assert(scope.parent && scope.parent.kind == 'global')
+
+            const globalScope = scope.parent
+            symbol = findSymbol(name, globalScope, false)
+            if (symbol) return symbol
+
             for (let file of fileScopes) {
                 if (file == scope) continue
                 symbol = findSymbol(name, file, false)
@@ -438,6 +458,10 @@ function bind(files) {
                 return it
             }
 
+            case 'break':
+            case 'continue':
+                return node
+
             case 'binary':
             case 'unary':
             case 'assignment':
@@ -497,7 +521,8 @@ function bind(files) {
                 type.of = bindType(node.of)
                 if (node.size) {
                     assert(node.size.kind == 'number')
-                    type.count = node.size.n
+                    assert(node.size.value !== undefined)
+                    type.count = node.size.value
                 }
                 type.span = spanFromRange(node.begin.span, node.of.name.span)
                 return type
@@ -531,6 +556,8 @@ function bind(files) {
 
     function bindExpression(node, inScope) {
         switch (node.kind) {
+            case 'boolean literal':
+                return { kind: 'booleanLiteral', value: node.value, span: node.span, type: typeMap.bool }
             case 'number':
                 return { kind: 'numberLiteral', n: node.value, type: cloneType(typeMap.int), span: node.span }
             case 'string':
@@ -608,6 +635,9 @@ function bind(files) {
                 }
 
                 const symbol = findSymbol(node.value, inScope)
+                if (!symbol) {
+                    console.log(node)
+                }
                 assert(symbol, `symbol "${node.value}" is defined`)
                 const type = symbol.type
                 const it = {
@@ -708,16 +738,38 @@ function bind(files) {
                 }
             }
             case 'binary': {
+                const op = node.op.value
+
                 const a = bindExpression(node.lhs)
                 const b = bindExpression(node.rhs)
                 assert(a.type)
+
+                if (op == '->') {
+                    assert(b.kind == 'reference' && b.symbol.kind == 'function')
+                    const it = {
+                        kind: 'pipe',
+                        left: a,
+                        call: b,
+                        type: b.symbol.returnType,
+                        span: spanFromRange(a.span, b.span)
+                    }
+
+                    assert(node.rhs.kind == 'symbol')
+                    const args = validateArguments([a], b.symbol.params, node.rhs.span.file)
+                    assert(args.length == 1)
+                    it.left = args[0]
+
+                    return it
+                }
+
                 assert(b.type)
-                if (a.kind == 'stringLiteral' && b.type.type == 'int') {
+                if (a.kind == 'stringLiteral' && (b.type.type == 'int' || b.type.type == 'char')) {
                     a.type = typeMap.char
                 }
-                if (b.kind == 'stringLiteral' && a.type.type == 'int') {
+                if (b.kind == 'stringLiteral' && (a.type.type == 'int' || a.type.type == 'char')) {
                     b.type = typeMap.char
                 }
+
                 if (a.type.type == 'char' && b.type.type == 'int' || b.type.type == 'char' && a.type.type == 'int') {
                     // allow it
                 } else {
@@ -725,7 +777,6 @@ function bind(files) {
                 }
 
 
-                const op = node.op.value
                 const logicalOperators = new Set(['>', '>=', '<', '<=', '==', '!='])
                 const isLogical = logicalOperators.has(op)
                 const type = isLogical ? cloneType(typeMap.bool) : a.type
@@ -803,7 +854,7 @@ function bind(files) {
 
             let arg = args[i]
 
-            assert(param.type, `arument has a type`)
+            assert(param.type, `param has a type`)
             assert(arg.type, `arument has a type`)
 
             // string literal -> char literal
@@ -933,6 +984,8 @@ function lower(ast) {
     const labelCount = new Map()
     let entrypoint
     let buffers = []
+    let breakLabel = null
+    let continueLabel = null
 
     const loweredAst = lowerNodeList(ast)
     return [loweredAst, { entrypoint }]
@@ -994,6 +1047,7 @@ function lower(ast) {
             case 'implicit cast': return lowerNode(node.expr)
             case 'unary':
             case 'numberLiteral':
+            case 'booleanLiteral':
             case 'charLiteral': return [node]
 
             case 'postUnary': {
@@ -1091,8 +1145,17 @@ function lower(ast) {
                 let jumpToCondition = goto(conditionLabel)
                 let body = node.block
                 let jumpToBegin = goto(beginLabel, node.condition)
+                let endLabel = label('end')
 
-                return lowerNodeList([jumpToCondition, beginLabel, body, conditionLabel, jumpToBegin])
+                let prevBreak = breakLabel
+                let prevContinue = continueLabel
+                breakLabel = endLabel
+                continueLabel = conditionLabel
+                const result = lowerNodeList([jumpToCondition, beginLabel, body, conditionLabel, jumpToBegin, endLabel])
+                breakLabel = prevBreak
+                continueLabel = prevContinue
+
+                return result
             }
             case 'for': {
                 // precondition
@@ -1110,22 +1173,46 @@ function lower(ast) {
                 let precondition = node.preCondition ?? nop()
                 let jumpToBegin = goto(beginLabel, node.condition)
                 let postCondition = node.postCondition ?? nop()
+                let endLabel = label('end')
 
-                return lowerNodeList([precondition, jumpToCondition, beginLabel, body, postCondition, conditionLabel, jumpToBegin])
+                let prevBreak = breakLabel
+                let prevContinue = continueLabel
+                breakLabel = endLabel
+                continueLabel = conditionLabel
+                const result = lowerNodeList([precondition, jumpToCondition, beginLabel, body, postCondition, conditionLabel, jumpToBegin])
+                breakLabel = prevBreak
+                continueLabel = prevContinue
+                return result
             }
             case 'each': {
                 let indexInitializer = num(0, cloneType(typeMap.int))
                 if (node.index) node.index.expr = indexInitializer
                 let i = node.index ?? declareVar('i', indexInitializer)
                 let begin = label('begin')
-                let end = label('end')
-                let condition = goto(end, binary('>=', ref(i), readProp(ref(node.list), { kind: 'string length' })))
+                let endLabel = label('end')
+                let condition = goto(endLabel, binary('>=', ref(i), readProp(ref(node.list), { kind: 'string length' })))
                 let item = node.item
                 let setItem = assignVar(ref(item), offsetAccess(ref(node.list), ref(i)))
                 let body = node.block
                 let inc = unary('post++', ref(i))
                 let loop = goto(begin)
-                return lowerNodeList([i, begin, item, condition, setItem, body, inc, loop, end])
+
+                let prevBreak = breakLabel
+                let prevContinue = continueLabel
+                breakLabel = endLabel
+                continueLabel = begin
+                const result = lowerNodeList([i, begin, item, condition, setItem, body, inc, loop, endLabel])
+                breakLabel = prevBreak
+                continueLabel = prevContinue
+                return result
+            }
+            case 'break': {
+                assert(breakLabel !== null)
+                return [goto(breakLabel)]
+            }
+            case 'continue': {
+                assert(continueLabel !== null)
+                return [goto(continueLabel)]
             }
             case 'return': {
                 if (node.expr) {
@@ -1163,6 +1250,16 @@ function lower(ast) {
             case 'declareVar': {
                 node.name = mangleName(node)
                 let expr
+
+                if (!node.expr && node.type.type == 'array' && node.type.count) {
+                    assert(node.type.of.type == 'char')
+                    node.expr = {
+                        kind: 'arrayLiteral',
+                        entries: new Array(node.type.count).fill(null).map(_ => num(0)),
+                        type: node.type
+                    }
+                }
+
                 if (node.notes.has('const')) {
                     assert(node.expr)
                     expr = lowerNode(node.expr)
@@ -1287,6 +1384,17 @@ function lower(ast) {
                 return [node]
             }
 
+            case 'pipe': {
+                assert(node.call.kind == 'reference' && node.call.symbol.kind == 'function')
+                const it = {
+                    kind: 'call',
+                    def: node.call,
+                    args: [node.left],
+                    type: node.type,
+                    span: node.span
+                }
+                return lowerNode(it)
+            }
             case 'ctorcall':
             case 'syscall':
             case 'call': {

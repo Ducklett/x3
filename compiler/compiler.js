@@ -54,11 +54,20 @@ const api = {
         params,
         instructions
     }),
+    struct: (name, fields) => {
+        const size = fields.reduce((acc, cur) => {
+            assert(cur.type.size > 0)
+            cur.offset = acc
+            acc += cur.type.size
+            return acc
+        }, 0)
+        return B({ kind: 'struct', name, type: name, fields, size })
+    },
     If: (cond, then, els = null) => B({ kind: 'if', cond, then, els }),
     call: (def, ...args) => B({ kind: 'call', def, args }),
     ctor: (def, ...args) => B({ kind: 'ctorcall', def, type: def, args }),
     syscall: (code, ...args) => B({ kind: 'syscall', code, args }),
-    param: name => B({ kind: 'parameter', name }),
+    param: (name, type) => B({ kind: 'parameter', name, type }),
     declareVar: (name, expr) => B({ kind: 'declareVar', name, expr, type: expr.type }),
     assignVar: (varDec, expr) => B({ kind: 'assignVar', varDec, expr }),
     ref: symbol => B({ kind: 'reference', symbol, type: symbol.type }),
@@ -299,8 +308,9 @@ ${[...data.keys()]
                     lines.push(`mov rbp, rsp`)
                     if (!removeAlloc) lines.push(`sub rsp, ${localSize}\n`)
 
-                    // let paramOffset = 16 + node.params.length * 8
-                    const paramStartOffset = 16
+                    const passReturnByReference = node.returnType.size > 8
+
+                    const paramStartOffset = 16 + (passReturnByReference ? 8 : 0)
                     let paramOffset = paramStartOffset + node.params.reduce((acc, cur) => {
                         assert(cur.type.size && cur.type.size > 0)
                         return acc + Math.ceil(cur.type.size / 8) * 8 // alignment hack
@@ -316,6 +326,7 @@ ${[...data.keys()]
                     }
 
                     let varOffset = 0
+
                     for (let vr of vars) {
                         if (vr.kind == 'buffer') {
                             const node = vr.data
@@ -388,8 +399,19 @@ ${[...data.keys()]
                 case 'return': {
                     // note that return WILL push the expr onto the stack
                     if (node.expr) {
-                        emitExpr(node.expr)
-                        lines.push(`pop rax`)
+                        if (node.expr.type.size <= 8) {
+                            emitExpr(node.expr)
+                            lines.push(`pop rax`)
+                        } else {
+                            assert(node.expr.type.size % 8 == 0)
+                            emitExpr(node.expr)
+                            lines.push(`mov rcx, [rbp+16]`)
+                            for (let i = 0; i < node.expr.type.size; i += 8) {
+                                lines.push(`pop rax`)
+                                lines.push(`mov [rcx+${i}], rax`)
+                            }
+                            lines.push(`mov rax, rcx`)
+                        }
                     }
                     lines.push(`; return`)
                     lines.push(`jmp ${returnLabel}`)
@@ -441,22 +463,57 @@ ${[...data.keys()]
                         `; ${node.def.symbol.name}(${node.def.symbol.params.map(n => n.name).join(', ')})`
                     )
                     const args = node.args
-                    const argSize = args.reduce((acc, cur, i) => {
+                    let argSize = args.reduce((acc, cur, i) => {
                         assert(cur.type, `has a type`)
                         // TODO: switch to C-style calling convention so we can have 1-byte arguments
                         const size = Math.ceil(cur.type.size / 8) * 8 // alignment hack
+                        if (size <= 0) console.log(cur)
                         assert(size > 0, `type has size`)
                         return acc + size
                     }, 0)
 
+                    const returnSize = node.type.size
+                    const returnByReference = returnSize > 8
+
+                    if (returnByReference) {
+                        assert(returnSize % 8 == 0)
+                        lines.push(`sub rsp, ${returnSize} ; allocate returned struct`)
+                    }
                     if (argSize) {
                         emitArgs(args)
                     }
+
+
+                    if (returnByReference) {
+                        // push return value address
+                        lines.push(`lea rax, [rsp+${argSize}] `)
+                        lines.push(`push rax`)
+                        argSize += 8
+                    }
+
                     lines.push(`call _${node.def.symbol.name}`)
                     if (argSize) {
                         lines.push(`add rsp, ${argSize}`)
                     }
-                    if (shouldReturn) lines.push(`push rax`)
+                    if (shouldReturn) {
+                        if (returnByReference) {
+
+                            // NOTE: we already allocated the struct!
+                            // it was filled in by the call
+                            // we don't have to do anything else
+
+
+                            // push return value onto stack again
+                            // assert(node.type.size % 8 == 0)
+                            // for (let i = 0; i < node.type.size; i += 8) {
+                            //     lines.push(`mov rax, [rbp-${8 + i}]`)
+                            //     lines.push(`push rax`)
+                            // }
+
+                        } else {
+                            lines.push(`push rax`)
+                        }
+                    }
                     lines.push(``)
                     return
                 }
@@ -656,6 +713,8 @@ ${[...data.keys()]
                         '<<': 'shl',
                         '&': 'and',
                         '|': 'or',
+                        '||': 'or',  // TODO: short circuit
+                        '&&': 'and', // TODO: short circuit
                     }
                     const op = ops[node.op]
                     assert(op, `illegal binary operator ${node.op}`)
@@ -751,13 +810,26 @@ ${[...data.keys()]
                     assert(node.type && node.type.count)
 
                     lines.push(`; initializing array literal`)
-                    for (let i = 0; i < node.entries.length; i++) {
-                        emitExpr(node.entries[i])
-                        assert(node.type.of.size % 8 == 0)
-                        for (let j = 0; j < node.type.of.size; j += 8) {
-                            const offset = i * node.type.of.size + j
+                    const isAligned = node.type.of.size % 8 == 0
+
+                    if (isAligned) {
+                        for (let i = 0; i < node.entries.length; i++) {
+                            emitExpr(node.entries[i])
+                            for (let j = 0; j < node.type.of.size; j += 8) {
+                                const offset = i * node.type.of.size + j
+                                lines.push(`pop rax`)
+                                lines.push(`mov ${emitVar(node, offset)}, rax`)
+                            }
+                        }
+                    } else {
+                        assert(node.type.of.size == 1)
+                        // TODO: make this faster??
+                        for (let i = 0; i < node.entries.length; i++) {
+                            emitExpr(node.entries[i])
                             lines.push(`pop rax`)
-                            lines.push(`mov ${emitVar(node, offset)}, rax`)
+                            // NOTE: using al since we're working with 1 byte
+                            // TODO: work with other sizes
+                            lines.push(`mov ${emitVar(node, i)}, al`)
                         }
                     }
 
@@ -765,6 +837,10 @@ ${[...data.keys()]
                     lines.push(`lea rax, ${buffer}`)
                     lines.push(`push rax`)
 
+                    return
+                }
+                case 'booleanLiteral': {
+                    lines.push(`push qword ${node.value ? 1 : 0} ; ${node.value ? 'true' : 'false'}`)
                     return
                 }
                 case 'charLiteral': {
