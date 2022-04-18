@@ -93,7 +93,7 @@ const api = {
         })()
     }),
     binary: (op, a, b) => B({ kind: 'binary', op, a, b, type: a.type }),
-    unary: (op, expr) => B({ kind: 'unary', op, expr }),
+    unary: (op, expr, type) => B({ kind: 'unary', op, expr, type }),
     ret: expr => B({ kind: 'return', expr }),
     goto: (label, condition) => B({ kind: 'goto', condition, label }),
     label: (name) => B({ kind: 'label', name }),
@@ -180,6 +180,9 @@ ${[...data.keys()]
                         return `${k} dq ${d.map(v => `${v},${data.get(v).length}`).join(', ')} ; []string`
                     }
 
+                    if (d?.kind == 'struct') {
+                        return `${k} dq ${d.data.join(', ')} ; struct`
+                    }
                     assert(typeof d === 'string', 'only string data is supported')
 
                     const bytes = [...d].map(c => c.charCodeAt(0)).join(',')
@@ -223,6 +226,9 @@ ${[...data.keys()]
                         offset += ' + ' + fieldOffset
                     }
                 }
+                if (offset === undefined) {
+                    console.log(node)
+                }
                 assert(
                     offset !== undefined,
                     'referenced variable will either be a local or a global'
@@ -235,6 +241,9 @@ ${[...data.keys()]
                 case 'declareVar': {
                     const notes = node.notes ?? new Set()
                     assert(notes.has('const'), 'top level variables are constant')
+                    if (!node.expr) {
+                        console.log(node)
+                    }
                     assert(node.expr, 'top level variable is intialized')
 
                     switch (node.expr.kind) {
@@ -263,6 +272,25 @@ ${[...data.keys()]
                             globals.set(node, l)
                             // const l = label(node.expr.n)
                             // globals.set(node, l)
+                            break
+                        }
+                        case 'ctorcall': {
+                            const data = []
+                            for (let field of node.expr.args) {
+                                if (field.kind == 'numberLiteral') {
+                                    data.push(field.n.toString())
+                                } else {
+                                    assert(field.kind == 'stringLiteral')
+                                    const strLabel = label(field.value)
+                                    data.push(strLabel)
+                                    data.push(field.len.toString())
+                                }
+                            }
+                            const l = label({ kind: 'struct', data })
+                            globals.set(node, l)
+                            // console.log(node)
+                            // const args = node.expr.args
+                            // assert(false)
                             break
                         }
                         default:
@@ -372,18 +400,18 @@ ${[...data.keys()]
                                 console.log(`array = ${emitVar(node)}`)
                             }
                         } else {
-                            // if (vr.notes.has('const')) {
-                            // hoist that bitch!
-                            // emitTop(vr)
-                            // console.log(`const ${vr.name} = ${emitVar(vr)}`)
-                            // } else {
-                            assert(vr.kind == 'declareVar')
-                            assert(vr.expr == null, 'initalized locals not supported')
-                            varOffset -= Math.ceil(vr.type.size / 8) * 8 // alignment hack
-                            // varOffset -= vr.type.size
-                            locals.set(vr, varOffset)
-                            console.log(`var ${vr.name} = ${emitVar(vr)}`)
-                            // }
+                            if (vr.notes.has('const')) {
+                                //hoist that bitch!
+                                emitTop(vr)
+                                console.log(`const ${vr.name} = ${emitVar(vr)}`)
+                            } else {
+                                assert(vr.kind == 'declareVar')
+                                assert(vr.expr == null, 'initalized locals not supported')
+                                varOffset -= Math.ceil(vr.type.size / 8) * 8 // alignment hack
+                                // varOffset -= vr.type.size
+                                locals.set(vr, varOffset)
+                                console.log(`var ${vr.name} = ${emitVar(vr)}`)
+                            }
                         }
                     }
 
@@ -808,6 +836,16 @@ ${[...data.keys()]
                         '-': 'neg'
                     }
                     assert(node.expr.kind == 'reference')
+
+                    // pointer deref
+                    if (node.op == '*') {
+                        const type = node.type
+                        for (let i = type.size - 8; i >= 0; i -= 8) {
+                            lines.push(`mov rax, ${emitVar(node.expr.symbol)}`)
+                            lines.push(`push qword [rax + ${i}]`)
+                        }
+                        return
+                    }
 
                     // pointer to address
                     if (node.op == '&') {

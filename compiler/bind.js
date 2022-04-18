@@ -1,19 +1,29 @@
-const { assert, declareVar, num, binary, ref, readProp, unary, label, goto, assignVar, offsetAccess, nop, call, ctor, struct, param, fn, str } = require('./compiler')
+const { assert, declareVar, num, binary, ref, readProp, unary, label, goto, assignVar, offsetAccess, nop, call, ctor, struct, param, fn, str, MARK } = require('./compiler')
 const { fileMap } = require('./parser')
+
+const tag_void = 0
+const tag_int = 1
+const tag_bool = 2
+const tag_string = 3
+const tag_char = 4
+const tag_pointer = 5
+const tag_array = 6
+const tag_struct = 7
+const tag_type = 8
 
 // TODO: actually have different int types
 const typeMap = {
-    'int': { type: 'int', size: 8 },
-    'uint': { type: 'int', size: 8 },
-    'u64': { type: 'int', size: 8 },
-    'i64': { type: 'int', size: 8 },
-    'u0': { type: 'u0', size: 0 },
-    'string': { type: 'string', size: 16 },  // *char, length
-    'cstring': { type: 'cstring', size: 8 }, // *char
-    'array': { type: 'array', size: 16 },    // *values,length
-    'char': { type: 'char', size: 1 },
-    'bool': { type: 'bool', size: 1 },
-    'pointer': { type: 'pointer', size: 8, to: undefined },
+    'int': { tag: tag_int, type: 'int', size: 8 },
+    'uint': { tag: tag_int, type: 'int', size: 8 },
+    'u64': { tag: tag_int, type: 'int', size: 8 },
+    'i64': { tag: tag_int, type: 'int', size: 8 },
+    'void': { tag: tag_void, type: 'void', size: 0 },
+    'string': { tag: tag_string, type: 'string', size: 16 },  // *char, length
+    'cstring': { tag: tag_pointer, type: 'cstring', size: 8 }, // *char
+    'array': { tag: tag_array, type: 'array', size: 16 },    // *values,length
+    'char': { tag: tag_char, type: 'char', size: 1 },
+    'bool': { tag: tag_bool, type: 'bool', size: 1 },
+    'pointer': { tag: tag_pointer, type: 'pointer', size: 8, to: undefined },
 }
 
 function cloneType(t) {
@@ -33,30 +43,43 @@ function bind(files) {
     const fileScopes = []
 
 
-    pushScope(null, 'root', 'global')
+    const globalScope = pushScope(null, 'root', 'global')
 
     // ========== declare builting functions and types ============
 
     const typeInfo = struct('type info', [
         param('kind', typeMap.int),
         param('name', typeMap.string),
+        param('size', typeMap.int),
     ])
     addSymbol('type info', typeInfo)
 
     const $typeof = fn('typeof', [param('symbol')], typeInfo)
     addSymbol('typeof', $typeof)
 
-    const str = struct('string', [
+    const strr = struct('string', [
         param('buffer', { ...typeMap.pointer, to: typeMap.char }),
         param('length', typeMap.int)
     ])
-    addSymbol('string', str)
+    addSymbol('string', strr)
 
     const arr = struct('array', [
-        param('buffer', { ...typeMap.pointer, to: typeMap.u0 }),
+        param('buffer', { ...typeMap.pointer, to: typeMap.void }),
         param('length', typeMap.int)
     ])
     addSymbol('array', arr)
+
+    // add type infos
+    for (let [name, type] of Object.entries(typeMap)) {
+        // TODO: add additional type data
+        const t = ctor(typeInfo, num(type.tag, typeMap.int), str(name, typeMap.string), num(type.size, typeMap.int))
+        const infoName = name + '$typeinfo'
+        const decl = MARK('const',)(declareVar(infoName, t))
+        addSymbol(infoName, decl)
+        // NOTE: as of right now we need the actual declaration for it to be emitted
+        // TODO: perhaps just read the symbol table instead..
+        ast.push(decl)
+    }
 
     // ============================================================
 
@@ -317,7 +340,7 @@ function bind(files) {
 
                 const returnType = node.returnType
                     ? bindType(node.returnType)
-                    : typeMap.u0
+                    : typeMap.void
 
                 const it = {
                     kind: 'function',
@@ -556,6 +579,13 @@ function bind(files) {
             case 'type pointer': {
                 const it = cloneType(typeMap.pointer)
                 it.to = bindType(node.to)
+
+                // allow direct access to members behin the pointer
+                // e.g for *vec3 v: v.x = 10    (translates to (*v).x = 10)
+                if (it.to.scope) {
+                    it.scope = it.to.scope
+                }
+
                 it.span = spanFromRange(node.pointer.span, it.to.span)
                 return it
             }
@@ -645,7 +675,11 @@ function bind(files) {
                     op: node.op.value,
                     expr: bindExpression(node.expr),
                 }
-                if (it.op == '&') {
+                if (it.op == '*') {
+                    assert(it.expr.type.type == 'pointer')
+                    assert(it.expr.type.to)
+                    it.type = it.expr.type.to
+                } else if (it.op == '&') {
                     it.type = cloneType(typeMap.pointer)
                     it.type.to = it.expr.type
                 } else {
@@ -661,10 +695,6 @@ function bind(files) {
                 }
 
                 const symbol = findSymbol(node.value, inScope)
-                if (!symbol) {
-                    console.log(node)
-                    console.log(inScope)
-                }
                 assert(symbol, `symbol "${node.value}" is defined`)
                 const type = symbol.type
                 const it = {
@@ -705,7 +735,17 @@ function bind(files) {
             case 'property access': {
                 const left = bindExpression(node.scope, inScope)
                 assert(left)
-                assert(left.symbol?.type?.kind == 'struct' || left.symbol?.type?.kind == 'union' || left.symbol.scope || node.property.value == 'length', `property access is either string length hack,module or struct or union`)
+
+                function checkIfLhsIsLegal(left) {
+                    if (left.kind == 'reference' && left.symbol?.type?.type == 'pointer') {
+                        const to = left.symbol.type.to
+                        assert(to.kind == 'struct' || to.kind == 'union' || to.type == 'string' || to.type == 'array')
+                    } else {
+                        const isLegal = left.symbol?.type?.kind == 'struct' || left.symbol?.type?.kind == 'union' || left.symbol.scope || node.property.value == 'length'
+                        assert(isLegal, `property access is allowed to be: string length hack,module, struct, union, pointer`)
+                    }
+                }
+                checkIfLhsIsLegal(left)
 
                 const right = bindExpression(node.property, left.symbol?.type?.scope ?? left.symbol?.scope)
                 assert(right.type)
@@ -764,6 +804,17 @@ function bind(files) {
 
                     if (isTypeof) {
                         assert(it.args.length == 1 && it.args[0].type)
+                        const to = it.type
+                        const type = typeMap.pointer
+                        type.to = to
+                        it.type = type
+                        assert(it.args[0].type.type != 'struct' && it.args[0].type.type != 'union', 'structs not yet supported')
+                        const infoName = it.args[0].type.type + "$typeinfo"
+                        // console.log(infoName)
+                        const info = findSymbol(infoName, globalScope, false)
+                        // console.log(globalScope)
+                        assert(info)
+                        it.info = info
                     } else {
                         it.args = validateArguments(it.args, params, node.name.span.file)
                     }
@@ -899,20 +950,20 @@ function bind(files) {
                 }
             }
 
-            // implicit cstring -> *char AND string -> *u0 cast
-            // implicit string -> *char AND string -> *u0 cast
+            // implicit cstring -> *char AND string -> *void cast
+            // implicit string -> *char AND string -> *void cast
             if (param.type.type == 'pointer' && (arg.type.type == 'cstring' || arg.type.type == 'string')) {
                 const toType = param.type.to.type
-                if (toType == 'u0' || toType == 'char') {
+                if (toType == 'void' || toType == 'char') {
                     const cast = { kind: 'implicit cast', type: param.type, expr: arg }
                     arg = cast
                     args[i] = arg
                 }
             }
 
-            // implicit []foo -> *foo cast AND []foo -> *u0 cast
+            // implicit []foo -> *foo cast AND []foo -> *void cast
             if (param.type.type == 'pointer' && arg.type.type == 'array') {
-                if (param.type.to.type == arg.type.of.type || param.type.to.type == 'u0') {
+                if (param.type.to.type == arg.type.of.type || param.type.to.type == 'void') {
                     const cast = { kind: 'implicit cast', type: param.type, expr: arg }
                     arg = cast
                     args[i] = arg
@@ -926,11 +977,19 @@ function bind(files) {
                 args[i] = arg
             }
 
+            // TODO: introduce explicit cast
+            if (arg.type.type == 'void') {
+                const cast = { kind: 'implicit cast', type: param.type, expr: arg }
+                arg = cast
+                args[i] = arg
+            }
+
             if (param.type.kind == 'union') {
                 const cast = { kind: 'implicit cast', type: param.type, expr: arg }
                 arg = cast
                 args[i] = arg
             }
+
             // console.log("expected:")
             // console.log(param.type)
             // console.log("got:")
@@ -1076,7 +1135,7 @@ function lower(ast) {
         return newList
     }
 
-    function lowerNode(node) {
+    function lowerNode(node, { makeBuffer = true } = {}) {
         switch (node.kind) {
             case 'import':
             case 'type alias':
@@ -1088,6 +1147,13 @@ function lower(ast) {
             case 'charLiteral': return [node]
 
             case 'implicit cast': {
+
+                if (node.expr.type.type == 'void') {
+                    // HACK: just set the type on the expr and lower that
+                    node.expr.type = node.type
+                    return lowerNode(node.expr)
+                }
+
                 if (node.type.type == 'pointer' && (node.expr.type.type == 'string' || node.expr.type.type == 'array')) {
                     // TODO: turn this into .buffer property access
                     // currently handled as some hacky edge case in compiler.js
@@ -1096,8 +1162,6 @@ function lower(ast) {
 
                 if (node.type.size != node.expr.type.size) {
                     const padding = node.type.size - node.expr.type.size
-                    console.log(node.type)
-                    console.log(node.expr.type)
                     assert(padding > 0)
                     const pad = {
                         kind: 'pad',
@@ -1162,11 +1226,13 @@ function lower(ast) {
 
             case 'stringLiteral': {
 
-                if (node.type.type != 'char') {
-                    if (buffers.includes(node)) {
-                        throw "bruh"
-                    } else {
-                        buffers.push(node)
+                if (makeBuffer) {
+                    if (node.type.type != 'char') {
+                        if (buffers.includes(node)) {
+                            throw "bruh"
+                        } else {
+                            buffers.push(node)
+                        }
                     }
                 }
 
@@ -1176,10 +1242,12 @@ function lower(ast) {
             case 'arrayLiteral': {
                 node.entries = lowerNodeList(node.entries)
 
-                if (buffers.includes(node)) {
-                    throw "bruh"
-                } else {
-                    buffers.push(node)
+                if (makeBuffer) {
+                    if (buffers.includes(node)) {
+                        throw "bruh"
+                    } else {
+                        buffers.push(node)
+                    }
                 }
 
                 // how it works:
@@ -1329,7 +1397,9 @@ function lower(ast) {
 
                 if (node.notes.has('const')) {
                     assert(node.expr)
-                    expr = lowerNode(node.expr)
+                    // NOTE: we DONT want to split string into a buffer because it's a true constant
+                    // it should end up in the data section instead.
+                    expr = lowerNode(node.expr, { makeBuffer: false })
                     assert(expr.length == 1)
                     node.expr = expr[0]
 
@@ -1337,6 +1407,11 @@ function lower(ast) {
                     // TODO: still add some comment to nasm so we know what the number represents
                     if (node.expr.kind == 'numberLiteral') {
                         return []
+                    }
+
+                    const isTrueConstant = new Set(['stringLiteral', 'boolLiteral', 'arrayLiteral', 'ctorcall'])
+                    if (isTrueConstant.has(node.expr.kind)) {
+                        return [node]
                     }
 
                     // just treat it as a normal variable for now
@@ -1468,15 +1543,20 @@ function lower(ast) {
             case 'syscall':
             case 'call': {
                 if (node.kind == 'call' && node.def.symbol.name == 'typeof') {
-                    const nodeToGetTypeOf = node.args[0]
-                    const type = nodeToGetTypeOf.type
-                    const typeinfo = node.type
-                    assert(type)
-                    console.log(node)
-                    // TODO: get real kind id
-                    // TODO: return a pointer to static type data instead
-                    const typeAccess = ctor(typeinfo,/*kind*/ num(0),/*name*/str(type.type, typeMap.string))
-                    console.log(typeAccess)
+                    // const nodeToGetTypeOf = node.args[0]
+                    // const type = nodeToGetTypeOf.type
+                    // const typeinfo = node.type
+                    // const typeAccess = unary('&', ref(node.info), node.type)
+
+                    const typeAccess = ref(node.info)
+                    // HACK: labels ALREADY act as pointers, so just make the type a pointer for now
+                    // we should fix this eventually...
+                    typeAccess.type = node.type
+
+                    // assert(type)
+                    // console.log(node)
+                    // const typeAccess = ctor(typeinfo,/*kind*/ num(0),/*name*/str(type.type, typeMap.string))
+                    // console.log(typeAccess)
                     return lowerNode(typeAccess)
                 }
                 return [{

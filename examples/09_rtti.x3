@@ -1,37 +1,77 @@
 import "./lib/standard" use standard
 
-union data [
-    str:string,
-    num:int
-]
-
 struct any [
-    tag:int,
-    data:data
+    data:*void,
+    'type:*'type info'
 ]
 
-proc write any[it:any] {
-    if it.tag == 0 {
-        ((int))
-        write number(it.data.num)
+proc println[it:any] {
+    ((TODO: allow unary on property))
+    var data = it.data
+    if (it.'type.kind == 1) { ((int))
+        write number(*data)
     } else {
-        ((string))
-        assert(it.tag == 1)
-        write(it.data.str)
+        assert(it.'type.kind == 3) ((string))
+        write(*data)
     }
     write("\n")
 }
 
-(( proc write type[t:'type info'] {
-    write number(t.kind)
-    write(" :: ")
+proc write type[t:*'type info'] {
+    const tag_void = 0
+    const tag_int = 1
+    const tag_bool = 2
+    const tag_string = 3
+    const tag_char = 4
+    const tag_pointer = 5
+    const tag_array = 6
+    const tag_struct = 7
+    const tag_type = 8
+
     write(t.name)
+    write(" :: ")
+    write number(t.size)
+
+    if t.kind == tag_int {
+        (( write(" (")
+        if t.data.intData.signed {
+            write("signed")
+        } else {
+            write("unsigned")
+        }
+        write(")") ))
+    } else if t.kind == tag_array {
+        (( write(" [")
+        write number(t.data.arrayData.count)
+        write("] ")
+        write type(t.data.arrayData.of) ))
+    } else if t.kind == tag_struct {
+        write(" {\n")
+        (( TODO: allow property in each loop ))
+        (( var fields = t.data.structData.fields
+        each field :  fields {
+            write number(field.offset)
+            write(" -> ")
+            write(field.name)
+            write(": ")
+            write type(field.'type')
+        }
+        write("}") ))
+    }
     write("\n")
-} ))
+}
 
 proc main {
-    var num = any(0,10)
+    (( var num = any(0,10)
     var str = any(1,"hello unions")
     write any(num)
-    write any(str)
+    write any(str) ))
+    var str = "hello rtti"
+    var num = 42
+    (( write type(typeof(str) )
+    write type(typeof(num) ) ))
+
+    ((TODO: fix the bruh throw above))
+    println(any(&str,typeof(str)))
+    println(any(&num,typeof(num)))
 }
