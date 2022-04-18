@@ -9,12 +9,7 @@ proc main {
 
         var guess = read(guessbuffer) -> parse int
 
-        if guess.length <= 1 {
-            write("The correct answer was: ")
-            write number(number)
-            write("\n")
-            break
-        } else if guess > number {
+        if guess > number {
             write line("Lower")
         } else if guess < number {
             write line("Higher")

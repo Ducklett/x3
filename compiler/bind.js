@@ -1,4 +1,4 @@
-const { assert, declareVar, num, binary, ref, readProp, unary, label, goto, assignVar, offsetAccess, nop, call, ctor, struct, param } = require('./compiler')
+const { assert, declareVar, num, binary, ref, readProp, unary, label, goto, assignVar, offsetAccess, nop, call, ctor, struct, param, fn, str } = require('./compiler')
 const { fileMap } = require('./parser')
 
 // TODO: actually have different int types
@@ -36,6 +36,16 @@ function bind(files) {
     pushScope(null, 'root', 'global')
 
     // ========== declare builting functions and types ============
+
+    const typeInfo = struct('type info', [
+        param('kind', typeMap.int),
+        param('name', typeMap.string),
+    ])
+    addSymbol('type info', typeInfo)
+
+    const $typeof = fn('typeof', [param('symbol')], typeInfo)
+    addSymbol('typeof', $typeof)
+
     const str = struct('string', [
         param('buffer', { ...typeMap.pointer, to: typeMap.char }),
         param('length', typeMap.int)
@@ -229,11 +239,15 @@ function bind(files) {
 
                 return it
             }
+            case 'union':
             case 'struct': {
-                const scope = pushScope(null, node.name.value, 'struct')
+                const kind = node.kind
+                assert(kind == 'struct' || kind == 'union')
+
+                const scope = pushScope(null, node.name.value, kind)
                 const name = node.name.value
                 const it = {
-                    kind: 'struct',
+                    kind,
                     name: name,
                     type: name,
                     fields: bindParameters(node.parameters),
@@ -251,14 +265,26 @@ function bind(files) {
 
                 it.size = 0
 
-                for (let field of it.fields) {
-                    assert(field.type)
-                    assert(field.type.size)
-                    field.kind = 'field'
-                    // TODO: alignment
-                    assert(it.size % 8 == 0)
-                    field.offset = it.size
-                    it.size += field.type.size
+                if (kind == 'struct') {
+                    for (let field of it.fields) {
+                        assert(field.type)
+                        assert(field.type.size)
+                        field.kind = 'field'
+                        // TODO: alignment
+                        assert(field.type.size % 8 == 0)
+                        field.offset = it.size
+                        it.size += field.type.size
+                    }
+                } else {
+                    assert(it.kind == 'union')
+                    for (let field of it.fields) {
+                        assert(field.type)
+                        assert(field.type.size)
+                        field.kind = 'field'
+                        assert(field.type.size % 8 == 0)
+                        field.offset = 0
+                        it.size = Math.max(it.size, field.type.size)
+                    }
                 }
 
                 assert(it.size > 0)
@@ -637,6 +663,7 @@ function bind(files) {
                 const symbol = findSymbol(node.value, inScope)
                 if (!symbol) {
                     console.log(node)
+                    console.log(inScope)
                 }
                 assert(symbol, `symbol "${node.value}" is defined`)
                 const type = symbol.type
@@ -678,9 +705,9 @@ function bind(files) {
             case 'property access': {
                 const left = bindExpression(node.scope, inScope)
                 assert(left)
-                assert(left.symbol?.type?.kind == 'struct' || left.symbol.scope || node.property.value == 'length', `property access is either string length hack,module or struct`)
+                assert(left.symbol?.type?.kind == 'struct' || left.symbol?.type?.kind == 'union' || left.symbol.scope || node.property.value == 'length', `property access is either string length hack,module or struct or union`)
 
-                const right = bindExpression(node.property, left.symbol?.scope ?? left.symbol.type.scope)
+                const right = bindExpression(node.property, left.symbol?.type?.scope ?? left.symbol?.scope)
                 assert(right.type)
                 const type = right.type
 
@@ -725,6 +752,8 @@ function bind(files) {
                     it.args = validateArguments(it.args, params, node.name.span.file)
                     return it
                 } else {
+                    const isTypeof = node.name.value == 'typeof'
+
                     const it = {
                         kind: 'call',
                         def,
@@ -732,7 +761,12 @@ function bind(files) {
                         type,
                         span: spanFromRange(node.name.span, node.argumentList.end.span)
                     }
-                    it.args = validateArguments(it.args, params, node.name.span.file)
+
+                    if (isTypeof) {
+                        assert(it.args.length == 1 && it.args[0].type)
+                    } else {
+                        it.args = validateArguments(it.args, params, node.name.span.file)
+                    }
 
                     return it
                 }
@@ -892,6 +926,11 @@ function bind(files) {
                 args[i] = arg
             }
 
+            if (param.type.kind == 'union') {
+                const cast = { kind: 'implicit cast', type: param.type, expr: arg }
+                arg = cast
+                args[i] = arg
+            }
             // console.log("expected:")
             // console.log(param.type)
             // console.log("got:")
@@ -1043,12 +1082,40 @@ function lower(ast) {
             case 'type alias':
             case 'use': return []
 
-            // TODO: make implicit cast do something
-            case 'implicit cast': return lowerNode(node.expr)
             case 'unary':
             case 'numberLiteral':
             case 'booleanLiteral':
             case 'charLiteral': return [node]
+
+            case 'implicit cast': {
+                if (node.type.type == 'pointer' && (node.expr.type.type == 'string' || node.expr.type.type == 'array')) {
+                    // TODO: turn this into .buffer property access
+                    // currently handled as some hacky edge case in compiler.js
+                    return lowerNode(node.expr)
+                }
+
+                if (node.type.size != node.expr.type.size) {
+                    const padding = node.type.size - node.expr.type.size
+                    console.log(node.type)
+                    console.log(node.expr.type)
+                    assert(padding > 0)
+                    const pad = {
+                        kind: 'pad',
+                        padding,
+                        expr: node.expr,
+                    }
+                    return lowerNode(pad)
+                }
+
+                return lowerNode(node.expr)
+            }
+
+            case 'pad': {
+                const expr = lowerNode(node.expr)
+                assert(expr.length == 1)
+                node.expr = expr[0]
+                return [node]
+            }
 
             case 'postUnary': {
                 const expr = lowerNode(node.expr)
@@ -1317,6 +1384,8 @@ function lower(ast) {
                     node
                 ]
             }
+
+            case 'union':
             case 'struct': {
                 node.name = mangleName(node)
                 return []
@@ -1398,6 +1467,18 @@ function lower(ast) {
             case 'ctorcall':
             case 'syscall':
             case 'call': {
+                if (node.kind == 'call' && node.def.symbol.name == 'typeof') {
+                    const nodeToGetTypeOf = node.args[0]
+                    const type = nodeToGetTypeOf.type
+                    const typeinfo = node.type
+                    assert(type)
+                    console.log(node)
+                    // TODO: get real kind id
+                    // TODO: return a pointer to static type data instead
+                    const typeAccess = ctor(typeinfo,/*kind*/ num(0),/*name*/str(type.type, typeMap.string))
+                    console.log(typeAccess)
+                    return lowerNode(typeAccess)
+                }
                 return [{
                     ...node, args: node.args.map(a => {
                         const result = lowerNode(a)

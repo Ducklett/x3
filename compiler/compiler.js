@@ -48,20 +48,33 @@ const api = {
 
     nop: () => B({ kind: 'nop' }),
     MARK: (...notes) => node => ({ ...node, notes: new Set(notes) }),
-    fn: (name, params, instructions) => ({
+    fn: (name, params, returnType, instructions) => B({
         kind: 'function',
         name,
         params,
+        returnType,
         instructions
     }),
     struct: (name, fields) => {
+        const scope = {
+            name,
+            kind: 'struct',
+            parent: null,
+            symbols: new Map(),
+            used: new Set(),
+        }
+
+        for (let f of fields) {
+            scope.symbols.set(f.name, f)
+        }
+
         const size = fields.reduce((acc, cur) => {
             assert(cur.type.size > 0)
             cur.offset = acc
             acc += cur.type.size
             return acc
         }, 0)
-        return B({ kind: 'struct', name, type: name, fields, size })
+        return B({ kind: 'struct', name, type: name, fields, size, scope })
     },
     If: (cond, then, els = null) => B({ kind: 'if', cond, then, els }),
     call: (def, ...args) => B({ kind: 'call', def, args }),
@@ -645,6 +658,12 @@ ${[...data.keys()]
                     }
                     return
                 }
+                case 'pad': {
+                    emitExpr(node.expr)
+                    assert(node.padding % 8 == 0)
+                    lines.push(`sub rsp, ${node.padding} ; padding`)
+                    return
+                }
                 case 'readProp': {
                     if (node.left.kind == 'ctorcall') {
                         const fieldIndex = node.left.type.fields.indexOf(node.prop.symbol)
@@ -662,8 +681,28 @@ ${[...data.keys()]
                     if (node.prop.kind == 'string length') {
                         lines.push(`push qword ${emitVar(node.left.symbol, 8)} ; ${node.left.symbol.name}.length`)
                     } else {
-                        assert(node.prop.symbol.offset !== undefined)
-                        lines.push(`push qword ${emitVar(node.left.symbol, node.prop.symbol.offset)} ; ${node.left.symbol.name}.${node.prop.symbol.name}`)
+                        let offset = 0 //node.prop.symbol.offset
+                        let prop = node.prop
+
+                        while (prop.kind == 'readProp') {
+                            assert(prop.left.kind == 'reference')
+                            assert(prop.left.symbol.offset !== undefined)
+                            offset += prop.left.symbol.offset
+
+                            prop = prop.prop
+                        }
+
+                        assert(prop.kind == 'reference')
+                        assert(prop.symbol.offset !== undefined)
+
+                        offset += prop.symbol.offset
+
+                        const size = prop.symbol.type.size
+                        assert(size && size % 8 == 0)
+                        for (let i = size - 8; i >= 0; i -= 8) {
+                            lines.push(`push qword ${emitVar(node.left.symbol, offset + i)} ; ${node.left.symbol.name}..${prop.symbol.name}`)
+                        }
+
                     }
                     return
 

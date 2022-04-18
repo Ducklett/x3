@@ -81,6 +81,17 @@
 					}
 				},
 				{
+					"match": "\\b(union)\\b([a-zA-Z0-9_\\s]+)\\b",
+					"captures": {
+						"1": {
+							"name": "storage.type.union.x3"
+						},
+						"2": {
+							"name": "variable.other.constant.x3"
+						}
+					}
+				},
+				{
 					"match": "\\b(type)\\b([a-zA-Z0-9_\\s]+)\\b",
 					"captures": {
 						"1": {
@@ -147,6 +158,10 @@
 				{
 					"name": "constant.language.boolean.x3",
 					"match": "\\b(true|false)\\b"
+				},
+				{
+					"name": "keyword.operator.x3",
+					"match": "\\b(typeof)\\b"
 				}
 			]
 		},

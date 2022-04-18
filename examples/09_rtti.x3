@@ -1,0 +1,37 @@
+import "./lib/standard" use standard
+
+union data [
+    str:string,
+    num:int
+]
+
+struct any [
+    tag:int,
+    data:data
+]
+
+proc write any[it:any] {
+    if it.tag == 0 {
+        ((int))
+        write number(it.data.num)
+    } else {
+        ((string))
+        assert(it.tag == 1)
+        write(it.data.str)
+    }
+    write("\n")
+}
+
+(( proc write type[t:'type info'] {
+    write number(t.kind)
+    write(" :: ")
+    write(t.name)
+    write("\n")
+} ))
+
+proc main {
+    var num = any(0,10)
+    var str = any(1,"hello unions")
+    write any(num)
+    write any(str)
+}

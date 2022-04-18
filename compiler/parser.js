@@ -494,12 +494,16 @@ function parse(source) {
                     let body = parseBlock('proc', true, true)
                     return { kind: 'scope', keyword, name, parameters, body, tags }
                 }
+                case 'union':
                 case 'struct': {
-                    const keyword = take('keyword', 'struct')
+                    const keyword = take('keyword')
+                    const kind = keyword.value
+                    assert(kind == 'struct' || kind == 'union')
+
                     const name = take('symbol')
                     const parameters = parseList(parseTypedSymbol)
                     const tags = parseTags()
-                    return { kind: 'struct', keyword, name, parameters, tags }
+                    return { kind, keyword, name, parameters, tags }
                 }
                 case 'const':
                 case 'var': {
