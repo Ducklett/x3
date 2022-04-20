@@ -146,7 +146,6 @@
 						}
 					}
 				}
-
 			]
 		},
 		"keywords": {
@@ -201,9 +200,18 @@
 			]
 		},
 		"comments": {
-			"name": "comment.block.x3",
-			"begin": "(\\(\\()",
-			"end": "(\\)\\))"
+			"patterns": [
+				{
+					"name": "comment.block.x3",
+					"begin": "(\\/\\*)",
+					"end": "(\\*\\/)"
+				},
+				{
+					"name": "comment.line.x3",
+					"begin": "(\\/\\/)",
+					"end": "^"
+				}
+			]
 		},
 		"operators": {
 			"patterns": [

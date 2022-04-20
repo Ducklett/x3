@@ -6,15 +6,15 @@ struct any [
 ]
 
 proc println[it:any] {
-    ((TODO: allow unary on property))
-    ((TODO: better symbol parser;
-      allow keyword at start of symbol name if we KNOW we're expecting a symbol
-      this saves us from doing 'type all over the place))
+    // TODO: allow unary on property
+    // TODO: better symbol parser;
+    //   allow keyword at start of symbol name if we KNOW we're expecting a symbol
+    //   this saves us from doing 'type all over the place
     var data = it.data
-    if (it.'type.kind == 1) { ((int))
+    if (it.'type.kind == 1) { // int
         write number(<-data)
     } else {
-        assert(it.'type.kind == 3) ((string))
+        assert(it.'type.kind == 3) // string
         write(<-data)
     }
     write("\n")
@@ -36,30 +36,30 @@ proc write type[t:->'type info'] {
     write number(t.size)
 
     if t.kind == tag_int {
-        (( write(" (")
-        if t.data.intData.signed {
-            write("signed")
-        } else {
-            write("unsigned")
-        }
-        write(")") ))
+        // write(" (")
+        // if t.data.intData.signed {
+        //     write("signed")
+        // } else {
+        //     write("unsigned")
+        // }
+        // write(")")
     } else if t.kind == tag_array {
-        (( write(" [")
-        write number(t.data.arrayData.count)
-        write("] ")
-        write type(t.data.arrayData.of) ))
+        // write(" [")
+        // write number(t.data.arrayData.count)
+        // write("] ")
+        // write type(t.data.arrayData.of)
     } else if t.kind == tag_struct {
         write(" {\n")
-        (( TODO: allow property in each loop ))
-        (( var fields = t.data.structData.fields
-        each field :  fields {
-            write number(field.offset)
-            write(" -> ")
-            write(field.name)
-            write(": ")
-            write type(field.'type')
-        }
-        write("}") ))
+        // TODO: allow property in each loop
+        // var fields = t.data.structData.fields
+        // each field :  fields {
+        //     write number(field.offset)
+        //     write(" -> ")
+        //     write(field.name)
+        //     write(": ")
+        //     write type(field.'type')
+        // }
+        // write("}")
     }
     write("\n")
 }

@@ -3,13 +3,13 @@ module sys {
     type ssize_t = i64
     type mode_t = i64
 
-    ((see linux manual for syscall documentation))
+    // see linux manual for syscall documentation
     proc read[fd:uint,buf:->!char,count:size_t] -> ssize_t       #syscall(0x000)
     proc write[fd:int,buf:->void,count:size_t] -> ssize_t        #syscall(0x001)
     proc open[filename:cstring,flags:int,mode:mode_t] -> int     #syscall(0x002)
     proc close[fd:int] -> int                                    #syscall(0x003)
 
-    ((TODO:proper types))
+    // TODO:proper types
     proc stat[filename:cstring,statbuf:->void] -> int            #syscall(0x003)
     proc fstat[fd:int,statbuf:->void] -> int                     #syscall(0x005)
     proc lstat[filename:cstring,statbuf:->void] -> int           #syscall(0x006)
@@ -17,7 +17,7 @@ module sys {
     proc lseek[fd:int,offset:int,whence:int] -> int              #syscall(0x008)
     proc mmap[addr:->void, length:int, prot:int, flags:int, fd:int, offset:int] -> ->void #syscall(0x009)
 
-    ((TODO:read manual))
+    // TODO:read manual
     proc mprotect[start:u64,len:u64,prot:u64]                    #syscall(0x00A)
     proc munmap[addr:u64,len:u64]                                #syscall(0x00B)
     proc brk[brk:u64]                                            #syscall(0x00C)
@@ -26,12 +26,12 @@ module sys {
     proc unlink[path:cstring]                                    #syscall(0x057)
     proc getrandom[buf:->!char,buflen:size_t,flags:uint] -> ssize_t  #syscall(0x13e)
 
-    ((IO file descriptors))
+    // IO file descriptors
     const stdin:int = 0
     const stdout:int = 1
     const stderr:int = 2
 
-    ((errno codes ))
+    // errno codes
     const EPERM:int =        1
     const ENOENT:int =       2
     const ESRCH:int =        3
@@ -63,123 +63,121 @@ module sys {
     const EPIPE:int =        32
     const EDOM:int =         33
 
-    const EDEADLK:int=35 ((Resource deadlock would occur))
-    const ENAMETOOLONG:int=36 ((File name too long))
-    const ENOLCK:int=37 ((No record locks available))
+    const EDEADLK:int=35 // Resource deadlock would occur
+    const ENAMETOOLONG:int=36 // File name too long
+    const ENOLCK:int=37 // No record locks available
 
-    ((
-    This error code is special: arch syscall entry code will return
-    -ENOSYS if users try to call a syscall that doesn't exist.  To keep
-    failures of syscalls that really do exist distinguishable from
-    failures due to attempts to use a nonexistent syscall, syscall
-    implementations should refrain from returning -ENOSYS.
-    ))
-    const ENOSYS:int = 38 (( Invalid system call number ))
+    // This error code is special: arch syscall entry code will return
+    // -ENOSYS if users try to call a syscall that doesn't exist.  To keep
+    // failures of syscalls that really do exist distinguishable from
+    // failures due to attempts to use a nonexistent syscall, syscall
+    // implementations should refrain from returning -ENOSYS.
+    const ENOSYS:int = 38 // Invalid system call number
 
-    const ENOTEMPTY:int = 39 (( Directory not empty ))
-    const ELOOP:int = 40 (( Too many symbolic links encountered ))
-    const EWOULDBLOCK:int = EAGAIN (( Operation would block ))
-    const ENOMSG:int = 42 (( No message of desired type ))
-    const EIDRM:int = 43 (( Identifier removed ))
-    const ECHRNG:int = 44 (( Channel number out of range ))
-    const EL2NSYNC:int = 45 (( Level 2 not synchronized ))
-    const EL3HLT:int = 46 (( Level 3 halted ))
-    const EL3RST:int = 47 (( Level 3 reset ))
-    const ELNRNG:int = 48 (( Link number out of range ))
-    const EUNATCH:int = 49 (( Protocol driver not attached ))
-    const ENOCSI:int = 50 (( No CSI structure available ))
-    const EL2HLT:int = 51 (( Level 2 halted ))
-    const EBADE:int = 52 (( Invalid exchange ))
-    const EBADR:int = 53 (( Invalid request descriptor ))
-    const EXFULL:int = 54 (( Exchange full ))
-    const ENOANO:int = 55 (( No anode ))
-    const EBADRQC:int = 56 (( Invalid request code ))
-    const EBADSLT:int = 57 (( Invalid slot ))
+    const ENOTEMPTY:int = 39 // Directory not empty
+    const ELOOP:int = 40 // Too many symbolic links encountered
+    const EWOULDBLOCK:int = EAGAIN // Operation would block
+    const ENOMSG:int = 42 // No message of desired type
+    const EIDRM:int = 43 // Identifier removed
+    const ECHRNG:int = 44 // Channel number out of range
+    const EL2NSYNC:int = 45 // Level 2 not synchronized
+    const EL3HLT:int = 46 // Level 3 halted
+    const EL3RST:int = 47 // Level 3 reset
+    const ELNRNG:int = 48 // Link number out of range
+    const EUNATCH:int = 49 // Protocol driver not attached
+    const ENOCSI:int = 50 // No CSI structure available
+    const EL2HLT:int = 51 // Level 2 halted
+    const EBADE:int = 52 // Invalid exchange
+    const EBADR:int = 53 // Invalid request descriptor
+    const EXFULL:int = 54 // Exchange full
+    const ENOANO:int = 55 // No anode
+    const EBADRQC:int = 56 // Invalid request code
+    const EBADSLT:int = 57 // Invalid slot
 
     const EDEADLOCK:int = EDEADLK
 
-    const EBFONT:int = 59 (( Bad font file format ))
-    const ENOSTR:int = 60 (( Device not a stream ))
-    const ENODATA:int = 61 (( No data available ))
-    const ETIME:int = 62 (( Timer expired ))
-    const ENOSR:int = 63 (( Out of streams resources ))
-    const ENONET:int = 64 (( Machine is not on the network ))
-    const ENOPKG:int = 65 (( Package not installed ))
-    const EREMOTE:int = 66 (( Object is remote ))
-    const ENOLINK:int = 67 (( Link has been severed ))
-    const EADV:int = 68 (( Advertise error ))
-    const ESRMNT:int = 69 (( Srmount error ))
-    const ECOMM:int = 70 (( Communication error on send ))
-    const EPROTO:int = 71 (( Protocol error ))
-    const EMULTIHOP:int = 72 (( Multihop attempted ))
-    const EDOTDOT:int = 73 (( RFS specific error ))
-    const EBADMSG:int = 74 (( Not a data message ))
-    const EOVERFLOW:int = 75 (( Value too large for defined data type ))
-    const ENOTUNIQ:int = 76 (( Name not unique on network ))
-    const EBADFD:int = 77 (( File descriptor in bad state ))
-    const EREMCHG:int = 78 (( Remote address changed ))
-    const ELIBACC:int = 79 (( Can not access a needed shared library ))
-    const ELIBBAD:int = 80 (( Accessing a corrupted shared library ))
-    const ELIBSCN:int = 81 (( .lib section in a.out corrupted ))
-    const ELIBMAX:int = 82 (( Attempting to link in too many shared libraries ))
-    const ELIBEXEC:int = 83 (( Cannot exec a shared library directly ))
-    const EILSEQ:int = 84 (( Illegal byte sequence ))
-    const ERESTART:int = 85 (( Interrupted system call should be restarted ))
-    const ESTRPIPE:int = 86 (( Streams pipe error ))
-    const EUSERS:int = 87 (( Too many users ))
-    const ENOTSOCK:int = 88 (( Socket operation on non-socket ))
-    const EDESTADDRREQ:int = 89 (( Destination address required ))
-    const EMSGSIZE:int = 90 (( Message too long ))
-    const EPROTOTYPE:int = 91 (( Protocol wrong type for socket ))
-    const ENOPROTOOPT:int = 92 (( Protocol not available ))
-    const EPROTONOSUPPORT:int = 93 (( Protocol not supported ))
-    const ESOCKTNOSUPPORT:int = 94 (( Socket type not supported ))
-    const EOPNOTSUPP:int = 95 (( Operation not supported on transport endpoint ))
-    const EPFNOSUPPORT:int = 96 (( Protocol family not supported ))
-    const EAFNOSUPPORT:int = 97 (( Address family not supported by protocol ))
-    const EADDRINUSE:int = 98 (( Address already in use ))
-    const EADDRNOTAVAIL:int = 99 (( Cannot assign requested address ))
-    const ENETDOWN:int = 100 (( Network is down ))
-    const ENETUNREACH:int = 101 (( Network is unreachable ))
-    const ENETRESET:int = 102 (( Network dropped connection because of reset ))
-    const ECONNABORTED:int = 103 (( Software caused connection abort ))
-    const ECONNRESET:int = 104 (( Connection reset by peer ))
-    const ENOBUFS:int = 105 (( No buffer space available ))
-    const EISCONN:int = 106 (( Transport endpoint is already connected ))
-    const ENOTCONN:int = 107 (( Transport endpoint is not connected ))
-    const ESHUTDOWN:int = 108 (( Cannot send after transport endpoint shutdown ))
-    const ETOOMANYREFS:int = 109 (( Too many references: cannot splice ))
-    const ETIMEDOUT:int = 110 (( Connection timed out ))
-    const ECONNREFUSED:int = 111 (( Connection refused ))
-    const EHOSTDOWN:int = 112 (( Host is down ))
-    const EHOSTUNREACH:int = 113 (( No route to host ))
-    const EALREADY:int = 114 (( Operation already in progress ))
-    const EINPROGRESS:int = 115 (( Operation now in progress ))
-    const ESTALE:int = 116 (( Stale file handle ))
-    const EUCLEAN:int = 117 (( Structure needs cleaning ))
-    const ENOTNAM:int = 118 (( Not a XENIX named type file ))
-    const ENAVAIL:int = 119 (( No XENIX semaphores available ))
-    const EISNAM:int = 120 (( Is a named type file ))
-    const EREMOTEIO:int = 121 (( Remote I/O error ))
-    const EDQUOT:int = 122 (( Quota exceeded ))
+    const EBFONT:int = 59 // Bad font file format
+    const ENOSTR:int = 60 // Device not a stream
+    const ENODATA:int = 61 // No data available
+    const ETIME:int = 62 // Timer expired
+    const ENOSR:int = 63 // Out of streams resources
+    const ENONET:int = 64 // Machine is not on the network
+    const ENOPKG:int = 65 // Package not installed
+    const EREMOTE:int = 66 // Object is remote
+    const ENOLINK:int = 67 // Link has been severed
+    const EADV:int = 68 // Advertise error
+    const ESRMNT:int = 69 // Srmount error
+    const ECOMM:int = 70 // Communication error on send
+    const EPROTO:int = 71 // Protocol error
+    const EMULTIHOP:int = 72 // Multihop attempted
+    const EDOTDOT:int = 73 // RFS specific error
+    const EBADMSG:int = 74 // Not a data message
+    const EOVERFLOW:int = 75 // Value too large for defined data type
+    const ENOTUNIQ:int = 76 // Name not unique on network
+    const EBADFD:int = 77 // File descriptor in bad state
+    const EREMCHG:int = 78 // Remote address changed
+    const ELIBACC:int = 79 // Can not access a needed shared library
+    const ELIBBAD:int = 80 // Accessing a corrupted shared library
+    const ELIBSCN:int = 81 // .lib section in a.out corrupted
+    const ELIBMAX:int = 82 // Attempting to link in too many shared libraries
+    const ELIBEXEC:int = 83 // Cannot exec a shared library directly
+    const EILSEQ:int = 84 // Illegal byte sequence
+    const ERESTART:int = 85 // Interrupted system call should be restarted
+    const ESTRPIPE:int = 86 // Streams pipe error
+    const EUSERS:int = 87 // Too many users
+    const ENOTSOCK:int = 88 // Socket operation on non-socket
+    const EDESTADDRREQ:int = 89 // Destination address required
+    const EMSGSIZE:int = 90 // Message too long
+    const EPROTOTYPE:int = 91 // Protocol wrong type for socket
+    const ENOPROTOOPT:int = 92 // Protocol not available
+    const EPROTONOSUPPORT:int = 93 // Protocol not supported
+    const ESOCKTNOSUPPORT:int = 94 // Socket type not supported
+    const EOPNOTSUPP:int = 95 // Operation not supported on transport endpoint
+    const EPFNOSUPPORT:int = 96 // Protocol family not supported
+    const EAFNOSUPPORT:int = 97 // Address family not supported by protocol
+    const EADDRINUSE:int = 98 // Address already in use
+    const EADDRNOTAVAIL:int = 99 // Cannot assign requested address
+    const ENETDOWN:int = 100 // Network is down
+    const ENETUNREACH:int = 101 // Network is unreachable
+    const ENETRESET:int = 102 // Network dropped connection because of reset
+    const ECONNABORTED:int = 103 // Software caused connection abort
+    const ECONNRESET:int = 104 // Connection reset by peer
+    const ENOBUFS:int = 105 // No buffer space available
+    const EISCONN:int = 106 // Transport endpoint is already connected
+    const ENOTCONN:int = 107 // Transport endpoint is not connected
+    const ESHUTDOWN:int = 108 // Cannot send after transport endpoint shutdown
+    const ETOOMANYREFS:int = 109 // Too many references: cannot splice
+    const ETIMEDOUT:int = 110 // Connection timed out
+    const ECONNREFUSED:int = 111 // Connection refused
+    const EHOSTDOWN:int = 112 // Host is down
+    const EHOSTUNREACH:int = 113 // No route to host
+    const EALREADY:int = 114 // Operation already in progress
+    const EINPROGRESS:int = 115 // Operation now in progress
+    const ESTALE:int = 116 // Stale file handle
+    const EUCLEAN:int = 117 // Structure needs cleaning
+    const ENOTNAM:int = 118 // Not a XENIX named type file
+    const ENAVAIL:int = 119 // No XENIX semaphores available
+    const EISNAM:int = 120 // Is a named type file
+    const EREMOTEIO:int = 121 // Remote I/O error
+    const EDQUOT:int = 122 // Quota exceeded
 
-    const ENOMEDIUM:int = 123 (( No medium found ))
-    const EMEDIUMTYPE:int = 124 (( Wrong medium type ))
-    const ECANCELED:int = 125 (( Operation Canceled ))
-    const ENOKEY	:int = 126 (( Required key not available ))
-    const EKEYEXPIRED:int = 127 (( Key has expired ))
-    const EKEYREVOKED:int = 128 (( Key has been revoked ))
-    const EKEYREJECTED:int = 129 (( Key was rejected by service ))
+    const ENOMEDIUM:int = 123 // No medium found
+    const EMEDIUMTYPE:int = 124 // Wrong medium type
+    const ECANCELED:int = 125 // Operation Canceled
+    const ENOKEY	:int = 126 // Required key not available
+    const EKEYEXPIRED:int = 127 // Key has expired
+    const EKEYREVOKED:int = 128 // Key has been revoked
+    const EKEYREJECTED:int = 129 // Key was rejected by service
 
-    (( for robust mutexes ))
-    const EOWNERDEAD:int = 130 (( Owner died ))
-    const ENOTRECOVERABLE:int = 131 (( State not recoverable ))
+    // for robust mutexes
+    const EOWNERDEAD:int = 130 // Owner died
+    const ENOTRECOVERABLE:int = 131 // State not recoverable
 
-    const ERFKILL:int = 132 (( Operation not possible due to RF-kill ))
+    const ERFKILL:int = 132 // Operation not possible due to RF-kill
 
-    const EHWPOISON:int = 133 (( Memory page has hardware error ))
+    const EHWPOISON:int = 133 // Memory page has hardware error
 
-    ((open flags))
+    // open flags
     const O_ACCMODE:int =	   0o003
     const O_RDONLY:int =	     0o0
     const O_WRONLY:int =	     0o1
@@ -204,34 +202,34 @@ module sys {
     const __O_DSYNC:int =	 0o10000
     const __O_TMPFILE:int =   (0o20000000 | __O_DIRECTORY)
 
-    (( TODO: add the remaining flags  ))
+    // TODO: add the remaining flags
 
-    ((open modes))
-    const S_IRUSR:int = 0o400 ((user has read permission))
-    const S_IWUSR:int = 0o200 ((user has write permission))
-    const S_IXUSR:int = 0o100 ((user has execute permission))
-    const S_IRWXG:int = 0o70 ((group has read, write, and execute permission))
-    const S_IRGRP:int = 0o40 ((group has read permission))
-    const S_IWGRP:int = 0o20 ((group has write permission))
-    const S_IXGRP:int = 0o10 ((group has execute permission))
-    const S_IRWXO:int = 0o7 ((others have read, write, and execute permission))
-    const S_IROTH:int = 0o4 ((others have read permission))
-    const S_IWOTH:int = 0o2 ((others have write permission))
-    const S_IXOTH:int = 0o1 ((others have execute permission))
+    // open modes
+    const S_IRUSR:int = 0o400 // user has read permission
+    const S_IWUSR:int = 0o200 // user has write permission
+    const S_IXUSR:int = 0o100 // user has execute permission
+    const S_IRWXG:int = 0o70 // group has read, write, and execute permission
+    const S_IRGRP:int = 0o40 // group has read permission
+    const S_IWGRP:int = 0o20 // group has write permission
+    const S_IXGRP:int = 0o10 // group has execute permission
+    const S_IRWXO:int = 0o7 // others have read, write, and execute permission
+    const S_IROTH:int = 0o4 // others have read permission
+    const S_IWOTH:int = 0o2 // others have write permission
+    const S_IXOTH:int = 0o1 // others have execute permission
 
-    ((seek whence))
-    ((TODO: get the real values for these))
-    const SEEK_SET:int = 0 ((The file offset is set to offset bytes))
-    const SEEK_CUR:int = 0 ((The file offset is set to its current location plus offset bytes))
-    const SEEK_END:int = 0 ((The file offset is set to the size of the file plus offset bytes))
+    // seek whence
+    // TODO: get the real values for these
+    const SEEK_SET:int = 0 // The file offset is set to offset bytes
+    const SEEK_CUR:int = 0 // The file offset is set to its current location plus offset bytes
+    const SEEK_END:int = 0 // The file offset is set to the size of the file plus offset bytes
 
-    ((mprotect prot))
-    ((TODO: get real values))
-    const PROT_NONE:int = 0 (( The memory cannot be accessed at all.))
-    const PROT_READ:int = 0 (( The memory can be read.))
-    const PROT_WRITE:int = 0 (( The memory can be modified.))
-    const PROT_EXEC:int = 0 (( The memory can be executed.))
-    ((Additionally (since Linux 2.6.0), prot can have one of the following flags set:))
-    const PROT_SEM:int = 0 (((since Linux 2.5.7) The memory can be used for atomic operations.))
-    const PROT_SAO:int = 0 (((since Linux 2.6.26) The memory should have strong access ordering.  ))
+    // mprotect prot
+    // TODO: get real values
+    const PROT_NONE:int = 0 // The memory cannot be accessed at all.
+    const PROT_READ:int = 0 // The memory can be read.
+    const PROT_WRITE:int = 0 // The memory can be modified.
+    const PROT_EXEC:int = 0 // The memory can be executed.
+    // Additionally (since Linux 2.6.0), prot can have one of the following flags set:
+    const PROT_SEM:int = 0 // (since Linux 2.5.7) The memory can be used for atomic operations.
+    const PROT_SAO:int = 0 // (since Linux 2.6.26) The memory should have strong access ordering.
 }

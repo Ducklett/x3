@@ -86,12 +86,21 @@ function parse(source) {
 
             startSpan()
 
-            // comment
-            if (current() == '(' && peek(1) == '(') {
+            // multi line comment
+            if (current() == '/' && peek(1) == '*') {
                 let from = lexerIndex + 2
-                while (!(current() == ')' && peek(1) == ')')) lexerIndex++
+                while (!(current() == '*' && peek(1) == '/')) lexerIndex++
                 const comment = code.slice(from, lexerIndex)
                 lexerIndex += 2
+                tokens.push({ kind: 'comment', value: comment, span: takeSpan() })
+                continue
+            }
+
+            // single line comment
+            if (current() == '/' && peek(1) == '/') {
+                let from = lexerIndex + 2
+                while (!(current() == '\n')) lexerIndex++
+                const comment = code.slice(from, lexerIndex)
                 tokens.push({ kind: 'comment', value: comment, span: takeSpan() })
                 continue
             }

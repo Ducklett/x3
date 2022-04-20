@@ -695,6 +695,9 @@ function bind(files) {
                 }
 
                 const symbol = findSymbol(node.value, inScope)
+                if (!symbol) {
+                    console.log(node)
+                }
                 assert(symbol, `symbol "${node.value}" is defined`)
                 const type = symbol.type
                 const it = {

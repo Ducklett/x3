@@ -28,7 +28,7 @@ module standard {
             number = 0 - number
         }
 
-        ((find highest decimal place))
+        // find highest decimal place
         var decimal place = 1
         while number > decimal place {
             decimal place *= 10
@@ -37,7 +37,7 @@ module standard {
             decimal place /= 10
         }
 
-        ((work our way down, printing along the way))
+        // work our way down, printing along the way
         while decimal place > 0 {
             var digit = number / decimal place
             write char("0" + digit)
@@ -49,7 +49,6 @@ module standard {
     proc write hex[number:int] {
         write char("0")
         write char("x")
-        ((TODO: switch to normal comment syntax, this bracket stuff doesn't mesh well with parenthesized expressions))
         const lut = "0123456789ABCDEF"
         for var i = 60; i >= 0; i-=4 {
             write char(lut[(number>>i) & 0xF])
@@ -104,8 +103,8 @@ module standard {
         exit(1)
     }
 
-    ((reads into the input buffer from stdin))
-    ((returns a string containing the input))
+    // reads into the input buffer from stdin
+    // returns a string containing the input
     proc read[buffer:![]char] -> string
     {
         var len = sys.read(sys.stdin, buffer, buffer.length)
@@ -115,8 +114,6 @@ module standard {
 
     proc write file text base[filename:cstring, content:string, flags:int, mode: sys.mode_t] #private
     {
-        ((TODO: support for non-constexpr const declarations))
-        ((TODO: error checking))
         var fd = sys.open(filename, flags, mode)
         assert(fd>=0)
 
@@ -146,7 +143,7 @@ module standard {
     proc parse int[s:string] -> int {
         var num = 0
         each c : s {
-            ((TODO: get precedence working))
+            // TODO: get precedence working
             if (c < "0") || (c > "9") { break }
             num = (num * 10) + (c - "0")
         }
@@ -156,10 +153,10 @@ module standard {
     proc random range[from:int,to:int] -> int
     {
         var value:int
-        ((TODO: pass proper flag?))
+        // TODO: pass proper flag?
         sys.getrandom(->value,8,0)
 
-        ((TODO: make unsigned int work and remove this))
+        // TODO: make unsigned int work and remove this
         if value < 0 { value = -value }
 
         return (value % (to-from)) + from
