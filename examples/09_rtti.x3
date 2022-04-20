@@ -1,23 +1,26 @@
 import "./lib/standard" use standard
 
 struct any [
-    data:*void,
-    'type:*'type info'
+    data:->void,
+    'type:->'type info'
 ]
 
 proc println[it:any] {
     ((TODO: allow unary on property))
+    ((TODO: better symbol parser;
+      allow keyword at start of symbol name if we KNOW we're expecting a symbol
+      this saves us from doing 'type all over the place))
     var data = it.data
     if (it.'type.kind == 1) { ((int))
-        write number(*data)
+        write number(<-data)
     } else {
         assert(it.'type.kind == 3) ((string))
-        write(*data)
+        write(<-data)
     }
     write("\n")
 }
 
-proc write type[t:*'type info'] {
+proc write type[t:->'type info'] {
     const tag_void = 0
     const tag_int = 1
     const tag_bool = 2
@@ -67,6 +70,6 @@ proc main {
     write type(typeof(str))
     write type(typeof(num))
 
-    println(any(&str,typeof(str)))
-    println(any(&num,typeof(num)))
+    println(any(->str,typeof(str)))
+    println(any(->num,typeof(num)))
 }

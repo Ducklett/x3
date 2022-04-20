@@ -675,11 +675,11 @@ function bind(files) {
                     op: node.op.value,
                     expr: bindExpression(node.expr),
                 }
-                if (it.op == '*') {
+                if (it.op == '<-') {
                     assert(it.expr.type.type == 'pointer')
                     assert(it.expr.type.to)
                     it.type = it.expr.type.to
-                } else if (it.op == '&') {
+                } else if (it.op == '->') {
                     it.type = cloneType(typeMap.pointer)
                     it.type.to = it.expr.type
                 } else {
@@ -829,7 +829,7 @@ function bind(files) {
                 const b = bindExpression(node.rhs)
                 assert(a.type)
 
-                if (op == '->') {
+                if (op == '=>') {
                     assert(b.kind == 'reference' && b.symbol.kind == 'function')
                     const it = {
                         kind: 'pipe',
@@ -990,12 +990,12 @@ function bind(files) {
                 args[i] = arg
             }
 
-            // if (param.type.type != arg.type.type) {
-            //     console.log("expected:")
-            //     console.log(param.type)
-            //     console.log("got:")
-            //     console.log(arg)
-            // }
+            if (param.type.type != arg.type.type) {
+                console.log("expected:")
+                console.log(param.type)
+                console.log("got:")
+                console.log(arg)
+            }
             assert(param.type.type == arg.type.type, 'parameter type matches argument type')
         }
 

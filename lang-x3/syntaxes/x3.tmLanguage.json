@@ -136,7 +136,7 @@
 					}
 				},
 				{
-					"match": "(->)([a-zA-Z0-9_\\s]+)",
+					"match": "(=>)([a-zA-Z0-9_\\s]+)",
 					"captures": {
 						"1": {
 							"name": "storage.type.function.pipe.x3"
@@ -213,7 +213,7 @@
 				},
 				{
 					"name": "keyword.operator.assignment.x3",
-					"match": "(\\*|=)"
+					"match": "(->|<-|=)"
 				}
 			]
 		}

@@ -7,7 +7,7 @@ proc main {
     while true {
         write("Please guess the number:")
 
-        var guess = read(guessbuffer) -> parse int
+        var guess = read(guessbuffer) => parse int
 
         if guess > number {
             write line("Lower")

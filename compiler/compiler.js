@@ -838,7 +838,7 @@ ${[...data.keys()]
                     assert(node.expr.kind == 'reference')
 
                     // pointer deref
-                    if (node.op == '*') {
+                    if (node.op == '<-') {
                         const type = node.type
                         for (let i = type.size - 8; i >= 0; i -= 8) {
                             lines.push(`mov rax, ${emitVar(node.expr.symbol)}`)
@@ -848,7 +848,7 @@ ${[...data.keys()]
                     }
 
                     // pointer to address
-                    if (node.op == '&') {
+                    if (node.op == '->') {
                         lines.push(`lea rax, ${emitVar(node.expr.symbol)}`)
                         lines.push(`push qword rax`)
                         return

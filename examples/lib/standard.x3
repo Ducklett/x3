@@ -13,7 +13,7 @@ module standard {
 
     proc write char[c:char]
     {
-        sys.write(sys.stdout, &c, 1)
+        sys.write(sys.stdout, ->c, 1)
     }
 
     proc write number[number:int]
@@ -157,7 +157,7 @@ module standard {
     {
         var value:int
         ((TODO: pass proper flag?))
-        sys.getrandom(&value,8,0)
+        sys.getrandom(->value,8,0)
 
         ((TODO: make unsigned int work and remove this))
         if value < 0 { value = -value }
