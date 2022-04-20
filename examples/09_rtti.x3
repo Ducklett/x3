@@ -62,16 +62,11 @@ proc write type[t:*'type info'] {
 }
 
 proc main {
-    (( var num = any(0,10)
-    var str = any(1,"hello unions")
-    write any(num)
-    write any(str) ))
     var str = "hello rtti"
     var num = 42
-    (( write type(typeof(str) )
-    write type(typeof(num) ) ))
+    write type(typeof(str))
+    write type(typeof(num))
 
-    ((TODO: fix the bruh throw above))
     println(any(&str,typeof(str)))
     println(any(&num,typeof(num)))
 }

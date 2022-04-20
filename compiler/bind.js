@@ -45,7 +45,7 @@ function bind(files) {
 
     const globalScope = pushScope(null, 'root', 'global')
 
-    // ========== declare builting functions and types ============
+    // ========== declare builtin functions and types ============
 
     const typeInfo = struct('type info', [
         param('kind', typeMap.int),
@@ -990,10 +990,12 @@ function bind(files) {
                 args[i] = arg
             }
 
-            // console.log("expected:")
-            // console.log(param.type)
-            // console.log("got:")
-            // console.log(arg.type)
+            // if (param.type.type != arg.type.type) {
+            //     console.log("expected:")
+            //     console.log(param.type)
+            //     console.log("got:")
+            //     console.log(arg)
+            // }
             assert(param.type.type == arg.type.type, 'parameter type matches argument type')
         }
 
@@ -1229,7 +1231,8 @@ function lower(ast) {
                 if (makeBuffer) {
                     if (node.type.type != 'char') {
                         if (buffers.includes(node)) {
-                            throw "bruh"
+                            // this can legitimately happen if the string is referenced twice
+                            // throw "bruh"
                         } else {
                             buffers.push(node)
                         }
