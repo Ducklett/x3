@@ -194,6 +194,14 @@
 					"match": "(0(x|X)[0-9a-fA-F]+)"
 				},
 				{
+					"name": "constant.numeric.octal.x3",
+					"match": "(0(o|O)[0-7]+)"
+				},
+				{
+					"name": "constant.numeric.binary.x3",
+					"match": "(0(b|B)(0|1)+)"
+				},
+				{
 					"name": "constant.numeric.x3",
 					"match": "([0-9]+)"
 				}
