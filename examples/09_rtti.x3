@@ -21,28 +21,28 @@ proc println[it:any] {
 }
 
 proc write type[t:->'type info'] {
-    const tag_void = 0
-    const tag_int = 1
-    const tag_bool = 2
-    const tag_string = 3
-    const tag_char = 4
+    const tag_void    = 0
+    const tag_int     = 1
+    const tag_bool    = 2
+    const tag_string  = 3
+    const tag_char    = 4
     const tag_pointer = 5
-    const tag_array = 6
-    const tag_struct = 7
-    const tag_type = 8
+    const tag_array   = 6
+    const tag_struct  = 7
+    const tag_type    = 8
 
     write(t.name)
     write(" :: ")
     write number(t.size)
 
     if t.kind == tag_int {
-        // write(" (")
-        // if t.data.intData.signed {
-        //     write("signed")
-        // } else {
-        //     write("unsigned")
-        // }
-        // write(")")
+        write(" (")
+        if t.data.intData.signed {
+            write("signed")
+        } else {
+            write("unsigned")
+        }
+        write(")")
     } else if t.kind == tag_array {
         // write(" [")
         // write number(t.data.arrayData.count)
@@ -70,6 +70,7 @@ proc main {
     write type(typeof(str))
     write type(typeof(num))
 
-    println(any(->str,typeof(str)))
-    println(any(->num,typeof(num)))
+    // TODO: fix these!
+    // println(any(->str,typeof(str)))
+    // println(any(->num,typeof(num)))
 }

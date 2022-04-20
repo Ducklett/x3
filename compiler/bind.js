@@ -1,4 +1,4 @@
-const { assert, declareVar, num, binary, ref, readProp, unary, label, goto, assignVar, offsetAccess, nop, call, ctor, struct, param, fn, str, MARK } = require('./compiler')
+const { assert, declareVar, num, binary, ref, readProp, unary, label, goto, assignVar, offsetAccess, nop, call, ctor, struct, param, fn, str, MARK, union, bool } = require('./compiler')
 const { fileMap } = require('./parser')
 
 const tag_void = 0
@@ -13,10 +13,10 @@ const tag_type = 8
 
 // TODO: actually have different int types
 const typeMap = {
-    'int': { tag: tag_int, type: 'int', size: 8 },
-    'uint': { tag: tag_int, type: 'int', size: 8 },
-    'u64': { tag: tag_int, type: 'int', size: 8 },
-    'i64': { tag: tag_int, type: 'int', size: 8 },
+    'int': { tag: tag_int, type: 'int', size: 8, signed: true },
+    'uint': { tag: tag_int, type: 'int', size: 8, signed: false },
+    'u64': { tag: tag_int, type: 'int', size: 8, signed: false },
+    'i64': { tag: tag_int, type: 'int', size: 8, signed: true },
     'void': { tag: tag_void, type: 'void', size: 0 },
     'string': { tag: tag_string, type: 'string', size: 16 },  // *char, length
     'cstring': { tag: tag_pointer, type: 'cstring', size: 8 }, // *char
@@ -47,12 +47,52 @@ function bind(files) {
 
     // ========== declare builtin functions and types ============
 
+    const intData = struct('intData', [
+        param('signed', typeMap.bool),
+    ])
+    addSymbol('intData', intData)
+
+    // set to typeinfo later on..
+    const typePtr = typeMap.pointer
+
+    const arrayData = struct('arrayData', [
+        param('of', typePtr),
+        param('count', typeMap.int),
+    ])
+    addSymbol('arrayData', arrayData)
+
+    const fieldArray = typeMap.array
+    const structData = struct('structData', [
+        param('fields', fieldArray),
+    ])
+    addSymbol('structData', structData)
+
+    const typeInfoData = union('data', [
+        param('intData', intData),
+        param('arrayData', arrayData),
+        param('structData', structData),
+        param('nothing', typeMap.void),
+    ])
+    addSymbol('type info data', typeInfoData)
+
+
     const typeInfo = struct('type info', [
         param('kind', typeMap.int),
         param('name', typeMap.string),
         param('size', typeMap.int),
+        param('data', typeInfoData),
     ])
     addSymbol('type info', typeInfo)
+
+    const fieldData = struct('fieldData', [
+        param('name', typeMap.string),
+        param('offset', typeMap.int),
+        param('type', typeInfo),
+    ])
+    addSymbol('fieldData', fieldData)
+
+    typePtr.to = typeInfo
+    fieldArray.of = fieldData
 
     const $typeof = fn('typeof', [param('symbol')], typeInfo)
     addSymbol('typeof', $typeof)
@@ -71,8 +111,20 @@ function bind(files) {
 
     // add type infos
     for (let [name, type] of Object.entries(typeMap)) {
+
+        if (type.tag == tag_array || type.tag == tag_struct) {
+            // these are unique to each instance! skip for now and add when needed
+            continue
+        }
+
         // TODO: add additional type data
-        const t = ctor(typeInfo, num(type.tag, typeMap.int), str(name, typeMap.string), num(type.size, typeMap.int))
+        const args = [num(type.tag, typeMap.int), str(name, typeMap.string), num(type.size, typeMap.int)]
+
+        if (type.tag == tag_int) {
+            args.push(ctor(intData, bool(type.signed, typeMap.bool)))
+        }
+
+        const t = ctor(typeInfo, ...args)
         const infoName = name + '$typeinfo'
         const decl = MARK('const',)(declareVar(infoName, t))
         addSymbol(infoName, decl)

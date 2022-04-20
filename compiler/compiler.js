@@ -76,6 +76,30 @@ const api = {
         }, 0)
         return B({ kind: 'struct', name, type: name, fields, size, scope })
     },
+    union: (name, fields) => {
+        const scope = {
+            name,
+            kind: 'union',
+            parent: null,
+            symbols: new Map(),
+            used: new Set(),
+        }
+
+        for (let f of fields) {
+            scope.symbols.set(f.name, f)
+        }
+
+        const size = fields.reduce((acc, cur) => {
+            cur.offset = 0
+            acc = Math.max(cur.type.size, acc)
+            return acc
+        }, 0)
+
+        assert(size)
+        assert(size % 8 == 0)
+
+        return B({ kind: 'union', name, type: name, fields, size, scope })
+    },
     If: (cond, then, els = null) => B({ kind: 'if', cond, then, els }),
     call: (def, ...args) => B({ kind: 'call', def, args }),
     ctor: (def, ...args) => B({ kind: 'ctorcall', def, type: def, args }),
@@ -98,6 +122,7 @@ const api = {
     goto: (label, condition) => B({ kind: 'goto', condition, label }),
     label: (name) => B({ kind: 'label', name }),
 
+    bool: (v, type) => B({ kind: 'booleanLiteral', v, type }),
     num: (n, type) => B({ kind: 'numberLiteral', n, type }),
     str: (value, type) => B({ kind: 'stringLiteral', value, len: value.length, type }),
 
@@ -279,11 +304,30 @@ ${[...data.keys()]
                             for (let field of node.expr.args) {
                                 if (field.kind == 'numberLiteral') {
                                     data.push(field.n.toString())
-                                } else {
-                                    assert(field.kind == 'stringLiteral')
+                                } else if (field.kind == 'stringLiteral') {
                                     const strLabel = label(field.value)
                                     data.push(strLabel)
                                     data.push(field.len.toString())
+                                } else if (field.kind == 'booleanLiteral') {
+                                    data.push((field.v ? 1 : 0).toString())
+                                } else {
+                                    console.log(field)
+                                    assert(field.kind == 'ctorcall')
+                                    // TODO: put this into a function
+                                    // we are two levels deep of copy-paste recursion now LMAO
+                                    for (let field2 of field.args) {
+                                        if (field2.kind == 'numberLiteral') {
+                                            data.push(field2.n.toString())
+                                        } else if (field2.kind == 'stringLiteral') {
+                                            const strLabel = label(field2.value)
+                                            data.push(strLabel)
+                                            data.push(field2.len.toString())
+                                        } else if (field2.kind == 'booleanLiteral') {
+                                            data.push((field2.v ? 1 : 0).toString())
+                                        } else {
+                                            assert(false)
+                                        }
+                                    }
                                 }
                             }
                             const l = label({ kind: 'struct', data })
@@ -726,9 +770,18 @@ ${[...data.keys()]
                         offset += prop.symbol.offset
 
                         const size = prop.symbol.type.size
-                        assert(size && size % 8 == 0)
-                        for (let i = size - 8; i >= 0; i -= 8) {
-                            lines.push(`push qword ${emitVar(node.left.symbol, offset + i)} ; ${node.left.symbol.name}..${prop.symbol.name}`)
+                        if (size == 1) {
+                            if (!(size && size % 8 == 0)) {
+                                console.log(prop)
+                            }
+                            lines.push(`mov rax, ${emitVar(node.left.symbol, offset)} ; ${node.left.symbol.name}..${prop.symbol.name}`)
+                            lines.push(`and rax, 0xFF ; mask 1st byte`)
+                            lines.push(`push rax`)
+                        } else {
+                            assert(size && size % 8 == 0)
+                            for (let i = size - 8; i >= 0; i -= 8) {
+                                lines.push(`push qword ${emitVar(node.left.symbol, offset + i)} ; ${node.left.symbol.name}..${prop.symbol.name}`)
+                            }
                         }
 
                     }
