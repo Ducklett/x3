@@ -230,9 +230,16 @@ ${[...data.keys()]
 
         function emitVar(node, fieldOffset = 0) {
             assert(
+                typeof node == 'string' ||
                 node.kind == 'declareVar' || node.kind == 'parameter' || node.kind == 'stringLiteral' || node.kind == 'arrayLiteral',
                 `expected declareVar, got ${node.kind}`
             )
+
+            const registers = new Set("rax,rcx,rdx,rbx,rsi,rdi,rsp,rbp,r8,r9,r10,r11,r12,r13,r14,r15".split(','))
+            if (registers.has(node)) {
+                return `[${node} + ${fieldOffset}]`
+            }
+
             let offset = locals.get(node)
             if (offset) {
                 assert(offset !== undefined)
@@ -770,17 +777,25 @@ ${[...data.keys()]
                         offset += prop.symbol.offset
 
                         const size = prop.symbol.type.size
+
+                        let left = node.left.symbol
+
+                        if (node.left.type.type == 'pointer') {
+                            lines.push(`mov rdx, ${emitVar(node.left.symbol)} ; (<-${left.name})`)
+                            left = 'rdx'
+                        }
+
                         if (size == 1) {
                             if (!(size && size % 8 == 0)) {
                                 console.log(prop)
                             }
-                            lines.push(`mov rax, ${emitVar(node.left.symbol, offset)} ; ${node.left.symbol.name}..${prop.symbol.name}`)
+                            lines.push(`mov rax, ${emitVar(left, offset)} ; ${node.left.symbol.name}..${prop.symbol.name}`)
                             lines.push(`and rax, 0xFF ; mask 1st byte`)
                             lines.push(`push rax`)
                         } else {
                             assert(size && size % 8 == 0)
                             for (let i = size - 8; i >= 0; i -= 8) {
-                                lines.push(`push qword ${emitVar(node.left.symbol, offset + i)} ; ${node.left.symbol.name}..${prop.symbol.name}`)
+                                lines.push(`push qword ${emitVar(left, offset + i)} ; ${node.left.symbol.name}..${prop.symbol.name}`)
                             }
                         }
 

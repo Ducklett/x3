@@ -1615,7 +1615,10 @@ function lower(ast) {
                     // console.log(node)
                     // const typeAccess = ctor(typeinfo,/*kind*/ num(0),/*name*/str(type.type, typeMap.string))
                     // console.log(typeAccess)
-                    return lowerNode(typeAccess)
+
+                    // NOTE: we don't lower any further because otherwise it turns into a struct literal
+                    // TODO: fix the lowerer instead of not calling lower here??
+                    return [typeAccess]
                 }
                 return [{
                     ...node, args: node.args.map(a => {

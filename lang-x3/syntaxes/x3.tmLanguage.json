@@ -125,6 +125,17 @@
 					}
 				},
 				{
+					"match": "\\b(typeof)\\(",
+					"captures": {
+						"1": {
+							"name": "constant.language.builtin.x3"
+						},
+						"2": {
+							"name": "keyword.operator.pseudo.x3"
+						}
+					}
+				},
+				{
 					"match": "\\b([a-zA-Z0-9_\\s]+)\\(",
 					"captures": {
 						"1": {
@@ -157,10 +168,6 @@
 				{
 					"name": "constant.language.boolean.x3",
 					"match": "\\b(true|false)\\b"
-				},
-				{
-					"name": "keyword.operator.x3",
-					"match": "\\b(typeof)\\b"
 				}
 			]
 		},

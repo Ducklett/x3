@@ -67,6 +67,10 @@ proc write type[t:->'type info'] {
 proc main {
     var str = "hello rtti"
     var num = 42
+    // what's broken
+    // - it passes the struct on the stack when it SHOULD be pushing a pointer to the typeinfo struct
+    // - 'write type' doesn't follow the pointer, instead just accessing values on the stack
+    // - .data section consts just assume everything is a qword currently; firgure out how to switch to other sizes so we can properly do bools and chars
     write type(typeof(str))
     write type(typeof(num))
 
