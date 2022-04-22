@@ -1,5 +1,8 @@
 import "./lib/standard" use standard
 
+struct point[x:int,y:int]
+struct person[name:string,age:int,gender:string]
+
 struct any [
     data:->void,
     'type:->'type info'
@@ -31,6 +34,10 @@ proc write type[t:->'type info'] {
     const tag_struct  = 7
     const tag_type    = 8
 
+    if t.kind == tag_struct {
+        write ("struct ")
+    }
+
     // write number(t.size)
     // write("::")
     write(t.name)
@@ -48,34 +55,44 @@ proc write type[t:->'type info'] {
         write type(t.data.pointerData.to)
         write(">")
     } else if t.kind == tag_array {
-        write(" [")
+        write("[")
         if (t.data.arrayData.count > 0) {
             write number(t.data.arrayData.count)
         }
-        write("] ")
+        write("]")
         write type(t.data.arrayData.of)
     } else if t.kind == tag_struct {
         write(" {\n")
+        // TODO: property access from array (foo[0].bar)
         // TODO: allow property in each loop
-        // var fields = t.data.structData.fields
-        // each field :  fields {
-        //     write number(field.offset)
-        //     write(" -> ")
-        //     write(field.name)
-        //     write(": ")
-        //     write type(field.'type')
-        // }
-        // write("}")
+        var fields = t.data.structData.fields
+
+        each field :  fields {
+            write("  ")
+            write number(field.offset)
+            write("->")
+            write(field.name)
+            write(":")
+            write type(field.'type')
+            write("\n")
+        }
+        write("}")
     }
 }
 
 proc main {
+    // TODO: fix const being broken
     var str = "hello rtti"
     var num = 42
     var unum:u64 = -20
     var sptr = ->str
     var nptr = ->num
     var uptr = ->unum
+    var num list = [10,20,30]
+    var str list = ["foo","bar","baz"]
+    var p = point(32,45)
+    var me = person("ivy", 23, "male")
+
     // what's broken
     // - .data section consts just assume everything is a qword currently; firgure out how to switch to other sizes so we can properly do bools and chars
     write type(typeof(str)) write("\n")
@@ -83,6 +100,10 @@ proc main {
     write type(typeof(sptr)) write("\n")
     write type(typeof(nptr)) write("\n")
     write type(typeof(uptr)) write("\n")
+    write type(typeof(num list)) write("\n")
+    write type(typeof(str list)) write("\n")
+    write type(typeof(p)) write("\n")
+    write type(typeof(me)) write("\n")
 
     // TODO: fix these!
     // println(any(->str,typeof(str)))

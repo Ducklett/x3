@@ -115,7 +115,7 @@ function bind(files) {
     const fieldData = struct('fieldData', [
         param('name', typeMap.string),
         param('offset', typeMap.int),
-        param('type', typeInfo),
+        param('type', typePtr),
     ])
     addSymbol('fieldData', fieldData)
 
@@ -361,6 +361,7 @@ function bind(files) {
                 const scope = pushScope(null, node.name.value, kind)
                 const name = node.name.value
                 const it = {
+                    tag: tag_struct,
                     kind,
                     name: name,
                     type: name,
@@ -729,6 +730,7 @@ function bind(files) {
                 const entryType = it.entries[0].type
 
                 const arrayType = {
+                    tag: tag_array,
                     type: 'array',
                     count: it.entries.length,
                     of: entryType,
@@ -908,27 +910,69 @@ function bind(files) {
 
                         const name = type.type
                         const infoName = typeInfoLabel(type)
-                        console.log(infoName)
                         let info = findSymbol(infoName, globalScope, false)
                         // console.log(globalScope)
                         if (!info) {
-                            assert(type.type == 'pointer')
+                            assert(type.type == 'pointer' || type.type == 'array' || type.kind == 'struct')
 
                             // generate type info
                             const args = [num(type.tag, typeMap.int), str(name, typeMap.string), num(type.size, typeMap.int)]
 
                             if (type.tag == tag_pointer) {
-                                const ptr = cloneType(typeMap.pointer)
-                                ptr.to = typeInfo
                                 const to = findSymbol(typeInfoLabel(type.to), globalScope, false)
                                 // TODO: support nested pointers
                                 assert(to)
                                 // args.push(ctor(pointerData, unary('->', to, ptr)))
                                 args.push(ctor(pointerData, to))
+                            } else if (type.tag == tag_array) {
+                                const of = findSymbol(typeInfoLabel(type.of), globalScope, false)
+                                // TODO: support nested arrays
+                                assert(of)
+                                const count = num(type.count || 0, typeMap.int)
+
+                                args.push(ctor(arrayData, of, count))
+                            } else if (type.tag == tag_struct) {
+                                function emitField(structLabel, field) {
+                                    const fieldName = structLabel + `$${field.name}`
+
+                                    const type = findSymbol(typeInfoLabel(field.type), globalScope, false)
+                                    assert(type)
+
+                                    const f = ctor(fieldData,
+                                        str(field.name, typeMap.string),
+                                        num(field.offset, typeMap.int),
+                                        type
+                                    )
+
+                                    // const decl = MARK('const',)(declareVar(fieldName, f))
+                                    // addSymbol(fieldName, decl)
+                                    // NOTE: as of right now we need the actual declaration for it to be emitted
+                                    // TODO: perhaps just read the symbol table instead..
+                                    // ast.push(decl)
+
+                                    return f
+                                }
+                                const fields = type.fields.map(f => emitField(infoName, f))
+                                const fieldsType = cloneType(typeMap.array)
+                                fieldsType.count = fields.length
+                                fieldsType.of = fieldData
+
+                                const fieldArr = {
+                                    kind: 'arrayLiteral',
+                                    entries: fields,
+                                    type: fieldsType,
+                                    span: compilerSpan()
+                                }
+
+                                args.push(ctor(structData, fieldArr))
+                            } else {
+                                console.log(type)
+                                assert(false)
                             }
 
                             const t = ctor(typeInfo, ...args)
-                            const infoName = typeInfoLabel(type)
+                            // already declared above
+                            // const infoName = typeInfoLabel(type)
                             const decl = MARK('const',)(declareVar(infoName, t))
                             addSymbol(infoName, decl)
                             // NOTE: as of right now we need the actual declaration for it to be emitted
@@ -1503,19 +1547,41 @@ function lower(ast) {
 
             case 'scope': return lowerNodeList(node.instructions.statements)
             case 'if': {
-                const cond = lowerNode(node.cond)
-                assert(cond.length && cond.length == 1)
-                node.cond = cond[0]
-                node.then = lowerNodeList(node.then.statements)
-                if (node.els) {
-                    if (node.els.kind == 'if') {
-                        node.els = lowerNode(node.els)
-                    } else {
-                        assert(node.els.kind == 'block')
-                        node.els = lowerNodeList(node.els.statements)
-                    }
-                }
-                return [node]
+
+                // goto then if (cond)
+                // else:
+                // <else block
+                // goto end
+                // then:
+                // <then block>
+                // end:
+
+                // const cond = lowerNode(node.cond)
+                // assert(cond.length && cond.length == 1)
+                const thenLabel = label('then')
+                const elseLabel = label('else')
+                const endLabel = label('end')
+                const gotoThen = goto(thenLabel, node.cond)
+                const gotoEnd = goto(endLabel)
+                // const thenBlock = lowerNodeList(node.then.statements)
+                const thenBlock = node.then.statements
+                const elseBlock = !node.els
+                    ? [] : node.els.kind == 'if'
+                        ? [node.els]
+                        : node.els.statements
+
+                return lowerNodeList([gotoThen, elseLabel, ...elseBlock, gotoEnd, thenLabel, ...thenBlock, endLabel])
+
+                // node.then = lowerNodeList(node.then.statements)
+                // if (node.els) {
+                //     if (node.els.kind == 'if') {
+                //         node.els = lowerNode(node.els)
+                //     } else {
+                //         assert(node.els.kind == 'block')
+                //         node.els = lowerNodeList(node.els.statements)
+                //     }
+                // }
+                // return [node]
             }
 
             case 'declareVar': {

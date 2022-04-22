@@ -200,9 +200,23 @@ ${[...data.keys()]
                         return `${k} equ ${d}`
                     }
 
-                    if (Array.isArray(d) && typeof d[0] == 'string') {
-                        // is string array
-                        return `${k} dq ${d.map(v => `${v},${data.get(v).length}`).join(', ')} ; []string`
+                    // TODO: better types arrays
+                    if (Array.isArray(d)) {
+                        if (d.isOther) {
+                            // hacky struct array
+                            console.log(d)
+                            delete d.isOther
+                            return `${k} dq ${d.join(', ')}`
+                            assert(false)
+                        } else {
+                            // is string array
+                            return `${k} dq ${d.map(v => `${v},${data.get(v).length}`).join(', ')} ; []string`
+                        }
+                        // if (typeof d[0] == 'string' && data.get(d[0]).length !== undefined) {
+                        // } else {
+                        //     // label array
+                        //     return `${k} dq ${d.join(', ')} ; []ptr`
+                        // }
                     }
 
                     if (d?.kind == 'struct') {
@@ -317,8 +331,12 @@ ${[...data.keys()]
                                     data.push(field.len.toString())
                                 } else if (field.kind == 'booleanLiteral') {
                                     data.push((field.v ? 1 : 0).toString())
+                                } else if (field.kind == 'declareVar') {
+                                    assert(field.expr)
+                                    const ref = globals.get(field)
+                                    assert(ref)
+                                    data.push(ref)
                                 } else {
-                                    console.log(field)
                                     assert(field.kind == 'ctorcall')
                                     // TODO: put this into a function
                                     // we are two levels deep of copy-paste recursion now LMAO
@@ -336,7 +354,42 @@ ${[...data.keys()]
                                             const ref = globals.get(field2)
                                             assert(ref)
                                             data.push(ref)
-                                        } else {
+                                        } else if (field2.kind == 'arrayLiteral') {
+                                            const data2 = []
+
+                                            // const ref = globals.get(field2.entries[0])
+                                            // assert(ref)
+                                            for (let entry of field2.entries) {
+                                                assert(entry.kind == 'ctorcall')
+                                                for (let arg of entry.args) {
+                                                    if (arg.kind == 'stringLiteral') {
+                                                        const l = label(arg.value)
+                                                        // assert(l)
+                                                        data2.push(l)
+                                                        data2.push(arg.len)
+                                                    } else if (arg.kind == 'declareVar') {
+                                                        console.log(arg)
+                                                        const l = globals.get(arg)
+                                                        assert(l)
+                                                        data2.push(l)
+                                                    } else {
+                                                        assert(arg.kind == 'numberLiteral')
+                                                        assert(arg.type.size == 8)
+                                                        data2.push(arg.n)
+                                                    }
+
+                                                }
+                                            }
+
+                                            data2.isOther = true
+                                            const ref = label(data2)
+                                            globals.set(field2, ref)
+
+                                            data.push(ref)
+                                            data.push(field2.entries.length)
+                                        }
+
+                                        else {
                                             console.log(field2)
                                             assert(false)
                                         }
@@ -615,34 +668,35 @@ ${[...data.keys()]
                     lines.push(``)
                     return
                 }
-                case 'if': {
-                    const then = label()
+                // this should always be lowered to gotos now
+                // case 'if': {
+                //     const then = label()
 
-                    lines.push('; if ()')
-                    emitExpr(node.cond)
-                    lines.push(`pop rax`)
-                    lines.push(`cmp rax, 1`)
+                //     lines.push('; if ()')
+                //     emitExpr(node.cond)
+                //     lines.push(`pop rax`)
+                //     lines.push(`cmp rax, 1`)
 
-                    lines.push(`jne .${then}`)
-                    lines.push('; then')
-                    assert(Array.isArray(node.then), 'if.then is array')
-                    for (let e of node.then) emitExpr(e, { shouldReturn: false })
+                //     lines.push(`jne .${then}`)
+                //     lines.push('; then')
+                //     assert(Array.isArray(node.then), 'if.then is array')
+                //     for (let e of node.then) emitExpr(e, { shouldReturn: false })
 
-                    if (node.els) {
-                        assert(Array.isArray(node.els, 'if.els is array'))
-                        const end = label()
-                        lines.push(`jmp .${end}`)
-                        lines.push('; else')
-                        lines.push(`.${then}:`)
-                        for (let e of node.els) emitExpr(e, { shouldReturn: false })
-                        lines.push(`.${end}:`)
-                    } else {
-                        lines.push(`.${then}:`)
-                    }
-                    lines.push('; endif\n')
+                //     if (node.els) {
+                //         assert(Array.isArray(node.els, 'if.els is array'))
+                //         const end = label()
+                //         lines.push(`jmp .${end}`)
+                //         lines.push('; else')
+                //         lines.push(`.${then}:`)
+                //         for (let e of node.els) emitExpr(e, { shouldReturn: false })
+                //         lines.push(`.${end}:`)
+                //     } else {
+                //         lines.push(`.${then}:`)
+                //     }
+                //     lines.push('; endif\n')
 
-                    return
-                }
+                //     return
+                // }
                 case 'goto': {
                     if (node.condition) {
                         emitExpr(node.condition)
