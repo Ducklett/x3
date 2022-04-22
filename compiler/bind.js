@@ -14,9 +14,9 @@ const tag_type = 8
 // TODO: actually have different int types
 const typeMap = {
     'int': { tag: tag_int, type: 'int', size: 8, signed: true },
-    'uint': { tag: tag_int, type: 'int', size: 8, signed: false },
-    'u64': { tag: tag_int, type: 'int', size: 8, signed: false },
-    'i64': { tag: tag_int, type: 'int', size: 8, signed: true },
+    'uint': { tag: tag_int, type: 'uint', size: 8, signed: false },
+    'u64': { tag: tag_int, type: 'u64', size: 8, signed: false },
+    'i64': { tag: tag_int, type: 'i64', size: 8, signed: true },
     'void': { tag: tag_void, type: 'void', size: 0 },
     'string': { tag: tag_string, type: 'string', size: 16 },  // *char, length
     'cstring': { tag: tag_pointer, type: 'cstring', size: 8 }, // *char
@@ -28,6 +28,28 @@ const typeMap = {
 
 function cloneType(t) {
     return { ...t }
+}
+
+function typeInfoLabel(type) {
+    const l = []
+    l.push(type.type)
+    l.push('$typeinfo')
+
+    if (type.kind == 'struct' || type.kind == 'union') {
+        // TODO: something with the namespace?
+    }
+
+    if (type.kind == 'pointer') {
+        l.push('$')
+        l.push(typeInfoLabel(type.to))
+    }
+
+    if (type.kind == 'array') {
+        l.push('$')
+        l.push(typeInfoLabel(type.to))
+    }
+
+    return l.join('')
 }
 
 function bind(files) {
@@ -53,7 +75,12 @@ function bind(files) {
     addSymbol('intData', intData)
 
     // set to typeinfo later on..
-    const typePtr = typeMap.pointer
+    const typePtr = cloneType(typeMap.pointer)
+
+    const pointerData = struct('pointerData', [
+        param('to', typePtr),
+    ])
+    addSymbol('pointerData', pointerData)
 
     const arrayData = struct('arrayData', [
         param('of', typePtr),
@@ -71,6 +98,7 @@ function bind(files) {
         param('intData', intData),
         param('arrayData', arrayData),
         param('structData', structData),
+        param('pointerData', pointerData),
         param('nothing', typeMap.void),
     ])
     addSymbol('type info data', typeInfoData)
@@ -111,8 +139,7 @@ function bind(files) {
 
     // add type infos
     for (let [name, type] of Object.entries(typeMap)) {
-
-        if (type.tag == tag_array || type.tag == tag_struct) {
+        if (type.tag == tag_array || type.tag == tag_struct || type.tag == tag_pointer) {
             // these are unique to each instance! skip for now and add when needed
             continue
         }
@@ -125,7 +152,7 @@ function bind(files) {
         }
 
         const t = ctor(typeInfo, ...args)
-        const infoName = name + '$typeinfo'
+        const infoName = typeInfoLabel(type)
         const decl = MARK('const',)(declareVar(infoName, t))
         addSymbol(infoName, decl)
         // NOTE: as of right now we need the actual declaration for it to be emitted
@@ -310,7 +337,19 @@ function bind(files) {
 
                 assert(it.type, 'type must be either provided or inferred from expression')
                 // TODO: better type matching than just comparing the base type
-                if (it.expr) assert(it.expr.type.type == it.type.type, `type matches ${it.expr.type.type} ${it.type.type}`)
+                // TODO: factor this out into a proper type coersion procedure
+                if (it.expr) {
+                    const intTypes = new Set(['u64', 'i64', 'int', 'uint'])
+
+                    if (intTypes.has(it.type.type) && intTypes.has(it.expr.type.type)) {
+                        assert(it.type.size == it.expr.type.size)
+                        const cast = { kind: 'implicit cast', type: it.type, expr: it.expr }
+                        it.expr = cast
+                    }
+
+                    assert(it.expr.type.type == it.type.type, `type matches ${it.expr.type.type} ${it.type.type}`)
+                }
+
 
                 return it
             }
@@ -860,14 +899,44 @@ function bind(files) {
                     if (isTypeof) {
                         assert(it.args.length == 1 && it.args[0].type)
                         const to = it.type
-                        const type = typeMap.pointer
-                        type.to = to
-                        it.type = type
+                        const itsType = typeMap.pointer
+                        itsType.to = to
+                        it.type = itsType
                         assert(it.args[0].type.type != 'struct' && it.args[0].type.type != 'union', 'structs not yet supported')
-                        const infoName = it.args[0].type.type + "$typeinfo"
-                        // console.log(infoName)
-                        const info = findSymbol(infoName, globalScope, false)
+
+                        const type = it.args[0].type
+
+                        const name = type.type
+                        const infoName = typeInfoLabel(type)
+                        console.log(infoName)
+                        let info = findSymbol(infoName, globalScope, false)
                         // console.log(globalScope)
+                        if (!info) {
+                            assert(type.type == 'pointer')
+
+                            // generate type info
+                            const args = [num(type.tag, typeMap.int), str(name, typeMap.string), num(type.size, typeMap.int)]
+
+                            if (type.tag == tag_pointer) {
+                                const ptr = cloneType(typeMap.pointer)
+                                ptr.to = typeInfo
+                                const to = findSymbol(typeInfoLabel(type.to), globalScope, false)
+                                // TODO: support nested pointers
+                                assert(to)
+                                // args.push(ctor(pointerData, unary('->', to, ptr)))
+                                args.push(ctor(pointerData, to))
+                            }
+
+                            const t = ctor(typeInfo, ...args)
+                            const infoName = typeInfoLabel(type)
+                            const decl = MARK('const',)(declareVar(infoName, t))
+                            addSymbol(infoName, decl)
+                            // NOTE: as of right now we need the actual declaration for it to be emitted
+                            // TODO: perhaps just read the symbol table instead..
+                            ast.push(decl)
+                            info = decl
+                        }
+
                         assert(info)
                         it.info = info
                     } else {
@@ -1040,6 +1109,15 @@ function bind(files) {
             }
 
             if (param.type.kind == 'union') {
+                const cast = { kind: 'implicit cast', type: param.type, expr: arg }
+                arg = cast
+                args[i] = arg
+            }
+
+            const intTypes = new Set(['u64', 'i64', 'int', 'uint'])
+
+            if (intTypes.has(param.type.type) && intTypes.has(arg.type.type)) {
+                assert(param.type.size == arg.type.size)
                 const cast = { kind: 'implicit cast', type: param.type, expr: arg }
                 arg = cast
                 args[i] = arg

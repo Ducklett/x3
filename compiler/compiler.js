@@ -331,7 +331,13 @@ ${[...data.keys()]
                                             data.push(field2.len.toString())
                                         } else if (field2.kind == 'booleanLiteral') {
                                             data.push((field2.v ? 1 : 0).toString())
+                                        } else if (field2.kind == 'declareVar') {
+                                            assert(field2.expr)
+                                            const ref = globals.get(field2)
+                                            assert(ref)
+                                            data.push(ref)
                                         } else {
+                                            console.log(field2)
                                             assert(false)
                                         }
                                     }

@@ -31,23 +31,29 @@ proc write type[t:->'type info'] {
     const tag_struct  = 7
     const tag_type    = 8
 
+    // write number(t.size)
+    // write("::")
     write(t.name)
-    write(" :: ")
-    write number(t.size)
 
     if t.kind == tag_int {
-        write(" (")
+        write("(")
         if t.data.intData.signed {
             write("signed")
         } else {
             write("unsigned")
         }
         write(")")
+    } else if t.kind == tag_pointer {
+        write("<")
+        write type(t.data.pointerData.to)
+        write(">")
     } else if t.kind == tag_array {
-        // write(" [")
-        // write number(t.data.arrayData.count)
-        // write("] ")
-        // write type(t.data.arrayData.of)
+        write(" [")
+        if (t.data.arrayData.count > 0) {
+            write number(t.data.arrayData.count)
+        }
+        write("] ")
+        write type(t.data.arrayData.of)
     } else if t.kind == tag_struct {
         write(" {\n")
         // TODO: allow property in each loop
@@ -61,18 +67,22 @@ proc write type[t:->'type info'] {
         // }
         // write("}")
     }
-    write("\n")
 }
 
 proc main {
     var str = "hello rtti"
     var num = 42
+    var unum:u64 = -20
+    var sptr = ->str
+    var nptr = ->num
+    var uptr = ->unum
     // what's broken
-    // - it passes the struct on the stack when it SHOULD be pushing a pointer to the typeinfo struct
-    // - 'write type' doesn't follow the pointer, instead just accessing values on the stack
     // - .data section consts just assume everything is a qword currently; firgure out how to switch to other sizes so we can properly do bools and chars
-    write type(typeof(str))
-    write type(typeof(num))
+    write type(typeof(str)) write("\n")
+    write type(typeof(num)) write("\n")
+    write type(typeof(sptr)) write("\n")
+    write type(typeof(nptr)) write("\n")
+    write type(typeof(uptr)) write("\n")
 
     // TODO: fix these!
     // println(any(->str,typeof(str)))
