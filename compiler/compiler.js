@@ -425,9 +425,6 @@ ${[...data.keys()]
                                 while (value.length < bufferLen) {
                                     value.push(0)
                                 }
-                                // const value = node.value.padEnd(bufferLen, '\0')
-
-                                // lines.push(`sub rsp,${bufferLen}`)
 
                                 for (let i = bufferLen - 8; i >= 0; i -= 8) {
                                     let chunk = 0n
@@ -438,11 +435,9 @@ ${[...data.keys()]
                                     }
 
                                     const outChunk = '0x' + chunk.toString(16)
-                                    // const chunk = value.slice(i, i + 8).join(', ') //escapeCharSequence(value.slice(i, i + 8))
 
                                     varOffset -= 8
 
-                                    // lines.push(`mov rax, \`${chunk}\``)
                                     lines.push(`mov rax, ${outChunk}`)
                                     lines.push(`mov [rbp-${Math.abs(varOffset)}], rax`)
                                     console.log(`var [rbp-${Math.abs(varOffset)}] = "${outChunk}"`)
@@ -641,25 +636,11 @@ ${[...data.keys()]
 
                     assert(size % 8 == 0)
 
-                    // let i = 0//
                     lines.push(`; push ${node.symbol.name}`)
 
                     for (let i = node.type.size - 8; i >= 0; i -= 8) {
                         lines.push(`push qword ${emitVar(node.symbol, i)}`)
                     }
-                    // while (i < node.type.size) {
-                    //     lines.push(`push qword ${emitVar(node.symbol, i)}`)
-                    //     // lines.push(`pop rax`)
-                    //     // lines.push(` ${emitVar(varDec, i)}, rax\n`)
-                    //     i += 8
-                    // }
-
-                    // if (node.type.type == 'string') {
-                    //     lines.push(`push qword ${emitVar(node.symbol, 8)} ; ${node.symbol.name}.length`)
-                    //     lines.push(`push qword ${emitVar(node.symbol)} ; ${node.symbol.name}`)
-                    // } else {
-                    //     lines.push(`push qword ${emitVar(node.symbol)} ; ${node.symbol.name}`)
-                    // }
                     return
                 }
                 case 'offsetAccess': {
@@ -729,7 +710,7 @@ ${[...data.keys()]
 
                     assert(shouldReturn, 'reference should not be called at top level')
 
-                    let offset = 0 //node.prop.symbol.offset
+                    let offset = 0
                     let prop = node.prop
 
                     while (prop.kind == 'readProp') {
@@ -758,9 +739,6 @@ ${[...data.keys()]
                     }
 
                     if (size == 1) {
-                        if (!(size && size % 8 == 0)) {
-                            console.log(prop)
-                        }
                         lines.push(`mov rax, ${emitVar(left, offset)} ; ${node.left.symbol.name}..${prop.symbol.name}`)
                         lines.push(`and rax, 0xFF ; mask 1st byte`)
                         lines.push(`push rax`)
@@ -887,10 +865,6 @@ ${[...data.keys()]
                         shouldReturn,
                         'array literal should not be called at top level'
                     )
-                    // const l = node.l
-                    // assert(l)
-                    // lines.push(`push ${node.type.count}`)
-                    // lines.push(`push ${l}`)
 
                     const buffer = emitVar(node)
                     assert(buffer)
@@ -945,16 +919,6 @@ ${[...data.keys()]
                         lines.push(`push qword \`${escapeCharSequence(node.value)}\``)
                         return
                     }
-
-                    // if (node.type.type == 'cstring') {
-                    //     const l = label(node.value)
-                    //     lines.push(`push ${l}`)
-                    // } else {
-                    //     assert(node.type.type == 'string')
-                    //     const l = label(node.value)
-                    //     lines.push(`push ${node.len}`)
-                    //     lines.push(`push ${l}`)
-                    // }
 
                     if (node.type.type == 'cstring') {
                         const l = emitVar(node)

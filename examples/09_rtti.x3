@@ -110,7 +110,7 @@ proc print[it:any] {
         var fields = t.data.structData.fields
 
         write(t.name)
-        write("{ ")
+        write("{")
         each field,i : fields {
             if (i != 0) {
                 write(", ")
@@ -121,7 +121,7 @@ proc print[it:any] {
             write("=")
             print(any(fieldPtr, fieldType))
         }
-        write(" }")
+        write("}")
     } else {
         write number(t.kind)
         assert(false, "Unsupported type tag")
