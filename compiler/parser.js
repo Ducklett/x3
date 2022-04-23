@@ -130,13 +130,23 @@ function parse(source) {
             if (current() == '"') {
                 lexerIndex++
                 let from = lexerIndex
-                while (current() != '"') lexerIndex++
+                while (true) {
+                    if (current() == '"') break
+                    if (current() == '\\' && peek(1) == '"') {
+                        lexerIndex += 2
+                    }
+                    else {
+                        lexerIndex++
+                    }
+                }
+
                 let str = code.slice(from, lexerIndex)
                 // TODO: maybe move this elsewhere
                 str = str.replace(/\\n/g, '\n')
                     .replace(/\\r/g, '\r')
                     .replace(/\\t/g, '\t')
                     .replace(/\\0/g, '\0')
+                    .replace(/\\"/g, '"')
                 if (shouldNullTerminate) str += '\0'
                 lexerIndex++
                 tokens.push({ kind: 'string', value: str, span: takeSpan() })

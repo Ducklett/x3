@@ -84,10 +84,9 @@ proc print[it:any] {
     if t.kind == tag_int {
         write number(<-d)
     } else if t.kind == tag_string {
-        // TODO: escaped quotes
-        write("'")
+        write("\"")
         write(<-d)
-        write("'")
+        write("\"")
     } else if t.kind == tag_pointer {
         write("->")
         print(any(<-d, t.data.pointerData.to))
