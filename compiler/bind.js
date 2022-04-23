@@ -718,11 +718,12 @@ function bind(files) {
             case 'number':
                 return { kind: 'numberLiteral', n: node.value, type: cloneType(typeMap.int), span: node.span }
             case 'string':
+                const v = new TextEncoder().encode(node.value)
                 return {
                     kind: 'stringLiteral',
                     value: node.value,
-                    len: node.value.length,
-                    type: node.value.endsWith('\0')
+                    len: v.length,
+                    type: node.value.endsWith('\0') // TODO: base type on the c prefix
                         ? cloneType(typeMap.cstring)
                         : cloneType(typeMap.string),
                     span: node.span
@@ -1141,6 +1142,9 @@ function bind(files) {
             // string literal -> char literal
             if (arg.kind == 'stringLiteral') {
                 if (param.type.type == 'char' && arg.type.type == 'string') {
+                    if (arg.len != 1) {
+                        console.log(arg)
+                    }
                     assert(arg.len == 1)
                     arg.type = typeMap.char
                 }

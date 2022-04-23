@@ -105,6 +105,23 @@ proc print[it:any] {
             i++
         }
         write("]")
+    } else if t.kind == tag_struct {
+        var basePtr = d
+        var fields = t.data.structData.fields
+
+        write(t.name)
+        write("{ ")
+        each field,i : fields {
+            if (i != 0) {
+                write(", ")
+            }
+            var fieldPtr = basePtr + field.offset
+            var fieldType = field.'type'
+            write(field.name)
+            write("=")
+            print(any(fieldPtr, fieldType))
+        }
+        write(" }")
     } else {
         write number(t.kind)
         assert(false, "Unsupported type tag")
@@ -116,11 +133,24 @@ proc println[it:any] {
     write("\n")
 }
 
-proc main {
     // TODO: fix const being broken
+
+    // what's broken
+    // - .data section consts just assume everything is a qword currently; firgure out how to switch to other sizes so we can properly do bools and chars
+    // write type(typeof(str)) write("\n")
+    // write type(typeof(num)) write("\n")
+    // write type(typeof(sptr)) write("\n")
+    // write type(typeof(nptr)) write("\n")
+    // write type(typeof(uptr)) write("\n")
+    // write type(typeof(num list)) write("\n")
+    // write type(typeof(str list)) write("\n")
+    // write type(typeof(p)) write("\n")
+    // write type(typeof(me)) write("\n")
+
+proc main {
     var str = "hello rtti"
-    var num = 42
-    var unum:u64 = -20
+    var num = -42
+    var unum:u64 = 20
     var sptr = ->str
     var nptr = ->num
     var uptr = ->unum
@@ -129,18 +159,6 @@ proc main {
     var p = point(32,45)
     var me = person("ivy", 23, "male")
 
-    // what's broken
-    // - .data section consts just assume everything is a qword currently; firgure out how to switch to other sizes so we can properly do bools and chars
-    write type(typeof(str)) write("\n")
-    write type(typeof(num)) write("\n")
-    write type(typeof(sptr)) write("\n")
-    write type(typeof(nptr)) write("\n")
-    write type(typeof(uptr)) write("\n")
-    write type(typeof(num list)) write("\n")
-    write type(typeof(str list)) write("\n")
-    write type(typeof(p)) write("\n")
-    write type(typeof(me)) write("\n")
-
     println(any(->num,typeof(num)))
     println(any(->str,typeof(str)))
     println(any(->sptr,typeof(sptr)))
@@ -148,4 +166,7 @@ proc main {
     println(any(->uptr,typeof(uptr)))
     println(any(->num list,typeof(num list)))
     println(any(->str list,typeof(str list)))
+    println(any(->p,typeof(p)))
+    println(any(->me,typeof(me)))
+    write line("私は猫がラブ😭🐾")
 }

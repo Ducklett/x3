@@ -124,7 +124,10 @@ const api = {
 
     bool: (v, type) => B({ kind: 'booleanLiteral', v, type }),
     num: (n, type) => B({ kind: 'numberLiteral', n, type }),
-    str: (value, type) => B({ kind: 'stringLiteral', value, len: value.length, type }),
+    str: (value, type) => {
+        const v = new TextEncoder().encode(value)
+        return B({ kind: 'stringLiteral', value, len: v.length, type })
+    },
 
     emitAsm(ast, { dest = 'out/out.asm', entrypoint = 'main' } = {}) {
         let locals
@@ -476,18 +479,31 @@ ${[...data.keys()]
 
                             if (node.kind == 'stringLiteral') {
                                 const bufferLen = Math.ceil(node.len / 8) * 8
-                                const value = node.value.padEnd(bufferLen, '\0')
+                                var value = [...new TextEncoder().encode(node.value)]
+                                while (value.length < bufferLen) {
+                                    value.push(0)
+                                }
+                                // const value = node.value.padEnd(bufferLen, '\0')
 
                                 // lines.push(`sub rsp,${bufferLen}`)
 
                                 for (let i = bufferLen - 8; i >= 0; i -= 8) {
-                                    const chunk = escapeCharSequence(value.slice(i, i + 8))
+                                    let chunk = 0n
+                                    // it goes in reverse for some reason
+                                    for (let j = 7; j >= 0; j--) {
+                                        chunk <<= 8n
+                                        chunk |= BigInt(value[i + j])
+                                    }
+
+                                    const outChunk = '0x' + chunk.toString(16)
+                                    // const chunk = value.slice(i, i + 8).join(', ') //escapeCharSequence(value.slice(i, i + 8))
 
                                     varOffset -= 8
 
-                                    lines.push(`mov rax, \`${chunk}\``)
+                                    // lines.push(`mov rax, \`${chunk}\``)
+                                    lines.push(`mov rax, ${outChunk}`)
                                     lines.push(`mov [rbp-${Math.abs(varOffset)}], rax`)
-                                    console.log(`var [rbp-${Math.abs(varOffset)}] = "${chunk}"`)
+                                    console.log(`var [rbp-${Math.abs(varOffset)}] = "${outChunk}"`)
                                 }
                                 locals.set(node, varOffset)
                                 console.log(`string = ${emitVar(node)}`)
