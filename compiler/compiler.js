@@ -825,77 +825,47 @@ ${[...data.keys()]
 
                     assert(shouldReturn, 'reference should not be called at top level')
 
-                    if (node.prop.kind == 'string length') {
-                        lines.push(`push qword ${emitVar(node.left.symbol, 8)} ; ${node.left.symbol.name}.length`)
-                    } else {
-                        let offset = 0 //node.prop.symbol.offset
-                        let prop = node.prop
+                    let offset = 0 //node.prop.symbol.offset
+                    let prop = node.prop
 
-                        while (prop.kind == 'readProp') {
-                            assert(prop.left.kind == 'reference')
-                            assert(prop.left.symbol.offset !== undefined)
-                            offset += prop.left.symbol.offset
+                    while (prop.kind == 'readProp') {
+                        assert(prop.left.kind == 'reference')
+                        assert(prop.left.symbol.offset !== undefined)
+                        offset += prop.left.symbol.offset
 
-                            prop = prop.prop
-                        }
-
-                        assert(prop.kind == 'reference')
-                        assert(prop.symbol.offset !== undefined)
-
-                        offset += prop.symbol.offset
-
-                        const size = prop.symbol.type.size
-
-                        let left = node.left.symbol
-
-                        if (node.left.type.type == 'pointer') {
-                            lines.push(`mov rdx, ${emitVar(node.left.symbol)} ; (<-${left.name})`)
-                            left = 'rdx'
-                        }
-
-                        if (size == 1) {
-                            if (!(size && size % 8 == 0)) {
-                                console.log(prop)
-                            }
-                            lines.push(`mov rax, ${emitVar(left, offset)} ; ${node.left.symbol.name}..${prop.symbol.name}`)
-                            lines.push(`and rax, 0xFF ; mask 1st byte`)
-                            lines.push(`push rax`)
-                        } else {
-                            assert(size && size % 8 == 0)
-                            for (let i = size - 8; i >= 0; i -= 8) {
-                                lines.push(`push qword ${emitVar(left, offset + i)} ; ${node.left.symbol.name}..${prop.symbol.name}`)
-                            }
-                        }
-
+                        prop = prop.prop
                     }
-                    return
 
-                    // else {
-                    //     // TODO: get rid of this constant version and use the stack allocated version above at all times
+                    if (prop.kind != 'reference') {
+                        console.log(prop)
+                    }
+                    assert(prop.kind == 'reference')
+                    assert(prop.symbol.offset !== undefined)
 
-                    //     assert(node.left.symbol.kind == 'declareVar')
-                    //     const varDec = node.left.symbol
+                    offset += prop.symbol.offset
 
-                    //     assert(varDec.notes?.has('const'), 'should be a constant')
+                    const size = prop.symbol.type.size
 
-                    //     if (varDec.type.type == 'array') {
-                    //         assert(node.prop.kind == 'string length', 'property should be length')
-                    //         const len = varDec.expr.type.count
-                    //         lines.push(`push ${len} ; ${varDec.name}.length`)
-                    //         return
-                    //     }
+                    let left = node.left.symbol
 
-                    //     assert(
-                    //         varDec.expr.kind == 'stringLiteral',
-                    //         'should be initalized to a string literal'
-                    //     )
+                    if (node.left.type.type == 'pointer') {
+                        lines.push(`mov rdx, ${emitVar(node.left.symbol)} ; (<-${left.name})`)
+                        left = 'rdx'
+                    }
 
-                    //     assert(node.prop.kind == 'string length', 'property should be length')
-
-                    //     lines.push(`push ${varDec.expr.value.length}`)
-                    // }
-
-
+                    if (size == 1) {
+                        if (!(size && size % 8 == 0)) {
+                            console.log(prop)
+                        }
+                        lines.push(`mov rax, ${emitVar(left, offset)} ; ${node.left.symbol.name}..${prop.symbol.name}`)
+                        lines.push(`and rax, 0xFF ; mask 1st byte`)
+                        lines.push(`push rax`)
+                    } else {
+                        assert(size && size % 8 == 0)
+                        for (let i = size - 8; i >= 0; i -= 8) {
+                            lines.push(`push qword ${emitVar(left, offset + i)} ; ${node.left.symbol.name}..${prop.symbol.name}`)
+                        }
+                    }
                     return
                 }
                 case 'binary': {

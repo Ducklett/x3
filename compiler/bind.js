@@ -792,11 +792,6 @@ function bind(files) {
                 return it
             }
             case 'symbol': {
-                // string length hack
-                if (node.value == 'length') {
-                    return { kind: 'string length', type: cloneType(typeMap.int), span: node.span }
-                }
-
                 const symbol = findSymbol(node.value, inScope)
                 if (!symbol) {
                     console.log(inScope)
@@ -849,7 +844,7 @@ function bind(files) {
                         assert(to.kind == 'struct' || to.kind == 'union' || to.type == 'string' || to.type == 'array')
                     } else {
                         const isLegal = left.symbol?.type?.kind == 'struct' || left.symbol?.type?.kind == 'union' || left.symbol.scope || node.property.value == 'length'
-                        assert(isLegal, `property access is allowed to be: string length hack,module, struct, union, pointer`)
+                        assert(isLegal, `property access is allowed to be: module, struct, union, pointer`)
                     }
                 }
                 checkIfLhsIsLegal(left)
@@ -1537,7 +1532,8 @@ function lower(ast) {
                 let i = node.index ?? declareVar('i', indexInitializer)
                 let begin = label('begin')
                 let endLabel = label('end')
-                let condition = goto(endLabel, binary('>=', ref(i), readProp(ref(node.list), { kind: 'string length' })))
+                const lengthProp = typeMap.string.scope.symbols.get('length')
+                let condition = goto(endLabel, binary('>=', ref(i), readProp(ref(node.list), ref(lengthProp))))
                 let item = node.item
                 let setItem = assignVar(ref(item), offsetAccess(ref(node.list), ref(i)))
                 let body = node.block
@@ -1811,11 +1807,6 @@ function lower(ast) {
                 return [node]
             }
             case 'readProp': {
-
-                if (node.prop.kind == 'string length') {
-                    return [node]
-                }
-
                 if (node.left.kind == 'reference') {
                     if (node.left.symbol.kind == 'module') {
                         return lowerNode(node.prop)
