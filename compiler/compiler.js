@@ -204,19 +204,12 @@ ${[...data.keys()]
                     if (Array.isArray(d)) {
                         if (d.isOther) {
                             // hacky struct array
-                            console.log(d)
                             delete d.isOther
                             return `${k} dq ${d.join(', ')}`
-                            assert(false)
                         } else {
                             // is string array
                             return `${k} dq ${d.map(v => `${v},${data.get(v).length}`).join(', ')} ; []string`
                         }
-                        // if (typeof d[0] == 'string' && data.get(d[0]).length !== undefined) {
-                        // } else {
-                        //     // label array
-                        //     return `${k} dq ${d.join(', ')} ; []ptr`
-                        // }
                     }
 
                     if (d?.kind == 'struct') {
@@ -368,7 +361,6 @@ ${[...data.keys()]
                                                         data2.push(l)
                                                         data2.push(arg.len)
                                                     } else if (arg.kind == 'declareVar') {
-                                                        console.log(arg)
                                                         const l = globals.get(arg)
                                                         assert(l)
                                                         data2.push(l)

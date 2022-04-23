@@ -307,8 +307,12 @@ function parse(source) {
             const declarations = []
             while (true) {
                 if (!current()) break
+                const cur = current()
                 const stmt = parseDeclaration('file')
-                if (!stmt) assert(false, 'expected statement')
+                if (!stmt) {
+                    console.log(cur)
+                    assert(false, 'expected statement')
+                }
                 declarations.push(stmt)
             }
 

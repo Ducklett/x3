@@ -137,6 +137,10 @@ function bind(files) {
     ])
     addSymbol('array', arr)
 
+    // put scopes in the typemap so 'property access' knows about them
+    typeMap.string.scope = strr.scope
+    typeMap.array.scope = arr.scope
+
     // add type infos
     for (let [name, type] of Object.entries(typeMap)) {
         if (type.tag == tag_array || type.tag == tag_struct || type.tag == tag_pointer) {
@@ -343,6 +347,11 @@ function bind(files) {
 
                     if (intTypes.has(it.type.type) && intTypes.has(it.expr.type.type)) {
                         assert(it.type.size == it.expr.type.size)
+                        const cast = { kind: 'implicit cast', type: it.type, expr: it.expr }
+                        it.expr = cast
+                    }
+
+                    if (it.expr.type.type == 'void' && it.type) {
                         const cast = { kind: 'implicit cast', type: it.type, expr: it.expr }
                         it.expr = cast
                     }
@@ -784,11 +793,12 @@ function bind(files) {
             case 'symbol': {
                 // string length hack
                 if (node.value == 'length') {
-                    return { kind: 'string length', type: cloneType(typeMap.u64), span: node.span }
+                    return { kind: 'string length', type: cloneType(typeMap.int), span: node.span }
                 }
 
                 const symbol = findSymbol(node.value, inScope)
                 if (!symbol) {
+                    console.log(inScope)
                     console.log(node)
                 }
                 assert(symbol, `symbol "${node.value}" is defined`)
@@ -843,7 +853,19 @@ function bind(files) {
                 }
                 checkIfLhsIsLegal(left)
 
-                const right = bindExpression(node.property, left.symbol?.type?.scope ?? left.symbol?.scope)
+                let scope
+                if (left.symbol) {
+                    if (left.kind == 'reference' && left.symbol.type?.type == 'pointer') {
+                        assert(left.symbol.type.to.scope)
+                        scope = left.symbol.type.to.scope
+                    } else if (left.symbol.type?.scope) {
+                        scope = left.symbol.type?.scope
+                    } else {
+                        scope = left.symbol?.scope
+                    }
+                }
+                // left.symbol?.type?.scope ?? left.symbol?.scope
+                const right = bindExpression(node.property, scope)
                 assert(right.type)
                 const type = right.type
 
@@ -1023,9 +1045,15 @@ function bind(files) {
                     b.type = typeMap.char
                 }
 
-                if (a.type.type == 'char' && b.type.type == 'int' || b.type.type == 'char' && a.type.type == 'int') {
+                if (a.type.type == 'pointer' && b.type.type == 'int' || b.type.type == 'pointer' && a.type.type == 'int') {
+                    // HACK: allow pointer arithmetic
+                }
+                else if (a.type.type == 'char' && b.type.type == 'int' || b.type.type == 'char' && a.type.type == 'int') {
                     // allow it
                 } else {
+                    if (a.type.type != b.type.type) {
+                        console.log(b)
+                    }
                     assert(a.type.type == b.type.type)
                 }
 
