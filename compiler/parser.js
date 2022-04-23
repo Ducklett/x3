@@ -33,6 +33,8 @@ function parse(source) {
             return span
         }
 
+        function isNewline(c) { return c == '\n' }
+
         function isWhitespace(c) {
             return c == ' ' || c == "\n" || c == "\r" || c == '\t'
         }
@@ -57,14 +59,17 @@ function parse(source) {
             return (c >= 0 && c <= 7)
         }
 
+
         const maxTokenLength = 3;
         let lexerIndex = 0;
         const len = code.length
 
         let tokens = []
 
+
         lex:
         while (lexerIndex < len) {
+
             const current = () => {
                 // overstepped by 2, should definitely just kys now to prevent inifinite loop ;)
                 if (lexerIndex > len) throw "out of range!"
@@ -75,9 +80,49 @@ function parse(source) {
                 return code[lexerIndex + n]
             }
 
+            const lexSymbol = (from = null, leftEscaped = false) => {
+                let rightEscaped = false
+
+                if (!from) {
+                    if (current() == "'") {
+                        lexerIndex++
+                        leftEscaped = true
+                    }
+                    from = lexerIndex
+                }
+
+                while (isLegalSymbol(current())) lexerIndex++
+
+                // remove trailing whitespace
+                while (isWhitespace(peek(-1))) lexerIndex--
+
+
+                let symbol = code.slice(from, lexerIndex)
+
+                // symbols may end with ' to prevent collisions with keywords
+                if (current() == "'") {
+                    lexerIndex++
+                    rightEscaped = true
+                }
+
+                return { kind: 'symbol', value: symbol, leftEscaped, rightEscaped, span: takeSpan() }
+            }
+
             startSpan()
             let from = lexerIndex
-            while (isWhitespace(current())) lexerIndex++
+            while (isWhitespace(current())) {
+                if (isNewline(current())) {
+                    // TODO: also keep track of the line number so we can do proper error messages with them :)
+                    if (tokens.length > 0 && tokens[tokens.length - 1].kind == 'symbol') {
+                        const smb = tokens[tokens.length - 1]
+                        // implicit right escape by inserting a newline
+                        smb.rightEscaped = true
+                        console.log('right escaped ' + smb.value)
+                    }
+
+                }
+                lexerIndex++
+            }
             if (from != lexerIndex) {
                 tokens.push({ kind: 'whitespace', value: code.slice(from, lexerIndex), span: takeSpan() })
             }
@@ -108,14 +153,9 @@ function parse(source) {
             // tag
             if (current() == '#') {
                 lexerIndex++
-                let from = lexerIndex
-                // TODO: unify this with the symbol parser below
-                if (current() == "'") lexerIndex++
-                while (isLegalSymbol(current())) lexerIndex++
-                while (isWhitespace(peek(-1))) lexerIndex--
-                const value = code.slice(from, lexerIndex)
-                if (current() == "'") lexerIndex++
-                if (lexerIndex == from) throw 'expected symbol after pound symbol'
+                const smb = lexSymbol()
+                if (!smb) throw 'expected symbol..'
+                const value = smb.value
                 tokens.push({ kind: 'tag', value, span: takeSpan() })
                 continue
             }
@@ -205,28 +245,21 @@ function parse(source) {
 
                 if (mightBeKeyword) {
                     while (isLegalKeyword(current())) lexerIndex++
-                    let potentialKeyword = code.slice(from, lexerIndex)
-                    if (keywords.has(potentialKeyword)) {
-                        tokens.push({ kind: 'keyword', value: potentialKeyword, span: takeSpan() })
-                        continue
+                    if (current() != "'") {
+                        let potentialKeyword = code.slice(from, lexerIndex)
+                        if (keywords.has(potentialKeyword)) {
+                            tokens.push({ kind: 'keyword', value: potentialKeyword, span: takeSpan() })
+                            continue
+                        }
                     }
-
                 }
 
-                while (isLegalSymbol(current())) lexerIndex++
-                // remove trailing whitespace
-                while (isWhitespace(peek(-1))) lexerIndex--
-
-                let symbol = code.slice(from, lexerIndex)
-
-                // symbols may end with ' to prevent collisions with keywords
-                if (current() == "'") lexerIndex++
-
-                tokens.push({ kind: 'symbol', value: symbol, span: takeSpan() })
+                const value = lexSymbol(from)
+                tokens.push(value)
                 continue
             }
 
-            // token
+            // operator
             {
                 let from = lexerIndex
                 let operatorLen = maxTokenLength
@@ -241,7 +274,7 @@ function parse(source) {
                 }
             }
 
-            throw `unexpected character '${code[lexerIndex]}'`
+            throw `unexpected character '${code[lexerIndex]} : ${lexerIndex}'`
         }
 
         return tokens
@@ -250,7 +283,27 @@ function parse(source) {
     function _parse(tokens) {
         let isTopLevel = true
         const filesToImport = new Set()
-        tokens = tokens.filter(t => t.kind != 'whitespace' && t.kind != 'comment')
+        let lastSymbol = null
+        tokens = tokens.filter((t, i, arr) => {
+            if (t.kind == 'whitespace') {
+                if (t.value.length > 1) {
+                    if (lastSymbol) {
+                        lastSymbol.rightEscaped = true
+                    }
+                }
+                return false
+            } else if (t.kind == 'comment') {
+                if (lastSymbol) {
+                    lastSymbol.rightEscaped = true
+                }
+                return false
+            } else if (t.kind == 'symbol' || t.kind == 'keyword') {
+                lastSymbol = t
+            } else {
+                lastSymbol = null
+            }
+            return true
+        })
         let tokenIndex = 0
 
         let contents = parseFile()
@@ -356,6 +409,49 @@ function parse(source) {
             }
             return lhs
 
+            function parseSymbolExpression() {
+                let lhs = parseSymbol()
+
+                // TODO: find a nicer way to do this..
+                while (true) {
+                    if (is('operator', '.')) {
+                        // property acces
+                        const dot = take('operator', '.')
+                        const property = parsePrimaryExpression()
+
+                        // use property access as lhs, try for assignement
+                        lhs = { kind: 'property access', scope: lhs, dot, property }
+                        continue
+                    }
+
+                    if (is('operator', '(')) {
+                        // function call
+                        const argumentList = parseList(parseExpression, "()")
+                        lhs = { kind: 'call', name: lhs, argumentList }
+                        continue
+                    }
+
+                    if (is('operator', '[')) {
+                        const begin = take('operator', '[')
+                        const index = parseExpression()
+                        const end = take('operator', ']')
+                        lhs = { kind: 'offset access', name: lhs, begin, index, end }
+                        continue
+                    }
+
+                    if (isAssignmentOperator(current())) {
+                        const operator = take('operator')
+                        const expr = parseExpression()
+                        lhs = { kind: 'assignment', name: lhs, operator, expr }
+                        continue
+                    }
+
+                    break
+                }
+
+                return lhs
+            }
+
             function parsePrimaryExpression() {
                 switch (current().kind) {
                     case 'operator': {
@@ -380,60 +476,30 @@ function parse(source) {
                     case 'number': return take('number')
                     case 'string': return take('string')
 
-                    case 'symbol': {
-                        let lhs = take('symbol')
-
-                        // TODO: find a nicer way to do this..
-                        while (true) {
-                            if (is('operator', '.')) {
-                                // property acces
-                                const dot = take('operator', '.')
-                                const property = parsePrimaryExpression()
-
-                                // use property access as lhs, try for assignement
-                                lhs = { kind: 'property access', scope: lhs, dot, property }
-                                continue
-                            }
-
-                            if (is('operator', '(')) {
-                                // function call
-                                const argumentList = parseList(parseExpression, "()")
-                                lhs = { kind: 'call', name: lhs, argumentList }
-                                continue
-                            }
-
-                            if (is('operator', '[')) {
-                                const begin = take('operator', '[')
-                                const index = parseExpression()
-                                const end = take('operator', ']')
-                                lhs = { kind: 'offset access', name: lhs, begin, index, end }
-                                continue
-                            }
-
-                            if (isAssignmentOperator(current())) {
-                                const operator = take('operator')
-                                const expr = parseExpression()
-                                lhs = { kind: 'assignment', name: lhs, operator, expr }
-                                continue
-                            }
-
-                            break
-                        }
-
-                        return lhs
-                    }
+                    case 'symbol': return parseSymbolExpression()
                     case 'keyword': {
-                        const keyword = take('keyword')
+                        const keyword = current()
                         switch (keyword.value) {
-                            case 'true': return { kind: 'boolean literal', value: true, span: keyword.span }
-                            case 'false': return { kind: 'boolean literal', value: false, span: keyword.span }
-                            case 'break': return { kind: 'break', span: keyword.span }
-                            case 'continue': return { kind: 'continue', span: keyword.span }
+                            case 'true':
+                                take('keyword')
+                                return { kind: 'boolean literal', value: true, span: keyword.span }
+                            case 'false':
+                                take('keyword')
+                                return { kind: 'boolean literal', value: false, span: keyword.span }
+                            case 'break':
+                                take('keyword')
+                                return { kind: 'break', span: keyword.span }
+                            case 'continue':
+                                take('keyword')
+                                return { kind: 'continue', span: keyword.span }
                             case 'return': {
+                                take('keyword')
                                 const expr = parseExpression()
                                 return { kind: 'return', keyword, expr }
                             }
-                            default: throw `unexpected token ${keyword.kind}::${keyword.value} for expression`
+                            default: {
+                                return parseSymbolExpression()
+                            }
                         }
                     }
                     default: throw `unexpected token ${current().kind}::${current().value} for expression`
@@ -685,8 +751,33 @@ function parse(source) {
             return take('symbol')
         }
 
+        function parseSymbol(root = true) {
+            let symbol
+
+            if (is('keyword')) {
+                symbol = take('keyword')
+                symbol.kind = 'symbol'
+
+            } else if (is('symbol')) {
+                symbol = take('symbol')
+            }
+
+            if (symbol && !symbol?.rightEscaped) {
+                const toTheRight = parseSymbol(false)
+                if (toTheRight) {
+                    symbol.value += ' ' + toTheRight.value
+                }
+            }
+
+            if (root && !symbol) {
+                console.log(current())
+                throw 'expected symbol!'
+            }
+
+            return symbol
+        }
         function parseTypedSymbol() {
-            const name = take('symbol')
+            const name = parseSymbol()
             const colon = take('operator', ':')
             const type = parseType()
             const tags = parseTags()
@@ -744,17 +835,17 @@ function parse(source) {
         }
 
         function parseChain() {
-            let lhs = take('symbol')
+            let lhs = parseSymbol()
             while (is('operator', '.')) {
                 const dot = take('operator', '.')
-                const rhs = take('symbol')
+                const rhs = parseSymbol()
                 lhs = { kind: 'property access', scope: lhs, dot, property: rhs }
             }
 
             return lhs
         }
         function parseType() {
-            if (is('symbol')) {
+            if (is('symbol') || is('keyword')) {
                 return { kind: 'type atom', name: parseChain() }
             } else if (is('operator', '[')) {
                 let size

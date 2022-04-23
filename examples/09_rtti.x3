@@ -5,10 +5,10 @@ struct person[name:string,age:int,gender:string]
 
 struct any [
     data:->void,
-    'type:->'type info'
+    type:->type info
 ]
 
-proc write type[t:->'type info'] {
+proc write type[t:->type info] {
     const tag_void    = 0
     const tag_int     = 1
     const tag_bool    = 2
@@ -52,13 +52,13 @@ proc write type[t:->'type info'] {
         // TODO: allow property in each loop
         var fields = t.data.structData.fields
 
-        each field :  fields {
+        each field : fields {
             write("  ")
             write number(field.offset)
             write("->")
             write(field.name)
             write(":")
-            write type(field.'type')
+            write type(field.type)
             write("\n")
         }
         write("}")
@@ -79,7 +79,7 @@ proc print[it:any] {
 
     var d = it.data
     // TODO: fix pointer following for nested property access
-    var t = it.'type
+    var t = it.type
 
     if t.kind == tag_int {
         write number(<-d)
@@ -115,7 +115,7 @@ proc print[it:any] {
                 write(", ")
             }
             var fieldPtr = basePtr + field.offset
-            var fieldType = field.'type'
+            var fieldType = field.type
             write(field.name)
             write("=")
             print(any(fieldPtr, fieldType))
