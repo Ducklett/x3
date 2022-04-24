@@ -4,17 +4,17 @@ struct point[x:int,y:int]
 struct person[name:string,age:int,gender:string]
 
 proc write type[t:->type info] {
-    const tag_void    = 0
-    const tag_int     = 1
-    const tag_bool    = 2
-    const tag_string  = 3
-    const tag_char    = 4
-    const tag_pointer = 5
-    const tag_array   = 6
-    const tag_struct  = 7
-    const tag_type    = 8
+    const tag void    = 0
+    const tag int     = 1
+    const tag bool    = 2
+    const tag string  = 3
+    const tag char    = 4
+    const tag pointer = 5
+    const tag array   = 6
+    const tag struct  = 7
+    const tag type    = 8
 
-    if t.kind == tag_struct {
+    if t.kind == tag struct {
         write ("struct ")
     }
 
@@ -22,7 +22,7 @@ proc write type[t:->type info] {
     // write("::")
     write(t.name)
 
-    if t.kind == tag_int {
+    if t.kind == tag int {
         write("(")
         if t.data.intData.signed {
             write("signed")
@@ -30,18 +30,18 @@ proc write type[t:->type info] {
             write("unsigned")
         }
         write(")")
-    } else if t.kind == tag_pointer {
+    } else if t.kind == tag pointer {
         write("<")
         write type(t.data.pointerData.to)
         write(">")
-    } else if t.kind == tag_array {
+    } else if t.kind == tag array {
         write("[")
         if (t.data.arrayData.count > 0) {
             write number(t.data.arrayData.count)
         }
         write("]")
         write type(t.data.arrayData.of)
-    } else if t.kind == tag_struct {
+    } else if t.kind == tag struct {
         write(" {\n")
         // TODO: property access from array (foo[0].bar)
         // TODO: allow property in each loop
@@ -62,30 +62,30 @@ proc write type[t:->type info] {
 
 proc print[it:any] {
     // TODO: make an enum out of this 
-    const tag_void    = 0
-    const tag_int     = 1
-    const tag_bool    = 2
-    const tag_string  = 3
-    const tag_char    = 4
-    const tag_pointer = 5
-    const tag_array   = 6
-    const tag_struct  = 7
-    const tag_type    = 8
+    const tag void    = 0
+    const tag int     = 1
+    const tag bool    = 2
+    const tag string  = 3
+    const tag char    = 4
+    const tag pointer = 5
+    const tag array   = 6
+    const tag struct  = 7
+    const tag type    = 8
 
     var d = it.data
     // TODO: fix pointer following for nested property access
     var t = it.type
 
-    if t.kind == tag_int {
+    if t.kind == tag int {
         write number(<-d)
-    } else if t.kind == tag_string {
+    } else if t.kind == tag string {
         write("\"")
         write(<-d)
         write("\"")
-    } else if t.kind == tag_pointer {
+    } else if t.kind == tag pointer {
         write("->")
         print(any(<-d, t.data.pointerData.to))
-    } else if t.kind == tag_array {
+    } else if t.kind == tag array {
         write("[")
         var entries:[]void = <-d
         var entryType = t.data.arrayData.of
@@ -99,7 +99,7 @@ proc print[it:any] {
             i++
         }
         write("]")
-    } else if t.kind == tag_struct {
+    } else if t.kind == tag struct {
         var basePtr = d
         var fields = t.data.structData.fields
 
@@ -126,7 +126,6 @@ proc println[it:any] {
     print(it)
     write("\n")
 }
-
 
 proc main {
     var str = "hello rtti"

@@ -263,10 +263,6 @@ ${[...data.keys()]
                         offset += ' + ' + fieldOffset
                     }
                 }
-                if (offset === undefined) {
-                    console.log(node)
-                }
-                if (offset === undefined) throw 'aaa'
                 assert(
                     offset !== undefined,
                     'referenced variable will either be a local or a global'
@@ -282,7 +278,6 @@ ${[...data.keys()]
                 case 'stringLiteral': {
                     const l = label(node.value)
                     data.push(l)
-                    console.log(node)
                     data.push(node.len)
                 } break
                 case 'numberLiteral': {
@@ -372,7 +367,6 @@ ${[...data.keys()]
 
                     lines.push(`_${name}:`)
 
-                    // const localSize = vars.length * 8
                     let localSize = vars.reduce((acc, cur) => {
                         if (cur.kind == 'buffer') {
                             if (cur.data.kind == 'arrayLiteral') {
@@ -388,7 +382,6 @@ ${[...data.keys()]
                         assert(cur.type.size && cur.type.size > 0)
 
                         return acc + Math.ceil(cur.type.size / 8) * 8 // alignment hack
-                        // return acc + cur.type.size
                     }, 0)
 
                     lines.push(`; prologue`)
@@ -406,11 +399,9 @@ ${[...data.keys()]
                     }, 0)
 
                     for (let param of [...node.params].reverse()) {
-                        // paramOffset -= 8
                         paramOffset -= Math.ceil(param.type.size / 8) * 8 // alignment hack
-                        // paramOffset -= param.type.size
                         locals.set(param, paramOffset)
-                        console.log(`param ${param.name} = [rbp+${paramOffset}]`)
+                        // console.log(`param ${param.name} = [rbp+${paramOffset}]`)
                     }
 
                     let varOffset = 0
@@ -440,10 +431,10 @@ ${[...data.keys()]
 
                                     lines.push(`mov rax, ${outChunk}`)
                                     lines.push(`mov [rbp-${Math.abs(varOffset)}], rax`)
-                                    console.log(`var [rbp-${Math.abs(varOffset)}] = "${outChunk}"`)
+                                    // console.log(`var [rbp-${Math.abs(varOffset)}] = "${outChunk}"`)
                                 }
                                 locals.set(node, varOffset)
-                                console.log(`string = ${emitVar(node)}`)
+                                // console.log(`string = ${emitVar(node)}`)
                             } else {
                                 assert(node.kind == 'arrayLiteral')
 
@@ -452,20 +443,20 @@ ${[...data.keys()]
                                 assert(size % 8 == 0)
                                 varOffset -= size
                                 locals.set(node, varOffset)
-                                console.log(`array = ${emitVar(node)}`)
+                                // console.log(`array = ${emitVar(node)}`)
                             }
                         } else {
                             if (vr.notes.has('const')) {
                                 //hoist that bitch!
                                 emitTop(vr)
-                                console.log(`const ${vr.name} = ${emitVar(vr)}`)
+                                // console.log(`const ${vr.name} = ${emitVar(vr)}`)
                             } else {
                                 assert(vr.kind == 'declareVar')
                                 assert(vr.expr == null, 'initalized locals not supported')
                                 varOffset -= Math.ceil(vr.type.size / 8) * 8 // alignment hack
                                 // varOffset -= vr.type.size
                                 locals.set(vr, varOffset)
-                                console.log(`var ${vr.name} = ${emitVar(vr)}`)
+                                // console.log(`var ${vr.name} = ${emitVar(vr)}`)
                             }
                         }
                     }

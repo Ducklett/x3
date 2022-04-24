@@ -117,7 +117,6 @@ function parse(source) {
                         const smb = tokens[tokens.length - 1]
                         // implicit right escape by inserting a newline
                         smb.rightEscaped = true
-                        console.log('right escaped ' + smb.value)
                     }
 
                 }
@@ -470,7 +469,6 @@ function parse(source) {
                             list.kind = 'array literal'
                             return list
                         }
-                        console.log(current())
                         assert(false, `unexpected operator`)
                     }
                     case 'number': return take('number')
