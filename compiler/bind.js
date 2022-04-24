@@ -11,6 +11,8 @@ const tag_array = 6
 const tag_struct = 7
 const tag_type = 8
 
+let any, $typeof, typeInfo, $typeInfoFor
+
 // TODO: actually have different int types
 const typeMap = {
     'int': { tag: tag_int, type: 'int', size: 8, signed: true },
@@ -39,20 +41,21 @@ function typeInfoLabel(type) {
         // TODO: something with the namespace?
     }
 
-    if (type.kind == 'pointer') {
+    if (type.type == 'pointer') {
         l.push('$')
         l.push(typeInfoLabel(type.to))
     }
 
-    if (type.kind == 'array') {
+    if (type.type == 'array') {
         l.push('$')
-        l.push(typeInfoLabel(type.to))
+        l.push(typeInfoLabel(type.of))
     }
 
     return l.join('')
 }
 
 function bind(files) {
+    $typeInfoFor = typeInfoFor
     function compilerSpan() { return { file: '<compiler>', from: 0, to: 0 } }
     function spanFromRange(from, to) {
         return { ...from, to: to.to }
@@ -104,7 +107,7 @@ function bind(files) {
     addSymbol('type info data', typeInfoData)
 
 
-    const typeInfo = struct('type info', [
+    typeInfo = struct('type info', [
         param('kind', typeMap.int),
         param('name', typeMap.string),
         param('size', typeMap.int),
@@ -122,7 +125,7 @@ function bind(files) {
     typePtr.to = typeInfo
     fieldArray.of = fieldData
 
-    const $typeof = fn('typeof', [param('symbol')], typeInfo)
+    $typeof = fn('typeof', [param('symbol')], typeInfo)
     addSymbol('typeof', $typeof)
 
     const strr = struct('string', [
@@ -136,6 +139,20 @@ function bind(files) {
         param('length', typeMap.int)
     ])
     addSymbol('array', arr)
+
+    // struct any [
+    //     data:->void,
+    //     type:->type info
+    // ]
+
+    const voidPtr = cloneType(typeMap.pointer)
+    voidPtr.to = typeMap.void
+
+    any = struct('any', [
+        param('data', voidPtr),
+        param('type', typePtr)
+    ])
+    addSymbol('any', any)
 
     // put scopes in the typemap so 'property access' knows about them
     typeMap.string.scope = strr.scope
@@ -191,6 +208,83 @@ function bind(files) {
     }
 
     return ast
+
+    function typeInfoFor(type) {
+        const name = type.type
+        const infoName = typeInfoLabel(type)
+        let info = findSymbol(infoName, globalScope, false)
+
+        if (!info) {
+            assert(type.type == 'pointer' || type.type == 'array' || type.kind == 'struct')
+
+            // generate type info
+            const args = [num(type.tag, typeMap.int), str(name, typeMap.string), num(type.size, typeMap.int)]
+
+            if (type.tag == tag_pointer) {
+                const to = findSymbol(typeInfoLabel(type.to), globalScope, false)
+                // TODO: support nested pointers
+                assert(to)
+                // args.push(ctor(pointerData, unary('->', to, ptr)))
+                args.push(ctor(pointerData, to))
+            } else if (type.tag == tag_array) {
+                const of = findSymbol(typeInfoLabel(type.of), globalScope, false)
+                // TODO: support nested arrays
+                assert(of)
+                const count = num(type.count || 0, typeMap.int)
+
+                args.push(ctor(arrayData, of, count))
+            } else if (type.tag == tag_struct) {
+                function emitField(structLabel, field) {
+                    const type = findSymbol(typeInfoLabel(field.type), globalScope, false)
+                    assert(type)
+
+                    const f = ctor(fieldData,
+                        str(field.name, typeMap.string),
+                        num(field.offset, typeMap.int),
+                        type
+                    )
+
+                    // const decl = MARK('const',)(declareVar(fieldName, f))
+                    // addSymbol(fieldName, decl)
+                    // NOTE: as of right now we need the actual declaration for it to be emitted
+                    // TODO: perhaps just read the symbol table instead..
+                    // ast.push(decl)
+
+                    return f
+                }
+                const fields = type.fields.map(f => emitField(infoName, f))
+                const fieldsType = cloneType(typeMap.array)
+                fieldsType.count = fields.length
+                fieldsType.of = fieldData
+
+                const fieldArr = {
+                    kind: 'arrayLiteral',
+                    entries: fields,
+                    type: fieldsType,
+                    span: compilerSpan()
+                }
+
+                args.push(ctor(structData, fieldArr))
+            } else {
+                console.log(type)
+                assert(false)
+            }
+
+            const t = ctor(typeInfo, ...args)
+            // already declared above
+            // const infoName = typeInfoLabel(type)
+            const decl = MARK('const',)(declareVar(infoName, t))
+            addSymbol(infoName, decl)
+            // NOTE: as of right now we need the actual declaration for it to be emitted
+            // TODO: perhaps just read the symbol table instead..
+            ast.push(decl)
+            info = decl
+        }
+
+        assert(info)
+
+        return info
+    }
 
     function addSymbol(name, symbol) {
         currentScope().symbols.set(name, symbol)
@@ -907,105 +1001,28 @@ function bind(files) {
                     return it
                 } else {
                     const isTypeof = node.name.value == 'typeof'
+                    const args = bindList(node.argumentList.items, bindExpression)
 
-                    const it = {
-                        kind: 'call',
-                        def,
-                        args: bindList(node.argumentList.items, bindExpression),
-                        type,
-                        span: spanFromRange(node.name.span, node.argumentList.end.span)
-                    }
 
                     if (isTypeof) {
-                        assert(it.args.length == 1 && it.args[0].type)
-                        const to = it.type
-                        const itsType = typeMap.pointer
-                        itsType.to = to
-                        it.type = itsType
-                        assert(it.args[0].type.type != 'struct' && it.args[0].type.type != 'union', 'structs not yet supported')
-
-                        const type = it.args[0].type
-
-                        const name = type.type
-                        const infoName = typeInfoLabel(type)
-                        let info = findSymbol(infoName, globalScope, false)
-                        // console.log(globalScope)
-                        if (!info) {
-                            assert(type.type == 'pointer' || type.type == 'array' || type.kind == 'struct')
-
-                            // generate type info
-                            const args = [num(type.tag, typeMap.int), str(name, typeMap.string), num(type.size, typeMap.int)]
-
-                            if (type.tag == tag_pointer) {
-                                const to = findSymbol(typeInfoLabel(type.to), globalScope, false)
-                                // TODO: support nested pointers
-                                assert(to)
-                                // args.push(ctor(pointerData, unary('->', to, ptr)))
-                                args.push(ctor(pointerData, to))
-                            } else if (type.tag == tag_array) {
-                                const of = findSymbol(typeInfoLabel(type.of), globalScope, false)
-                                // TODO: support nested arrays
-                                assert(of)
-                                const count = num(type.count || 0, typeMap.int)
-
-                                args.push(ctor(arrayData, of, count))
-                            } else if (type.tag == tag_struct) {
-                                function emitField(structLabel, field) {
-                                    const fieldName = structLabel + `$${field.name}`
-
-                                    const type = findSymbol(typeInfoLabel(field.type), globalScope, false)
-                                    assert(type)
-
-                                    const f = ctor(fieldData,
-                                        str(field.name, typeMap.string),
-                                        num(field.offset, typeMap.int),
-                                        type
-                                    )
-
-                                    // const decl = MARK('const',)(declareVar(fieldName, f))
-                                    // addSymbol(fieldName, decl)
-                                    // NOTE: as of right now we need the actual declaration for it to be emitted
-                                    // TODO: perhaps just read the symbol table instead..
-                                    // ast.push(decl)
-
-                                    return f
-                                }
-                                const fields = type.fields.map(f => emitField(infoName, f))
-                                const fieldsType = cloneType(typeMap.array)
-                                fieldsType.count = fields.length
-                                fieldsType.of = fieldData
-
-                                const fieldArr = {
-                                    kind: 'arrayLiteral',
-                                    entries: fields,
-                                    type: fieldsType,
-                                    span: compilerSpan()
-                                }
-
-                                args.push(ctor(structData, fieldArr))
-                            } else {
-                                console.log(type)
-                                assert(false)
-                            }
-
-                            const t = ctor(typeInfo, ...args)
-                            // already declared above
-                            // const infoName = typeInfoLabel(type)
-                            const decl = MARK('const',)(declareVar(infoName, t))
-                            addSymbol(infoName, decl)
-                            // NOTE: as of right now we need the actual declaration for it to be emitted
-                            // TODO: perhaps just read the symbol table instead..
-                            ast.push(decl)
-                            info = decl
-                        }
-
-                        assert(info)
-                        it.info = info
+                        assert(args.length == 1 && args[0].type)
+                        const it = ref(typeInfoFor(args[0].type))
+                        const ptr = cloneType(typeMap.pointer)
+                        ptr.to = it.type
+                        it.type = ptr
+                        return it
                     } else {
+                        const it = {
+                            kind: 'call',
+                            def,
+                            args,
+                            type,
+                            span: spanFromRange(node.name.span, node.argumentList.end.span)
+                        }
                         it.args = validateArguments(it.args, params, node.name.span.file)
-                    }
 
-                    return it
+                        return it
+                    }
                 }
             }
             case 'binary': {
@@ -1194,6 +1211,12 @@ function bind(files) {
                 args[i] = arg
             }
 
+            if (param.type.type == 'any' && arg.type.type != 'any') {
+                const cast = { kind: 'implicit cast', type: param.type, expr: arg }
+                arg = cast
+                args[i] = arg
+            }
+
             if (param.type.type != arg.type.type) {
                 console.log("expected:")
                 console.log(param.type)
@@ -1353,6 +1376,25 @@ function lower(ast) {
             case 'charLiteral': return [node]
 
             case 'implicit cast': {
+
+                if (node.type.type == 'any') {
+                    const loweredExpr = lowerNode(node.expr)
+                    assert(loweredExpr.length == 1)
+                    const tPtr = cloneType(typeMap.pointer)
+                    tPtr.to = node.expr.type
+
+                    const expr = unary('->', loweredExpr[0], tPtr)
+
+                    const exprTypeInfo = ref($typeInfoFor(loweredExpr[0].type))
+                    // HACK: make type a pointer because globals are always emitted as pointers
+                    const ptr = cloneType(typeMap.pointer)
+                    ptr.to = exprTypeInfo.type
+                    exprTypeInfo.type = ptr
+
+                    const data = ctor(any, expr, exprTypeInfo)
+
+                    return [data]
+                }
 
                 if (node.expr.type.type == 'void') {
                     // HACK: just set the type on the expr and lower that
@@ -1751,7 +1793,10 @@ function lower(ast) {
             case 'reference': {
                 if (node.symbol.kind == 'declareVar') {
                     if (node.symbol.notes.has('const') && node.symbol.expr) {
-                        return lowerNode(node.symbol.expr)
+                        // HACK: typeinfo is stored as pointer and should not be inlined
+                        if (node.type.type != 'pointer') {
+                            return lowerNode(node.symbol.expr)
+                        }
                     }
                 }
 
@@ -1772,26 +1817,27 @@ function lower(ast) {
             case 'ctorcall':
             case 'syscall':
             case 'call': {
-                if (node.kind == 'call' && node.def.symbol.name == 'typeof') {
-                    // const nodeToGetTypeOf = node.args[0]
-                    // const type = nodeToGetTypeOf.type
-                    // const typeinfo = node.type
-                    // const typeAccess = unary('&', ref(node.info), node.type)
+                // NOTE: now we immediately lower typeof calls into type info, eventually we might want to bring this back...
+                // if (node.kind == 'call' && node.def.symbol.name == 'typeof') {
+                //     // const nodeToGetTypeOf = node.args[0]
+                //     // const type = nodeToGetTypeOf.type
+                //     // const typeinfo = node.type
+                //     // const typeAccess = unary('&', ref(node.info), node.type)
 
-                    const typeAccess = ref(node.info)
-                    // HACK: labels ALREADY act as pointers, so just make the type a pointer for now
-                    // we should fix this eventually...
-                    typeAccess.type = node.type
+                //     const typeAccess = ref(node.info)
+                //     // HACK: labels ALREADY act as pointers, so just make the type a pointer for now
+                //     // we should fix this eventually...
+                //     typeAccess.type = node.type
 
-                    // assert(type)
-                    // console.log(node)
-                    // const typeAccess = ctor(typeinfo,/*kind*/ num(0),/*name*/str(type.type, typeMap.string))
-                    // console.log(typeAccess)
+                //     // assert(type)
+                //     // console.log(node)
+                //     // const typeAccess = ctor(typeinfo,/*kind*/ num(0),/*name*/str(type.type, typeMap.string))
+                //     // console.log(typeAccess)
 
-                    // NOTE: we don't lower any further because otherwise it turns into a struct literal
-                    // TODO: fix the lowerer instead of not calling lower here??
-                    return [typeAccess]
-                }
+                //     // NOTE: we don't lower any further because otherwise it turns into a struct literal
+                //     // TODO: fix the lowerer instead of not calling lower here??
+                //     return [typeAccess]
+                // }
                 return [{
                     ...node, args: node.args.map(a => {
                         const result = lowerNode(a)

@@ -3,11 +3,6 @@ import "./lib/standard" use standard
 struct point[x:int,y:int]
 struct person[name:string,age:int,gender:string]
 
-struct any [
-    data:->void,
-    type:->type info
-]
-
 proc write type[t:->type info] {
     const tag_void    = 0
     const tag_int     = 1
@@ -132,19 +127,6 @@ proc println[it:any] {
     write("\n")
 }
 
-    // TODO: fix const being broken
-
-    // what's broken
-    // - .data section consts just assume everything is a qword currently; firgure out how to switch to other sizes so we can properly do bools and chars
-    // write type(typeof(str)) write("\n")
-    // write type(typeof(num)) write("\n")
-    // write type(typeof(sptr)) write("\n")
-    // write type(typeof(nptr)) write("\n")
-    // write type(typeof(uptr)) write("\n")
-    // write type(typeof(num list)) write("\n")
-    // write type(typeof(str list)) write("\n")
-    // write type(typeof(p)) write("\n")
-    // write type(typeof(me)) write("\n")
 
 proc main {
     var str = "hello rtti"
@@ -158,14 +140,28 @@ proc main {
     var p = point(32,45)
     var me = person("ivy", 23, "male")
 
-    println(any(->num,typeof(num)))
-    println(any(->str,typeof(str)))
-    println(any(->sptr,typeof(sptr)))
-    println(any(->nptr,typeof(nptr)))
-    println(any(->uptr,typeof(uptr)))
-    println(any(->num list,typeof(num list)))
-    println(any(->str list,typeof(str list)))
-    println(any(->p,typeof(p)))
-    println(any(->me,typeof(me)))
+    // TODO: fix const being broken
+
+    // what's broken
+    // - .data section consts just assume everything is a qword currently; firgure out how to switch to other sizes so we can properly do bools and chars
+    write type(typeof(str)) write("\n")
+    write type(typeof(num)) write("\n")
+    write type(typeof(sptr)) write("\n")
+    write type(typeof(nptr)) write("\n")
+    write type(typeof(uptr)) write("\n")
+    write type(typeof(num list)) write("\n")
+    write type(typeof(str list)) write("\n")
+    write type(typeof(p)) write("\n")
+    write type(typeof(me)) write("\n")
+
+    println(num)
+    println(str)
+    println(sptr)
+    println(nptr)
+    println(uptr)
+    println(num list)
+    println(str list)
+    println(p)
+    println(me)
     write line("私は猫がラブ😭🐾")
 }
