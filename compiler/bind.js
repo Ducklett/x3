@@ -561,11 +561,22 @@ function bind(files) {
                 return it
             }
             case 'if': {
+                pushScope()
+                const then = bindDeclaration(node.thenBlock)
+                popScope()
+
+                let els = null
+                if (node.elseBlock) {
+                    pushScope()
+                    els = bindDeclaration(node.elseBlock)
+                    popScope()
+                }
+
                 const it = {
                     kind: 'if',
                     cond: bindExpression(node.condition),
-                    then: bindDeclaration(node.thenBlock),
-                    els: node.elseBlock ? bindDeclaration(node.elseBlock) : null,
+                    then,
+                    els
                 }
                 return it
             }
