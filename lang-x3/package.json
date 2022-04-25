@@ -12,6 +12,12 @@
         "Programming Languages"
     ],
     "contributes": {
+        "snippets": [
+            {
+                "language": "x3",
+                "path": "./snippets.json"
+            }
+        ],
         "languages": [
             {
                 "id": "x3",
