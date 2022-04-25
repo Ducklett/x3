@@ -61,68 +61,6 @@ proc write type[t:->type info] {
     }
 }
 
-proc print[it:any] {
-    // TODO: make an enum out of this 
-    const tag void    = 0
-    const tag int     = 1
-    const tag bool    = 2
-    const tag string  = 3
-    const tag char    = 4
-    const tag pointer = 5
-    const tag array   = 6
-    const tag struct  = 7
-    const tag type    = 8
-
-    var d = it.data
-    // TODO: fix pointer following for nested property access
-    var t = it.type
-
-    if t.kind == tag int {
-        write number(<-d)
-    } else if t.kind == tag string {
-        // write("\"")
-        write(<-d)
-        // write("\"")
-    } else if t.kind == tag pointer {
-        write("->")
-        print(any(<-d, t.data.pointerData.to))
-    } else if t.kind == tag array {
-        write("[")
-        var entries:[]void = <-d
-        var entryType = t.data.arrayData.of
-        var entrySize = entryType.size
-
-        var i = 0
-        while(i<entries.length) {
-            if (i != 0) { write(", ") }
-            var ptr = entries.buffer + (i * entrySize)
-            print(any(ptr,entryType))
-            i++
-        }
-        write("]")
-    } else if t.kind == tag struct {
-        var basePtr = d
-        var fields = t.data.structData.fields
-
-        write(t.name)
-        write("{")
-        each field,i : fields {
-            if (i != 0) {
-                write(", ")
-            }
-            var fieldPtr = basePtr + field.offset
-            var fieldType = field.type
-            write(field.name)
-            write("=")
-            print(any(fieldPtr, fieldType))
-        }
-        write("}")
-    } else {
-        write number(t.kind)
-        assert(false, "Unsupported type tag")
-    }
-}
-
 // TODO: some allocation scheme so we can return this as a string
 proc to json[it:any] {
     proc pad[padding:int] {
@@ -257,11 +195,6 @@ proc to json[it:any] {
     }
 
     to json internal(it,0,false)
-    write("\n")
-}
-
-proc println[it:any] {
-    print(it)
     write("\n")
 }
 

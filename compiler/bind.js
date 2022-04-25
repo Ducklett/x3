@@ -15,6 +15,7 @@ let any, $typeof, typeInfo, $typeInfoFor
 
 // TODO: actually have different int types
 const typeMap = {
+    'unknown': { tag: tag_void, type: 'unknown', size: 0 },
     'int': { tag: tag_int, type: 'int', size: 8, signed: true },
     'uint': { tag: tag_int, type: 'uint', size: 8, signed: false },
     'u64': { tag: tag_int, type: 'u64', size: 8, signed: false },
@@ -353,6 +354,97 @@ function bind(files) {
         return scopeStack.pop()
     }
 
+    function coerceType(type, it) {
+        // TODO: better type equality checking
+        if (it.type.type == type.type) return it
+
+        // string literal -> char literal
+        if (it.kind == 'stringLiteral') {
+            if (type.type == 'char' && it.type.type == 'string') {
+                if (it.len != 1) {
+                    console.log(it)
+                }
+                assert(it.len == 1)
+                it.type = typeMap.char
+            }
+        }
+
+        // implicit cstring -> *char AND string -> *void cast
+        // implicit string -> *char AND string -> *void cast
+        if (type.type == 'pointer' && (it.type.type == 'cstring' || it.type.type == 'string')) {
+            const toType = type.to.type
+            if (toType == 'void' || toType == 'char') {
+                const cast = { kind: 'implicit cast', type: type, expr: it }
+                return cast
+            }
+        }
+
+        // implicit []foo -> *foo cast AND []foo -> *void cast
+        if (type.type == 'pointer' && it.type.type == 'array') {
+            if (type.to.type == it.type.of.type || type.to.type == 'void') {
+                const cast = { kind: 'implicit cast', type: type, expr: it }
+                return cast
+            }
+        }
+
+        // TODO: introduce explicit cast
+        if (type.type == 'int' && it.type.type == 'char') {
+            const cast = { kind: 'implicit cast', type: type, expr: it }
+            return cast
+        }
+
+        // TODO: introduce explicit cast
+        if (it.type.type == 'void') {
+            const cast = { kind: 'implicit cast', type: type, expr: it }
+            return cast
+        }
+
+        if (type.kind == 'union') {
+            const cast = { kind: 'implicit cast', type: type, expr: it }
+            return cast
+        }
+
+        const intTypes = new Set(['u64', 'i64', 'int', 'uint'])
+
+        if (intTypes.has(type.type) && intTypes.has(it.type.type)) {
+            assert(type.size == it.type.size)
+            const cast = { kind: 'implicit cast', type: type, expr: it }
+            return cast
+        }
+
+        if (type.type == 'any' && it.type.type != 'any') {
+            const cast = { kind: 'implicit cast', type: type, expr: it }
+            return cast
+        }
+
+        if (type.type != it.type.type) {
+            console.log("expected:")
+            console.log(type)
+            console.log("got:")
+            console.log(it)
+        }
+        assert(type.type == it.type.type, 'it matches type after coersion')
+
+        return it
+        // if (!type) return it
+
+        // const intTypes = new Set(['u64', 'i64', 'int', 'uint'])
+
+        // if (intTypes.has(type) && intTypes.has(it.type.type)) {
+        //     assert(type.size == it.type.size)
+        //     const cast = { kind: 'implicit cast', type, expr: it }
+        //     return cast
+        // }
+
+        // if (it.type.type == 'void' && type) {
+        //     const cast = { kind: 'implicit cast', type: type, expr: it }
+        //     return cast
+        // }
+
+        // assert(it.type.type == type.type, `type matches ${it.type.type} ${type.type}`)
+    }
+
+
     function bindFile(node) {
         fileScopes.push(pushScope(null, 'file', 'file'))
         for (let decl of node.declarations) {
@@ -437,20 +529,8 @@ function bind(files) {
                 // TODO: better type matching than just comparing the base type
                 // TODO: factor this out into a proper type coersion procedure
                 if (it.expr) {
-                    const intTypes = new Set(['u64', 'i64', 'int', 'uint'])
 
-                    if (intTypes.has(it.type.type) && intTypes.has(it.expr.type.type)) {
-                        assert(it.type.size == it.expr.type.size)
-                        const cast = { kind: 'implicit cast', type: it.type, expr: it.expr }
-                        it.expr = cast
-                    }
-
-                    if (it.expr.type.type == 'void' && it.type) {
-                        const cast = { kind: 'implicit cast', type: it.type, expr: it.expr }
-                        it.expr = cast
-                    }
-
-                    assert(it.expr.type.type == it.type.type, `type matches ${it.expr.type.type} ${it.type.type}`)
+                    it.expr = coerceType(it.type, it.expr)
                 }
 
 
@@ -775,11 +855,17 @@ function bind(files) {
                 const type = cloneType(typeMap.array)
                 type.of = bindType(node.of)
                 if (node.size) {
-                    assert(node.size.kind == 'number')
-                    assert(node.size.value !== undefined)
-                    type.count = node.size.value
+                    if (node.size.kind == 'symbol') {
+                        const s = findSymbol(node.size)
+                        console.log(s)
+                        assert(s)
+                    } else {
+                        assert(node.size.kind == 'number')
+                        assert(node.size.value !== undefined)
+                        type.count = node.size.value
+                    }
                 }
-                type.span = spanFromRange(node.begin.span, node.of.name.span)
+                type.span = spanFromRange(node.begin.span, type.of.span)
                 return type
             }
             case 'type pointer': {
@@ -1162,82 +1248,12 @@ function bind(files) {
             assert(param.type, `param has a type`)
             assert(arg.type, `arument has a type`)
 
-            // string literal -> char literal
-            if (arg.kind == 'stringLiteral') {
-                if (param.type.type == 'char' && arg.type.type == 'string') {
-                    if (arg.len != 1) {
-                        console.log(arg)
-                    }
-                    assert(arg.len == 1)
-                    arg.type = typeMap.char
-                }
-            }
+            arg = coerceType(param.type, arg)
+            args[i] = arg
 
-            // implicit cstring -> *char AND string -> *void cast
-            // implicit string -> *char AND string -> *void cast
-            if (param.type.type == 'pointer' && (arg.type.type == 'cstring' || arg.type.type == 'string')) {
-                const toType = param.type.to.type
-                if (toType == 'void' || toType == 'char') {
-                    const cast = { kind: 'implicit cast', type: param.type, expr: arg }
-                    arg = cast
-                    args[i] = arg
-                }
-            }
 
-            // implicit []foo -> *foo cast AND []foo -> *void cast
-            if (param.type.type == 'pointer' && arg.type.type == 'array') {
-                if (param.type.to.type == arg.type.of.type || param.type.to.type == 'void') {
-                    const cast = { kind: 'implicit cast', type: param.type, expr: arg }
-                    arg = cast
-                    args[i] = arg
-                }
-            }
-
-            // TODO: introduce explicit cast
-            if (param.type.type == 'int' && arg.type.type == 'char') {
-                const cast = { kind: 'implicit cast', type: param.type, expr: arg }
-                arg = cast
-                args[i] = arg
-            }
-
-            // TODO: introduce explicit cast
-            if (arg.type.type == 'void') {
-                const cast = { kind: 'implicit cast', type: param.type, expr: arg }
-                arg = cast
-                args[i] = arg
-            }
-
-            if (param.type.kind == 'union') {
-                const cast = { kind: 'implicit cast', type: param.type, expr: arg }
-                arg = cast
-                args[i] = arg
-            }
-
-            const intTypes = new Set(['u64', 'i64', 'int', 'uint'])
-
-            if (intTypes.has(param.type.type) && intTypes.has(arg.type.type)) {
-                assert(param.type.size == arg.type.size)
-                const cast = { kind: 'implicit cast', type: param.type, expr: arg }
-                arg = cast
-                args[i] = arg
-            }
-
-            if (param.type.type == 'any' && arg.type.type != 'any') {
-                const cast = { kind: 'implicit cast', type: param.type, expr: arg }
-                arg = cast
-                args[i] = arg
-            }
-
-            if (param.type.type != arg.type.type) {
-                console.log("expected:")
-                console.log(param.type)
-                console.log("got:")
-                console.log(arg)
-            }
-            assert(param.type.type == arg.type.type, 'parameter type matches argument type')
+            return args
         }
-
-        return args
     }
 
     function bindParameters(params) {
@@ -1272,6 +1288,10 @@ function bind(files) {
             assert(symbol)
             assert(type)
             assert(symbol.type)
+            if (type.type != symbol.type.type) {
+                console.log(type.type)
+                console.log(symbol.type.type)
+            }
             assert(type.type == symbol.type.type)
             it.symbol = symbol
             currentScope().symbols.set(name, symbol)
@@ -1329,6 +1349,8 @@ function lower(ast) {
     return [loweredAst, { entrypoint }]
 
     function mangleLabel(name) {
+        name = name.replace(/\s/g, '_')
+
         const count = labelCount.get(name) ?? 0
         labelCount.set(name, count + 1)
         const newName = count == 0
@@ -1670,10 +1692,19 @@ function lower(ast) {
                 let expr
 
                 if (!node.expr && node.type.type == 'array' && node.type.count) {
-                    assert(node.type.of.type == 'char')
+                    function getByteCount(type) {
+                        if (type.type == 'array') {
+                            return type.count * getByteCount(type.of)
+
+                        } else {
+                            return type.size
+                        }
+                    }
+                    const count = getByteCount(node.type)
+                    assert(count > 0)
                     node.expr = {
                         kind: 'arrayLiteral',
-                        entries: new Array(node.type.count).fill(null).map(_ => num(0)),
+                        entries: new Array(count).fill(null).map(_ => num(0)),
                         type: node.type
                     }
                 }
@@ -1860,7 +1891,7 @@ function lower(ast) {
                 //     return [typeAccess]
                 // }
                 return [{
-                    ...node, args: node.args.map(a => {
+                    ...node, args: (node.args ?? []).map(a => {
                         const result = lowerNode(a)
                         assert(result.length == 1)
                         return result[0]

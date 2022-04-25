@@ -1,0 +1,96 @@
+import "./lib/standard" use standard
+
+proc main[] {
+    play snake()
+}
+
+
+proc play snake[] {
+
+    // TODO: read board size constant from outer scope
+    proc random position[] -> int { return random range(0,100+1) }
+
+    // TODO: constants in array size (arr:[10][10]char)
+    // TODO: multi dimensional arrays
+    // TODO: constant arrays
+    // TODO: initializer syntax; board:[100]char = ["a","b",..."c"] // a then b then fill the rest with c (otherwise it would be filled with 0)
+    var board: [100]char
+
+    var score = 0
+    var apple pos = random position()
+    var player pos = random position()
+
+    // TODO: make goto work when the label is in another block (don't jump into scope blocks though)
+    // we always want to render once before taking user input
+    goto render
+
+    label game loop:
+    scope update[player pos:int,apple pos:int,score:int] {
+        var key:[2]char // NOTE: it's 2 characters because otherwise it will buffer and return the buffered character
+        read(key)
+        // TODO: handle wrapping
+        if (key[0] == "w") {
+            player pos -= 10
+        } else if key[0] == "a" {
+            player pos -= 1
+        } else if key[0] == "s" {
+            player pos += 10
+        } else if key[0] == "d" {
+            player pos += 1
+        } else {
+            write(tui.color.yellow)
+            write("unkown key; use wasd to move\n")
+            write(tui.color.reset)
+        }
+
+        if apple pos == player pos {
+            score++
+            // TODO: allow scopes to access FUNCTIONS from the outer scope, but not variables
+            apple pos = random range(0,101) //random position()
+        }
+    }
+
+    label render:
+    scope render[board:[]char, apple pos:int,player pos:int,score:int] {
+        tui.clear()
+        tui.cursor to(0,5)
+        // tui.clear()
+        const apple:char = "*"
+        const body:char = "#"
+        const floor:char = "_"
+
+        // TODO: make this more efficient; keep track of last player position and only update the characters that changed
+        each _,i : board { board[i] = floor }
+        board[player pos] = body
+        board[apple pos] = apple
+
+        write("Score: ")
+        write(tui.color.green)
+        println(score)
+        write(tui.color.reset)
+
+        each cell,i : board {
+            var color = tui.color.white
+            if cell == apple {
+                color = tui.color.red
+            } else if cell == body {
+                color = tui.color.cyan
+            }
+
+            write(color)
+            write char(cell)
+
+            if (i+1) % 10 == 0 {
+                write("\n")
+            }
+        }
+        write(tui.color.reset)
+    }
+
+    if score < 10 goto game loop
+
+    tui.cursor to(0,13)
+    write("*********************************\n")
+    write("*            You win!           *\n")
+    write("*********************************\n")
+}

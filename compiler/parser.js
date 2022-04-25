@@ -186,6 +186,8 @@ function parse(source) {
                     .replace(/\\t/g, '\t')
                     .replace(/\\0/g, '\0')
                     .replace(/\\"/g, '"')
+                    // arbitrary hex byte
+                    .replace(/\\x([0-9a-zA-Z]{2})/g, (...p) => String.fromCharCode(parseInt(p[1], 16)))
                 if (shouldNullTerminate) str += '\0'
                 lexerIndex++
                 tokens.push({ kind: 'string', value: str, span: takeSpan() })
@@ -848,7 +850,10 @@ function parse(source) {
             } else if (is('operator', '[')) {
                 let size
                 let begin = take('operator', '[')
+
                 if (is('number')) size = take('number')
+                else if (is('symbol') || is('keyword')) size = parseSymbol()
+
                 let end = take('operator', ']')
                 let of = parseType()
                 return { kind: 'type array', begin, size, end, of }

@@ -140,6 +140,73 @@ module standard {
         write file text base(filename, content, flags, mode)
     }
 
+    proc print[it:any] {
+        // TODO: make an enum out of this 
+        const tag void    = 0
+        const tag int     = 1
+        const tag bool    = 2
+        const tag string  = 3
+        const tag char    = 4
+        const tag pointer = 5
+        const tag array   = 6
+        const tag struct  = 7
+        const tag type    = 8
+
+        var d = it.data
+        // TODO: fix pointer following for nested property access
+        var t = it.type
+
+        if t.kind == tag int {
+            write number(<-d)
+        } else if t.kind == tag string {
+            // write("\"")
+            write(<-d)
+            // write("\"")
+        } else if t.kind == tag pointer {
+            write("->")
+            print(any(<-d, t.data.pointerData.to))
+        } else if t.kind == tag array {
+            write("[")
+            var entries:[]void = <-d
+            var entryType = t.data.arrayData.of
+            var entrySize = entryType.size
+
+            var i = 0
+            while(i<entries.length) {
+                if (i != 0) { write(", ") }
+                var ptr = entries.buffer + (i * entrySize)
+                print(any(ptr,entryType))
+                i++
+            }
+            write("]")
+        } else if t.kind == tag struct {
+            var basePtr = d
+            var fields = t.data.structData.fields
+
+            write(t.name)
+            write("{")
+            each field,i : fields {
+                if (i != 0) {
+                    write(", ")
+                }
+                var fieldPtr = basePtr + field.offset
+                var fieldType = field.type
+                write(field.name)
+                write("=")
+                print(any(fieldPtr, fieldType))
+            }
+            write("}")
+        } else {
+            write number(t.kind)
+            assert(false, "Unsupported type tag")
+        }
+    }
+
+    proc println[it:any] {
+        print(it)
+        write("\n")
+    }
+
     proc parse int[s:string] -> int {
         var num = 0
         each c : s {
@@ -160,5 +227,31 @@ module standard {
         if value < 0 { value = -value }
 
         return (value % (to-from)) + from
+    }
+
+    module tui {
+        proc clear[] {
+            // goto 0,0; clear
+            write("\x1B[H\x1B[J")
+        }
+
+        proc cursor to[x:int,y:int] {
+            write("\x1B[")
+            write number(y)
+            write(";")
+            write number(x)
+            write("H")
+        }
+        module color {
+            const black = "\x1B[0;30m"
+            const red = "\x1B[0;31m"
+            const green = "\x1B[0;32m"
+            const yellow = "\x1B[0;33m"
+            const blue = "\x1B[0;34m"
+            const magenta = "\x1B[0;35m"
+            const cyan = "\x1B[0;36m"
+            const white = "\x1B[0;37m"
+            const reset = "\x1B[0m"
+        }
     }
 }

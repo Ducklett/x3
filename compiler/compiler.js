@@ -549,7 +549,7 @@ ${[...data.keys()]
                     lines.push(
                         `; ${node.def.symbol.name}(${node.def.symbol.params.map(n => n.name).join(', ')})`
                     )
-                    const args = node.args
+                    const args = node.args ?? []
                     let argSize = args.reduce((acc, cur, i) => {
                         assert(cur.type, `has a type`)
                         // TODO: switch to C-style calling convention so we can have 1-byte arguments
@@ -935,11 +935,17 @@ ${[...data.keys()]
 
                         const varDec = node.varDec.left.symbol
                         const index = node.varDec.index
-                        assert(index.kind == 'numberLiteral')
-                        const indexValue = index.n
+                        let indexValue
+                        if (index.kind == 'numberLiteral') {
+                            indexValue = index.n
+                        } else {
+                            emitExpr(index)
+                            lines.push(`pop r14`)
+                            indexValue = 'r14'
+                        }
 
                         // TODO: unhack
-                        if (varDec.type.type == 'string') {
+                        if (varDec.type.type == 'string' || varDec.type.of.size == 1) {
                             emitExpr(node.expr)
                             lines.push(`; ${varDec.name}[${indexValue}] = expr`)
 
@@ -961,7 +967,12 @@ ${[...data.keys()]
                         lines.push(`; ${varDec.name}[${indexValue}] = expr`)
 
                         lines.push(`mov r15, ${emitVar(varDec)}`)
-                        lines.push(`add r15, ${indexValue * size}`)
+                        if (typeof indexValue == 'number') {
+                            lines.push(`add r15, ${indexValue * size}`)
+                        } else {
+                            lines.push(`mul ${indexValue}, ${size}`)
+                            lines.push(`add r15, ${indexValue}`)
+                        }
 
                         let i = 0
                         while (i < size) {

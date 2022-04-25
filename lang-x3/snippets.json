@@ -5,7 +5,7 @@
             "import \"./lib/standard\" use standard",
             "",
             "proc main[] {",
-            "\t${0:write(\"hello world\\n\"))}",
+            "\t${0:write(\"hello world\\n\")}",
             "}"
         ],
         "description": "Create hello world boilerplate"
