@@ -1493,7 +1493,7 @@ function lower(ast) {
 
                 if (makeBuffer) {
                     if (buffers.includes(node)) {
-                        throw "bruh"
+                        // throw "bruh"
                     } else {
                         buffers.push(node)
                     }
@@ -1720,16 +1720,26 @@ function lower(ast) {
                     entrypoint = node;
                 }
                 const instructions = lowerNodeList(node.instructions?.statements)
+
+                const outInstructions = []
+                const outDeclarations = [node]
+
                 if (instructions) {
+                    for (let instr of instructions) {
+                        if (instr.kind == 'function') {
+                            outDeclarations.push(instr)
+                        } else {
+                            outInstructions.push(instr)
+                        }
+                    }
+
                     if (buffers.length) {
                         buffers = buffers.map(b => ({ kind: 'buffer', data: b }))
                     }
-                    node.instructions = [...buffers, ...instructions]
+                    node.instructions = [...buffers, ...outInstructions]
                 }
                 buffers = []
-                return [
-                    node
-                ]
+                return outDeclarations
             }
 
             case 'union':

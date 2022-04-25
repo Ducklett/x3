@@ -1,7 +1,7 @@
 import "./lib/sys" use sys
 
 proc main {
-    (( var name:[40]char ))
+    // var name:[40]char
     var name = "                "
     var len:int
 

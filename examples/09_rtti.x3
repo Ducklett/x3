@@ -2,6 +2,7 @@ import "./lib/standard" use standard
 
 struct point[x:int,y:int]
 struct person[name:string,age:int,gender:string]
+struct complex[entity:person,pos:point]
 
 proc write type[t:->type info] {
     const tag void    = 0
@@ -79,9 +80,9 @@ proc print[it:any] {
     if t.kind == tag int {
         write number(<-d)
     } else if t.kind == tag string {
-        write("\"")
+        // write("\"")
         write(<-d)
-        write("\"")
+        // write("\"")
     } else if t.kind == tag pointer {
         write("->")
         print(any(<-d, t.data.pointerData.to))
@@ -122,6 +123,93 @@ proc print[it:any] {
     }
 }
 
+// TODO: some allocation scheme so we can return this as a string
+proc to json[it:any] {
+    proc pad[padding:int] {
+        for var i = 0; i < padding; i++ {
+            write char(" ") 
+        }
+    }
+
+    proc to json internal[it:any,padding:int,use padding:bool] {
+        if use padding {
+            pad(padding)
+        }
+
+        // TODO: make an enum out of this 
+        const tag void    = 0
+        const tag int     = 1
+        const tag bool    = 2
+        const tag string  = 3
+        const tag char    = 4
+        const tag pointer = 5
+        const tag array   = 6
+        const tag struct  = 7
+        const tag type    = 8
+
+        var d = it.data
+        // TODO: fix pointer following for nested property access
+        var t = it.type
+
+        if t.kind == tag int {
+            write number(<-d)
+        } else if t.kind == tag string {
+            write("\"")
+            write(<-d)
+            write("\"")
+        } else if t.kind == tag pointer {
+            panic("pointers cannot be serialized")
+        } else if t.kind == tag array {
+            // TODO: only newline when it is a big array OR array holding complex type
+            write("[\n")
+            var entries:[]void = <-d
+            var entryType = t.data.arrayData.of
+            var entrySize = entryType.size
+
+            var i = 0
+            while(i<entries.length) {
+                var ptr = entries.buffer + (i * entrySize)
+                to json internal(any(ptr,entryType),padding+4,true)
+                if i != (entries.length-1) {
+                    write(",")
+                }
+                write("\n")
+                i++
+            }
+            write("]")
+        } else if t.kind == tag struct {
+            // TODO: only newline when it has many fields or a complex field
+            var basePtr = d
+            var fields = t.data.structData.fields
+
+            write("{\n")
+            each field,i : fields {
+                var fieldPtr = basePtr + field.offset
+                var fieldType = field.type
+                pad(padding+4)
+                write("\"")
+                write(field.name)
+                write("\"")
+                write(": ")
+                to json internal(any(fieldPtr, fieldType), padding+4,false)
+                if (i != (fields.length-1)) {
+                    write(",\n")
+                } else {
+                    write("\n")
+                }
+            }
+            pad(padding)
+            write("}")
+        } else {
+            write number(t.kind)
+            panic("Unsupported type tag")
+        }
+    }
+
+    to json internal(it,0,false)
+    write("\n")
+}
+
 proc println[it:any] {
     print(it)
     write("\n")
@@ -138,6 +226,7 @@ proc main {
     var str list = ["foo","bar","baz"]
     var p = point(32,45)
     var me = person("ivy", 23, "male")
+    var c = complex(me,p)
 
     // TODO: fix const being broken
 
@@ -162,5 +251,14 @@ proc main {
     println(str list)
     println(p)
     println(me)
+
+    write line("json gang:")
+    to json(num)
+    to json(str)
+    to json(num list)
+    to json(str list)
+    to json(p)
+    to json(me)
+    to json(c)
     write line("私は猫がラブ😭🐾")
 }
