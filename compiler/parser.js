@@ -329,20 +329,29 @@ function parse(source) {
 
         function peek(n) { return tokens[tokenIndex + n] }
         function current() { return peek(0) }
+
+        function isEndOfFile() {
+            return !current()
+        }
+
         function is(kind, value = null) {
             const got = current()
+            if (!got) return false
             return got.kind == kind && (value === null || got.value === value)
         }
         function currentIsPreUnaryOperator() {
             const cur = current()
+            if (!cur) return false
             return cur.kind == 'operator' && preUnaryOperators.has(cur.value)
         }
         function currentIsPostUnaryOperator() {
             const cur = current()
-            return cur.kind == 'operator' && postUnaryOperators.has(cur.value)
+            if (!cur) return false
+            return cur?.kind == 'operator' && postUnaryOperators.has(cur.value)
         }
         function currentIsBinaryOperator() {
             const cur = current()
+            if (!cur) return false
             return cur.kind == 'operator' && binaryOperators.has(cur.value)
         }
         function isAssignmentOperator() {
@@ -541,7 +550,13 @@ function parse(source) {
                 case 'module': {
                     const keyword = take('keyword', 'module')
                     const name = take('symbol')
-                    const block = parseBlock('module', true, false)
+                    let block
+                    if (is('operator', '{')) {
+                        block = parseBlock('module', true, false)
+                    } else {
+                        // don't parse brackets; take every remaining declaraction in the file >:)
+                        block = parseBlock('module', true, false, false)
+                    }
                     return { kind: 'module', keyword, name, block }
                 }
                 case 'type': {
@@ -802,10 +817,12 @@ function parse(source) {
             return { kind: 'list', begin, items, end }
         }
 
-        function parseBlock(scope, allowDeclarations, allowExpressions) {
+        function parseBlock(scope, allowDeclarations, allowExpressions, withBrackets = true) {
             const statements = []
-            const begin = take('operator', '{')
-            while (!is('operator', '}')) {
+            let begin
+            if (withBrackets) begin = take('operator', '{')
+
+            while (!isEndOfFile() && !is('operator', '}')) {
                 if (allowDeclarations) {
                     const stmt = parseDeclaration(scope)
                     if (stmt) {
@@ -830,7 +847,8 @@ function parse(source) {
                 console.log(current())
                 throw 'failed to parse statement or expression in block'
             }
-            const end = take('operator', '}')
+            let end
+            if (withBrackets) end = take('operator', '}')
             return { kind: 'block', begin, statements, end }
         }
 

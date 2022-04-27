@@ -198,8 +198,7 @@ function bind(files) {
         pushScope(scope)
         const usedScope = findSymbol(node.path.value)
         popScope()
-
-        assert(usedScope, `scope is defined`)
+        assert(usedScope, `scope is defined '${node.path.value}'`)
         scope.used.add(usedScope)
         it.usedScope = usedScope
     }
@@ -1329,11 +1328,14 @@ function bind(files) {
             }
         }
 
+        // blocks may not have brackets (for file-level modules)
+        // TODO: proper span based on declaration spans
+        const span = body.begin ? spanFromRange(body.begin.span, body.end.span) : spanFromRange(boundStatements[0], boundStatements[boundStatements.length - 1])
         return {
             kind: 'block',
             isExpression,
             statements: boundStatements,
-            span: spanFromRange(body.begin.span, body.end.span)
+            span
         }
     }
 }

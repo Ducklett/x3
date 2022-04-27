@@ -1,257 +1,257 @@
 import "./sys"
 
-module standard {
-    proc exit[code:int]
-    {
-        sys.exit(code)
-    }
+module standard
 
-    proc write[msg:string]
-    {
-        sys.write(sys.stdout, msg, msg.length)
-    }
+proc exit[code:int]
+{
+    sys.exit(code)
+}
 
-    proc write char[c:char]
-    {
-        sys.write(sys.stdout, ->c, 1)
-    }
+proc write[msg:string]
+{
+    sys.write(sys.stdout, msg, msg.length)
+}
 
-    proc write number[number:int]
-    {
-        if number == 0 {
-            write char("0")
-            return
-        }
+proc write char[c:char]
+{
+    sys.write(sys.stdout, ->c, 1)
+}
 
-        if number < 0 {
-            write char("-")
-            number = 0 - number
-        }
-
-        // find highest decimal place
-        var decimal place = 1
-        while number > decimal place {
-            decimal place *= 10
-        }
-        if number / decimal place == 0 {
-            decimal place /= 10
-        }
-
-        // work our way down, printing along the way
-        while decimal place > 0 {
-            var digit = number / decimal place
-            write char("0" + digit)
-            number -= digit * decimal place
-            decimal place /= 10
-        }
-    }
-
-    proc write hex[number:int] {
+proc write number[number:int]
+{
+    if number == 0 {
         write char("0")
-        write char("x")
-        const lut = "0123456789ABCDEF"
-        for var i = 60; i >= 0; i-=4 {
-            write char(lut[(number>>i) & 0xF])
+        return
+    }
+
+    if number < 0 {
+        write char("-")
+        number = 0 - number
+    }
+
+    // find highest decimal place
+    var decimal place = 1
+    while number > decimal place {
+        decimal place *= 10
+    }
+    if number / decimal place == 0 {
+        decimal place /= 10
+    }
+
+    // work our way down, printing along the way
+    while decimal place > 0 {
+        var digit = number / decimal place
+        write char("0" + digit)
+        number -= digit * decimal place
+        decimal place /= 10
+    }
+}
+
+proc write hex[number:int] {
+    write char("0")
+    write char("x")
+    const lut = "0123456789ABCDEF"
+    for var i = 60; i >= 0; i-=4 {
+        write char(lut[(number>>i) & 0xF])
+    }
+}
+
+proc write line[msg:string] {
+    write(msg)
+    write("\n")
+}
+
+proc strlen[str:cstring] -> int
+{
+    var len = 0
+    while str[len] != 0 { len++ }
+    return len
+}
+
+proc write cstring[str:cstring] {
+    sys.write(sys.stdout, str, strlen(str))
+}
+
+proc assert[
+    condition:bool      #callee span(message),
+    message:string,
+    call site:string    #call site
+] {
+    if condition { return }
+
+    write(call site)
+    write(" assertion failed: ")
+    write(message)
+    write("\n")
+    exit(1)
+}
+
+proc panic[
+    message:string,
+    call site:string #call site
+] {
+    write(call site)
+    write(" PANIC: ")
+    write(message)
+    write("\n")
+    exit(1)
+}
+
+proc TODO[call site:string #call site']
+{
+    write(call site)
+    write(" not implemented.\n")
+    exit(1)
+}
+
+// reads into the input buffer from stdin
+// returns a string containing the input
+proc read[buffer:![]char] -> string
+{
+    var len = sys.read(sys.stdin, buffer, buffer.length)
+    return string(buffer, len)
+}
+
+
+proc write file text base[filename:cstring, content:string, flags:int, mode: sys.mode_t] #private
+{
+    var fd = sys.open(filename, flags, mode)
+    assert(fd>=0)
+
+    sys.write(fd,content,content.length)
+
+    var error = sys.close(fd)
+    assert(error == 0)
+}
+
+proc write all text[filename:cstring, content:string]
+{
+    const flags = sys.O_CREAT|sys.O_WRONLY
+    const mode = sys.S_IRUSR|sys.S_IWUSR
+
+    sys.unlink(filename)
+    write file text base(filename, content, flags, mode)
+}
+
+proc append text[filename:cstring, content:string]
+{
+    const flags = sys.O_CREAT|sys.O_WRONLY|sys.O_APPEND
+    const mode = sys.S_IRUSR|sys.S_IWUSR
+
+    write file text base(filename, content, flags, mode)
+}
+
+proc print[it:any] {
+    // TODO: make an enum out of this 
+    const tag void    = 0
+    const tag int     = 1
+    const tag bool    = 2
+    const tag string  = 3
+    const tag char    = 4
+    const tag pointer = 5
+    const tag array   = 6
+    const tag struct  = 7
+    const tag type    = 8
+
+    var d = it.data
+    // TODO: fix pointer following for nested property access
+    var t = it.type
+
+    if t.kind == tag int {
+        write number(<-d)
+    } else if t.kind == tag string {
+        // write("\"")
+        write(<-d)
+        // write("\"")
+    } else if t.kind == tag pointer {
+        write("->")
+        print(any(<-d, t.data.pointerData.to))
+    } else if t.kind == tag array {
+        write("[")
+        var entries:[]void = <-d
+        var entryType = t.data.arrayData.of
+        var entrySize = entryType.size
+
+        var i = 0
+        while(i<entries.length) {
+            if (i != 0) { write(", ") }
+            var ptr = entries.buffer + (i * entrySize)
+            print(any(ptr,entryType))
+            i++
         }
-    }
+        write("]")
+    } else if t.kind == tag struct {
+        var basePtr = d
+        var fields = t.data.structData.fields
 
-    proc write line[msg:string] {
-        write(msg)
-        write("\n")
-    }
-
-    proc strlen[str:cstring] -> int
-    {
-        var len = 0
-        while str[len] != 0 { len++ }
-        return len
-    }
-
-    proc write cstring[str:cstring] {
-        sys.write(sys.stdout, str, strlen(str))
-    }
-
-    proc assert[
-        condition:bool      #callee span(message),
-        message:string,
-        call site:string    #call site
-    ] {
-        if condition { return }
-
-        write(call site)
-        write(" assertion failed: ")
-        write(message)
-        write("\n")
-        exit(1)
-    }
-
-    proc panic[
-        message:string,
-        call site:string #call site
-    ] {
-        write(call site)
-        write(" PANIC: ")
-        write(message)
-        write("\n")
-        exit(1)
-    }
-
-    proc TODO[call site:string #call site']
-    {
-        write(call site)
-        write(" not implemented.\n")
-        exit(1)
-    }
-
-    // reads into the input buffer from stdin
-    // returns a string containing the input
-    proc read[buffer:![]char] -> string
-    {
-        var len = sys.read(sys.stdin, buffer, buffer.length)
-        return string(buffer, len)
-    }
-
-
-    proc write file text base[filename:cstring, content:string, flags:int, mode: sys.mode_t] #private
-    {
-        var fd = sys.open(filename, flags, mode)
-        assert(fd>=0)
-
-        sys.write(fd,content,content.length)
-
-        var error = sys.close(fd)
-        assert(error == 0)
-    }
-
-    proc write all text[filename:cstring, content:string]
-    {
-        const flags = sys.O_CREAT|sys.O_WRONLY
-        const mode = sys.S_IRUSR|sys.S_IWUSR
-
-        sys.unlink(filename)
-        write file text base(filename, content, flags, mode)
-    }
-
-    proc append text[filename:cstring, content:string]
-    {
-        const flags = sys.O_CREAT|sys.O_WRONLY|sys.O_APPEND
-        const mode = sys.S_IRUSR|sys.S_IWUSR
-
-        write file text base(filename, content, flags, mode)
-    }
-
-    proc print[it:any] {
-        // TODO: make an enum out of this 
-        const tag void    = 0
-        const tag int     = 1
-        const tag bool    = 2
-        const tag string  = 3
-        const tag char    = 4
-        const tag pointer = 5
-        const tag array   = 6
-        const tag struct  = 7
-        const tag type    = 8
-
-        var d = it.data
-        // TODO: fix pointer following for nested property access
-        var t = it.type
-
-        if t.kind == tag int {
-            write number(<-d)
-        } else if t.kind == tag string {
-            // write("\"")
-            write(<-d)
-            // write("\"")
-        } else if t.kind == tag pointer {
-            write("->")
-            print(any(<-d, t.data.pointerData.to))
-        } else if t.kind == tag array {
-            write("[")
-            var entries:[]void = <-d
-            var entryType = t.data.arrayData.of
-            var entrySize = entryType.size
-
-            var i = 0
-            while(i<entries.length) {
-                if (i != 0) { write(", ") }
-                var ptr = entries.buffer + (i * entrySize)
-                print(any(ptr,entryType))
-                i++
+        write(t.name)
+        write("{")
+        each field,i : fields {
+            if (i != 0) {
+                write(", ")
             }
-            write("]")
-        } else if t.kind == tag struct {
-            var basePtr = d
-            var fields = t.data.structData.fields
-
-            write(t.name)
-            write("{")
-            each field,i : fields {
-                if (i != 0) {
-                    write(", ")
-                }
-                var fieldPtr = basePtr + field.offset
-                var fieldType = field.type
-                write(field.name)
-                write("=")
-                print(any(fieldPtr, fieldType))
-            }
-            write("}")
-        } else {
-            write number(t.kind)
-            assert(false, "Unsupported type tag")
+            var fieldPtr = basePtr + field.offset
+            var fieldType = field.type
+            write(field.name)
+            write("=")
+            print(any(fieldPtr, fieldType))
         }
+        write("}")
+    } else {
+        write number(t.kind)
+        assert(false, "Unsupported type tag")
+    }
+}
+
+proc println[it:any] {
+    print(it)
+    write("\n")
+}
+
+proc parse int[s:string] -> int {
+    var num = 0
+    each c : s {
+        // TODO: get precedence working
+        if (c < "0") || (c > "9") { break }
+        num = (num * 10) + (c - "0")
+    }
+    return num
+}
+
+proc random range[from:int,to:int] -> int
+{
+    var value:int
+    // TODO: pass proper flag?
+    sys.getrandom(->value,8,0)
+
+    // TODO: make unsigned int work and remove this
+    if value < 0 { value = -value }
+
+    return (value % (to-from)) + from
+}
+
+module tui {
+    proc clear[] {
+        // goto 0,0; clear
+        write("\x1B[H\x1B[J")
     }
 
-    proc println[it:any] {
-        print(it)
-        write("\n")
+    proc cursor to[x:int,y:int] {
+        write("\x1B[")
+        write number(y)
+        write(";")
+        write number(x)
+        write("H")
     }
-
-    proc parse int[s:string] -> int {
-        var num = 0
-        each c : s {
-            // TODO: get precedence working
-            if (c < "0") || (c > "9") { break }
-            num = (num * 10) + (c - "0")
-        }
-        return num
-    }
-
-    proc random range[from:int,to:int] -> int
-    {
-        var value:int
-        // TODO: pass proper flag?
-        sys.getrandom(->value,8,0)
-
-        // TODO: make unsigned int work and remove this
-        if value < 0 { value = -value }
-
-        return (value % (to-from)) + from
-    }
-
-    module tui {
-        proc clear[] {
-            // goto 0,0; clear
-            write("\x1B[H\x1B[J")
-        }
-
-        proc cursor to[x:int,y:int] {
-            write("\x1B[")
-            write number(y)
-            write(";")
-            write number(x)
-            write("H")
-        }
-        module color {
-            const black = "\x1B[0;30m"
-            const red = "\x1B[0;31m"
-            const green = "\x1B[0;32m"
-            const yellow = "\x1B[0;33m"
-            const blue = "\x1B[0;34m"
-            const magenta = "\x1B[0;35m"
-            const cyan = "\x1B[0;36m"
-            const white = "\x1B[0;37m"
-            const reset = "\x1B[0m"
-        }
+    module color {
+        const black = "\x1B[0;30m"
+        const red = "\x1B[0;31m"
+        const green = "\x1B[0;32m"
+        const yellow = "\x1B[0;33m"
+        const blue = "\x1B[0;34m"
+        const magenta = "\x1B[0;35m"
+        const cyan = "\x1B[0;36m"
+        const white = "\x1B[0;37m"
+        const reset = "\x1B[0m"
     }
 }
