@@ -48,6 +48,28 @@
 					}
 				},
 				{
+					"match": "\\b(module)\\b([a-zA-Z0-9_\\s]+)\\b",
+					"captures": {
+						"1": {
+							"name": "storage.type.module.x3"
+						},
+						"2": {
+							"name": "variable.other.constant.x3"
+						}
+					}
+				},
+				{
+					"match": "\\b(enum)\\b([a-zA-Z0-9_\\s]+)\\b",
+					"captures": {
+						"1": {
+							"name": "storage.type.enum.x3"
+						},
+						"2": {
+							"name": "variable.other.constant.x3"
+						}
+					}
+				},
+				{
 					"match": "\\b(proc)\\b([a-zA-Z0-9_\\s]+)\\b",
 					"captures": {
 						"1": {

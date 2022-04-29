@@ -74,6 +74,22 @@ function bind(files) {
 
     // ========== declare builtin functions and types ============
 
+    const strr = struct('string', [
+        param('buffer', { ...typeMap.pointer, to: typeMap.char }),
+        param('length', typeMap.int)
+    ])
+    addSymbol('string', strr)
+
+    const arr = struct('array', [
+        param('buffer', { ...typeMap.pointer, to: typeMap.void }),
+        param('length', typeMap.int)
+    ])
+    addSymbol('array', arr)
+
+    // put scopes in the typemap so 'property access' knows about them
+    typeMap.string.scope = strr.scope
+    typeMap.array.scope = arr.scope
+
     const intData = struct('intData', [
         param('signed', typeMap.bool),
     ])
@@ -99,15 +115,21 @@ function bind(files) {
     ])
     addSymbol('structData', structData)
 
+    const entryArray = cloneType(typeMap.array)
+    const enumData = struct('enumData', [
+        param('entries', entryArray),
+    ])
+    addSymbol('enumData', enumData)
+
     const typeInfoData = union('data', [
         param('intData', intData),
         param('arrayData', arrayData),
         param('structData', structData),
         param('pointerData', pointerData),
+        param('enumData', enumData),
         param('nothing', typeMap.void),
     ])
     addSymbol('type info data', typeInfoData)
-
 
     typeInfo = struct('type info', [
         param('kind', typeMap.int),
@@ -124,15 +146,9 @@ function bind(files) {
     ])
     addSymbol('fieldData', fieldData)
 
-    const entryArray = cloneType(typeMap.array)
-    const enumData = struct('enumData', [
-        param('entries', entryArray),
-    ])
-    addSymbol('enumData', enumData)
-
     const enumEntryData = struct('enumEntryData', [
         param('name', typeMap.string),
-        param('tag', typeMap.int),
+        param('tag', typeMap.int)
     ])
     addSymbol('enumEntryData', enumEntryData)
 
@@ -143,17 +159,6 @@ function bind(files) {
     $typeof = fn('typeof', [param('symbol')], typeInfo)
     addSymbol('typeof', $typeof)
 
-    const strr = struct('string', [
-        param('buffer', { ...typeMap.pointer, to: typeMap.char }),
-        param('length', typeMap.int)
-    ])
-    addSymbol('string', strr)
-
-    const arr = struct('array', [
-        param('buffer', { ...typeMap.pointer, to: typeMap.void }),
-        param('length', typeMap.int)
-    ])
-    addSymbol('array', arr)
 
     // struct any [
     //     data:->void,
@@ -168,10 +173,6 @@ function bind(files) {
         param('type', typePtr)
     ])
     addSymbol('any', any)
-
-    // put scopes in the typemap so 'property access' knows about them
-    typeMap.string.scope = strr.scope
-    typeMap.array.scope = arr.scope
 
     // add type infos
     for (let [name, type] of Object.entries(typeMap)) {
@@ -240,7 +241,7 @@ function bind(files) {
                 function emitEntry(entry) {
                     const f = ctor(enumEntryData,
                         str(entry.name, typeMap.string),
-                        num(entry.tag, typeMap.int),
+                        num(entry.value, typeMap.int),
                     )
                     return f
                 }
@@ -275,6 +276,7 @@ function bind(files) {
             } else if (type.tag == tag_struct) {
                 function emitField(structLabel, field) {
                     const type = findSymbol(typeInfoLabel(field.type), globalScope, false)
+                    if (!type) console.log(typeInfoLabel(field.type))
                     assert(type)
 
                     const f = ctor(fieldData,
@@ -924,6 +926,7 @@ function bind(files) {
                 if (type) type = cloneType(type)
                 else {
                     type = findSymbol(name)
+                    if (!type) console.log(name)
                     assert(type)
                 }
                 assert(type.type, `'${name}' is a legal type`)
@@ -1523,7 +1526,9 @@ function lower(ast) {
 
                     const expr = unary('->', loweredExpr, tPtr)
 
-                    const exprTypeInfo = ref($typeInfoFor(loweredExpr.type))
+                    // NOTE: we are using the raw expr type. not the lowered one
+                    // this is because enums get lowered to their backing type but we still want to print them as enums
+                    const exprTypeInfo = ref($typeInfoFor(node.expr.type))
                     // HACK: make type a pointer because globals are always emitted as pointers
                     const ptr = cloneType(typeMap.pointer)
                     ptr.to = exprTypeInfo.type
@@ -1707,12 +1712,6 @@ function lower(ast) {
                 return result
             }
             case 'each': {
-                if (node.list.kind == 'enum') {
-                    // TODO: unroll
-                    console.log(node.list)
-                    assert(false)
-                }
-
                 let indexInitializer = num(0, cloneType(typeMap.int))
                 if (node.index) node.index.expr = indexInitializer
                 let i = node.index ?? declareVar('i', indexInitializer)

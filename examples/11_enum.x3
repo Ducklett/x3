@@ -1,16 +1,27 @@
 import "./lib/standard" use standard
 
 proc main[] {
-    enum colors {
+    enum color {
         red,
         green,
         blue,
     }
 
-    println(colors.red)
-    println(colors.green)
-    println(colors.blue)
-    // each color : colors {
-    //     print(color)
-    // }
+    struct foo[c:color,name:string,num:int]
+
+    println(color.red)
+    println(color.green)
+    println(color.blue)
+
+    var f = foo(color.red,"bob",7)
+    to json(f)
 }
+
+    // TODO: fix foo(color.red,"bob",7) not working unless enum already emitted type info
+
+    // // TODO: make print work with string literals
+    // write line("--------")
+    // println(839)
+    // println(183)
+    // println(1)
+    // println(0)
