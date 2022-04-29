@@ -1,0 +1,16 @@
+import "./lib/standard" use standard
+
+proc main[] {
+    enum colors {
+        red,
+        green,
+        blue,
+    }
+
+    println(colors.red)
+    println(colors.green)
+    println(colors.blue)
+    // each color : colors {
+    //     print(color)
+    // }
+}

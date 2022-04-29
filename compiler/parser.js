@@ -598,6 +598,21 @@ function parse(source) {
                     let body = parseBlock('proc', true, true)
                     return { kind: 'scope', keyword, name, parameters, body, tags }
                 }
+                case 'enum': {
+                    function parseEnumEntry() {
+                        // that's all for now, in the future we will have:
+                        // - person[name:string,age:int] // only legal if enum type is unspecified
+                        // - age = 10
+                        // - red[colorspace:string] = 0
+                        const name = parseSymbol()
+                        return { kind: 'enum entry', name }
+                    }
+                    const keyword = take('keyword')
+                    const name = take('symbol')
+                    const tags = parseTags()
+                    const entries = parseList(parseEnumEntry, '{}')
+                    return { kind: 'enum', keyword, name, tags, entries }
+                }
                 case 'union':
                 case 'struct': {
                     const keyword = take('keyword')

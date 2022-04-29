@@ -233,7 +233,7 @@ ${[...data.keys()]
         function emitVar(node, fieldOffset = 0) {
             assert(
                 typeof node == 'string' ||
-                node.kind == 'declareVar' || node.kind == 'parameter' || node.kind == 'stringLiteral' || node.kind == 'arrayLiteral',
+                node.kind == 'declareVar' || node.kind == 'parameter' || node.kind == 'stringLiteral' || node.kind == 'arrayLiteral' || node.kind == 'numberLiteral',
                 `expected declareVar, got ${node.kind}`
             )
 
@@ -369,11 +369,20 @@ ${[...data.keys()]
 
                     let localSize = vars.reduce((acc, cur) => {
                         if (cur.kind == 'buffer') {
-                            if (cur.data.kind == 'arrayLiteral') {
+                            if (cur.data.kind == 'numberLiteral') {
+                                const size = cur.data.type.size
+                                assert(size % 8 == 0)
+                                return acc + size
+                            }
+                            else if (cur.data.kind == 'arrayLiteral') {
+                                // TODO: also check if this one is correct? I think it should be cur.data.type.of.size
                                 const size = cur.data.type.count * cur.data.type.size
                                 assert(size % 8 == 0)
                                 return acc + size
                             } else {
+                                if (cur.data.kind != 'stringLiteral') {
+                                    console.log(cur.data)
+                                }
                                 assert(cur.data.kind == 'stringLiteral')
                                 const count = Math.ceil(cur.data.len / 8) * 8
                                 return acc + count
@@ -410,7 +419,18 @@ ${[...data.keys()]
                         if (vr.kind == 'buffer') {
                             const node = vr.data
 
-                            if (node.kind == 'stringLiteral') {
+                            if (node.kind == 'numberLiteral') {
+                                const size = node.type.size
+                                assert(size % 8 == 0)
+                                varOffset -= size
+
+                                // lines.push(`mov rax, ${node.n}`)
+                                // lines.push(`mov [rbp-${Math.abs(varOffset)}], rax`)
+                                lines.push(`mov qword [rbp-${Math.abs(varOffset)}], ${node.n}`)
+
+                                locals.set(node, varOffset)
+                            }
+                            else if (node.kind == 'stringLiteral') {
                                 const bufferLen = Math.ceil(node.len / 8) * 8
                                 var value = [...new TextEncoder().encode(node.value)]
                                 while (value.length < bufferLen) {
@@ -438,6 +458,7 @@ ${[...data.keys()]
                             } else {
                                 assert(node.kind == 'arrayLiteral')
 
+                                // TODO: check if this size calculation is correct? looks like i'm using type.size instead of type.of.size
                                 // NOTE: we will only initialize the members once we emit the array literal
                                 const size = node.type.count * node.type.size
                                 assert(size % 8 == 0)
@@ -813,6 +834,9 @@ ${[...data.keys()]
                         'post--': 'dec',
                         '!': 'not',
                         '-': 'neg'
+                    }
+                    if (node.expr.kind != 'reference') {
+                        console.log(node)
                     }
                     assert(node.expr.kind == 'reference')
 

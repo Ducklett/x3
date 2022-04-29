@@ -10,6 +10,7 @@ const tag_pointer = 5
 const tag_array = 6
 const tag_struct = 7
 const tag_type = 8
+const tag_enum = 9
 
 let any, $typeof, typeInfo, $typeInfoFor
 
@@ -92,7 +93,7 @@ function bind(files) {
     ])
     addSymbol('arrayData', arrayData)
 
-    const fieldArray = typeMap.array
+    const fieldArray = cloneType(typeMap.array)
     const structData = struct('structData', [
         param('fields', fieldArray),
     ])
@@ -123,8 +124,21 @@ function bind(files) {
     ])
     addSymbol('fieldData', fieldData)
 
+    const entryArray = cloneType(typeMap.array)
+    const enumData = struct('enumData', [
+        param('entries', entryArray),
+    ])
+    addSymbol('enumData', enumData)
+
+    const enumEntryData = struct('enumEntryData', [
+        param('name', typeMap.string),
+        param('tag', typeMap.int),
+    ])
+    addSymbol('enumEntryData', enumEntryData)
+
     typePtr.to = typeInfo
     fieldArray.of = fieldData
+    entryArray.of = enumEntryData
 
     $typeof = fn('typeof', [param('symbol')], typeInfo)
     addSymbol('typeof', $typeof)
@@ -215,12 +229,37 @@ function bind(files) {
         let info = findSymbol(infoName, globalScope, false)
 
         if (!info) {
-            assert(type.type == 'pointer' || type.type == 'array' || type.kind == 'struct')
+            assert(type.type == 'pointer' || type.type == 'array' || type.kind == 'struct' || type.kind == 'enum')
 
             // generate type info
             const args = [num(type.tag, typeMap.int), str(name, typeMap.string), num(type.size, typeMap.int)]
 
-            if (type.tag == tag_pointer) {
+            if (type.tag == tag_enum) {
+                // - emit entries (enumEntry{name:string,tag:int})
+                // - push enumData onto the end of args (enumData{ entries:[]enumEntry })
+                function emitEntry(entry) {
+                    const f = ctor(enumEntryData,
+                        str(entry.name, typeMap.string),
+                        num(entry.tag, typeMap.int),
+                    )
+                    return f
+                }
+
+                const entries = type.entries.map(emitEntry)
+                const entriesType = cloneType(typeMap.array)
+                entriesType.count = entries.length
+                entriesType.of = enumEntryData
+
+                const entryArr = {
+                    kind: 'arrayLiteral',
+                    entries: entries,
+                    type: entriesType,
+                    span: compilerSpan()
+                }
+
+                args.push(ctor(enumData, entryArr))
+            }
+            else if (type.tag == tag_pointer) {
                 const to = findSymbol(typeInfoLabel(type.to), globalScope, false)
                 // TODO: support nested pointers
                 assert(to)
@@ -535,6 +574,49 @@ function bind(files) {
 
                 return it
             }
+            case 'enum': {
+                // TODO: better way to calculate enum value
+                let i = 0
+
+                function bindEnumEntry(node) {
+                    assert(node.kind == 'enum entry')
+                    const name = node.name.value
+                    const it = {
+                        kind: 'enum entry',
+                        name,
+                        value: i++,
+                        span: node.name.span
+                    }
+                    addSymbol(name, it)
+                    return it
+                }
+                const name = node.name.value
+                assert(name)
+                const scope = pushScope(null, name, 'enum')
+                const backingType = typeMap.int
+                const entries = bindList(node.entries.items, bindEnumEntry)
+
+                assert(!findSymbol(name, null, false), 'name is unique')
+                const it = {
+                    tag: tag_enum,
+                    kind: 'enum',
+                    type: name,
+                    name,
+                    scope,
+                    entries,
+                    backingType,
+                    size: backingType.size
+                }
+                popScope(scope)
+
+                entries.forEach(v => {
+                    v.type = it
+                })
+
+                addSymbol(name, it)
+
+                return it
+            }
             case 'union':
             case 'struct': {
                 const kind = node.kind
@@ -761,8 +843,10 @@ function bind(files) {
                 const list = findSymbol(node.list.value)
                 assert(list)
 
-                assert(list.type.type == 'array' || list.type.type == 'string')
-                if (list.type.type == 'array') {
+                assert(list.type.type == 'array' || list.type.type == 'string' || list.kind == 'enum')
+                if (list.kind == 'enum') {
+                    item.type = list
+                } else if (list.type.type == 'array') {
                     item.type = list.type.of
                 } else {
                     item.type = typeMap.char
@@ -982,6 +1066,10 @@ function bind(files) {
                 return it
             }
             case 'symbol': {
+                if (inScope === 1) {
+
+                    console.log(node)
+                }
                 const symbol = findSymbol(node.value, inScope)
                 if (!symbol) {
                     console.log(inScope)
@@ -1301,7 +1389,7 @@ function bind(files) {
 
     function bindList(list, binder) {
         if (!list) return []
-        return list.filter((_, i) => i % 2 == 0).map(p => {
+        return list.filter((_, i) => i % 2 == 0).map((p) => {
             return binder(p)
         })
     }
@@ -1403,6 +1491,7 @@ function lower(ast) {
         switch (node.kind) {
             case 'import':
             case 'type alias':
+            case 'enum':
             case 'use': return []
 
             case 'unary':
@@ -1413,14 +1502,28 @@ function lower(ast) {
             case 'implicit cast': {
 
                 if (node.type.type == 'any') {
-                    const loweredExpr = lowerNode(node.expr)
+                    let loweredExpr = lowerNode(node.expr)
                     assert(loweredExpr.length == 1)
+                    loweredExpr = loweredExpr[0]
+
+                    // the expression MUST refer to some memory address at the end of the day, because we have to point to it
+                    // if we encounter any immediates we will first have to store them in memory and then reference their address
+                    if (loweredExpr.kind != 'reference') {
+                        if (loweredExpr.kind == 'numberLiteral') {
+                            if (!buffers.includes(loweredExpr)) {
+                                buffers.push(loweredExpr)
+                            }
+                            loweredExpr = ref(loweredExpr)
+                        }
+                    }
+
+                    assert(loweredExpr.kind == 'reference')
                     const tPtr = cloneType(typeMap.pointer)
                     tPtr.to = node.expr.type
 
-                    const expr = unary('->', loweredExpr[0], tPtr)
+                    const expr = unary('->', loweredExpr, tPtr)
 
-                    const exprTypeInfo = ref($typeInfoFor(loweredExpr[0].type))
+                    const exprTypeInfo = ref($typeInfoFor(loweredExpr.type))
                     // HACK: make type a pointer because globals are always emitted as pointers
                     const ptr = cloneType(typeMap.pointer)
                     ptr.to = exprTypeInfo.type
@@ -1604,6 +1707,12 @@ function lower(ast) {
                 return result
             }
             case 'each': {
+                if (node.list.kind == 'enum') {
+                    // TODO: unroll
+                    console.log(node.list)
+                    assert(false)
+                }
+
                 let indexInitializer = num(0, cloneType(typeMap.int))
                 if (node.index) node.index.expr = indexInitializer
                 let i = node.index ?? declareVar('i', indexInitializer)
@@ -1908,7 +2017,13 @@ function lower(ast) {
             }
             case 'readProp': {
                 if (node.left.kind == 'reference') {
-                    if (node.left.symbol.kind == 'module') {
+                    const symbol = node.left.symbol
+                    if (symbol.kind == 'enum') {
+                        assert(symbol.backingType.type == 'int')
+                        const numericRepresentation = num(node.prop.symbol.value, symbol.backingType)
+                        return lowerNode(numericRepresentation)
+                    }
+                    if (symbol.kind == 'module') {
                         return lowerNode(node.prop)
                     }
                 }
