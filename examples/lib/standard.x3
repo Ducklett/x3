@@ -200,13 +200,29 @@ proc print[it:any] {
         write("}")
     } else if t.kind == tag enum {
         write(t.name)
-        write("::")
+        write(".")
         var index:int = <-d
         var entries = t.data.enumData.entries
         assert(index<entries.length)
         // TODO: allow expressions like 'entries[index].name'
         var entry = entries[index]
+        var fields = entry.fields
         write(entry.name)
+        if fields.length > 0 {
+            write("[")
+            var basePtr=d
+            each field,i : fields {
+                if (i != 0) {
+                    write(", ")
+                }
+                var fieldPtr = basePtr + field.offset
+                var fieldType = field.type
+                write(field.name)
+                write("=")
+                print(any(fieldPtr, fieldType))
+            }
+            write("]")
+        }
     } else {
         write number(t.kind)
         assert(false, "Unsupported type tag")

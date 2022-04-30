@@ -148,7 +148,10 @@ function bind(files) {
 
     const enumEntryData = struct('enumEntryData', [
         param('name', typeMap.string),
-        param('tag', typeMap.int)
+        param('tag', typeMap.int),
+        // holds data for this specific enum entry
+        // only used for tagged unions; fields.length is 0 for primitive enums
+        param('fields', fieldArray),
     ])
     addSymbol('enumEntryData', enumEntryData)
 
@@ -236,12 +239,47 @@ function bind(files) {
             const args = [num(type.tag, typeMap.int), str(name, typeMap.string), num(type.size, typeMap.int)]
 
             if (type.tag == tag_enum) {
+
+
                 // - emit entries (enumEntry{name:string,tag:int})
                 // - push enumData onto the end of args (enumData{ entries:[]enumEntry })
                 function emitEntry(entry) {
+
+                    function emitField(field) {
+                        const type = findSymbol(typeInfoLabel(field.type), globalScope, false)
+                        if (!type) console.log(typeInfoLabel(field.type))
+                        assert(type)
+
+                        const f = ctor(fieldData,
+                            str(field.name, typeMap.string),
+                            num(field.offset, typeMap.int),
+                            type
+                        )
+
+                        return f
+                    }
+
+                    const fieldsType = cloneType(typeMap.array)
+                    fieldsType.count = 0
+                    fieldsType.of = fieldData
+
+                    let fieldArr = {
+                        kind: 'arrayLiteral',
+                        entries: [],
+                        type: fieldsType,
+                        span: compilerSpan()
+                    }
+
+                    if (type.backingType.kind == 'struct') {
+                        const fields = entry.params.map(f => emitField(f))
+                        fieldsType.count = fields.length
+                        fieldArr.entries = fields
+                    }
+
                     const f = ctor(enumEntryData,
                         str(entry.name, typeMap.string),
                         num(entry.value, typeMap.int),
+                        fieldArr,
                     )
                     return f
                 }
@@ -580,13 +618,32 @@ function bind(files) {
                 // TODO: better way to calculate enum value
                 let i = 0
 
+                let fields = []
+
                 function bindEnumEntry(node) {
                     assert(node.kind == 'enum entry')
                     const name = node.name.value
+                    const scope = pushScope()
+                    let params = []
+                    if (node.params && node.params.items.length) {
+                        params = bindParameters(node.params)
+
+                        let offset = 0
+                        for (let param of params) {
+                            param.offset = offset
+                            assert(param.type.size && param.type.size % 8 == 0)
+                            offset += param.type.size
+                            fields.push(param)
+                        }
+                    }
+                    popScope()
                     const it = {
                         kind: 'enum entry',
                         name,
                         value: i++,
+                        params,
+                        scope,
+                        notes: new Map(),
                         span: node.name.span
                     }
                     addSymbol(name, it)
@@ -595,8 +652,21 @@ function bind(files) {
                 const name = node.name.value
                 assert(name)
                 const scope = pushScope(null, name, 'enum')
-                const backingType = typeMap.int
+                let backingType = typeMap.int
                 const entries = bindList(node.entries.items, bindEnumEntry)
+
+                if (fields.length) {
+                    // update the field offsets to account for the tag
+                    for (let f of fields) {
+                        f.offset += backingType.size
+                    }
+
+                    // put tag at the start of fields
+                    fields = [param('tag', backingType), ...fields]
+
+                    // update the backing type so it's a struct containing the tag followed by the fields
+                    backingType = struct(name + 'backingTaggedUnion', fields)
+                }
 
                 assert(!findSymbol(name, null, false), 'name is unique')
                 const it = {
@@ -609,6 +679,7 @@ function bind(files) {
                     backingType,
                     size: backingType.size
                 }
+                console.log('enum size:' + it.size)
                 popScope(scope)
 
                 entries.forEach(v => {
@@ -981,7 +1052,6 @@ function bind(files) {
                 if (node.size) {
                     if (node.size.kind == 'symbol') {
                         const s = findSymbol(node.size)
-                        console.log(s)
                         assert(s)
                     } else {
                         assert(node.size.kind == 'number')
@@ -1107,10 +1177,6 @@ function bind(files) {
                 return it
             }
             case 'symbol': {
-                if (inScope === 1) {
-
-                    console.log(node)
-                }
                 const symbol = findSymbol(node.value, inScope)
                 if (!symbol) {
                     console.log(inScope)
@@ -1198,14 +1264,31 @@ function bind(files) {
                 const def = bindExpression(node.name, inScope)
 
                 const isStruct = def.symbol.kind == 'struct'
+                const isEnumCtor = def.symbol.kind == 'enum entry'
 
-                if (!isStruct) assert(def.symbol.returnType)
-                const type = isStruct ? def.symbol : def.symbol.returnType
+                if (isEnumCtor) {
+                    assert(def.symbol.type.backingType.kind == 'struct')
+                } else if (!isStruct) {
+                    assert(def.symbol.returnType)
+                }
+
+                const type = isStruct ? def.symbol : isEnumCtor ? def.symbol.type : def.symbol.returnType
 
                 const isSyscall = def.symbol.notes.has('syscall')
 
                 const params = isStruct ? def.symbol.fields : def.symbol.params;
-                if (isStruct) {
+                if (isEnumCtor) {
+                    const it = {
+                        kind: 'enumctorcall',
+                        entry: def.symbol,
+                        args: bindList(node.argumentList.items, bindExpression),
+                        type,
+                        span: spanFromRange(node.name.span, node.argumentList.end.span)
+                    }
+                    it.args = validateArguments(it.args, params, node.name.span.file)
+                    return it
+                }
+                else if (isStruct) {
                     const it = {
                         kind: 'ctorcall',
                         args: bindList(node.argumentList.items, bindExpression),
@@ -2052,6 +2135,21 @@ function lower(ast) {
                     span: node.span
                 }
                 return lowerNode(it)
+            }
+            case 'enumctorcall': {
+                const backingType = node.type.backingType
+                assert(backingType)
+                const tagType = backingType.fields[0].type
+                assert(tagType)
+                const args = [num(node.entry.value, tagType), ...(node.args ?? [])]
+
+                // let size = params.reduce((acc, cur) => {
+                //     assert(cur.size && cur.size % 8 == 0)
+                //     acc += cur.size
+                // }, 0)
+
+                const c = ctor(backingType, ...args)
+                return lowerNode(c)
             }
             case 'ctorcall':
             case 'syscall':

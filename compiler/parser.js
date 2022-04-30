@@ -605,7 +605,11 @@ function parse(source) {
                         // - age = 10
                         // - red[colorspace:string] = 0
                         const name = parseSymbol()
-                        return { kind: 'enum entry', name }
+                        let params = null
+                        if (is('operator', '[')) {
+                            params = parseList(parseTypedSymbol)
+                        }
+                        return { kind: 'enum entry', name, params }
                     }
                     const keyword = take('keyword')
                     const name = take('symbol')

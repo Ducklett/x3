@@ -1,30 +1,28 @@
 import "./lib/standard" use standard
 
 proc main[] {
-    enum color {
-        red,
-        green,
-        blue,
+    enum action {
+        idle,
+        move[x:int,y:int],
+        heal[amount:int],
     }
 
-    struct foo[c:color,name:string,num:int]
+    // TODO: add the ability to just do action.idle
+    var a = action.idle()
+    var b = action.move(10,20)
+    var c = action.heal(48)
 
-    var c = color.blue
+    println(a)
+    println(b)
+    println(c)
 
-    write line("match:")
-    match c {
-        red     { write line("red") }
-        green   { write line("green") }
-        blue    { write line("blue") }
-    }
-    write line("-----")
-
-    println(color.red)
-    println(color.green)
-    println(color.blue)
-
-    var f = foo(color.red,"bob",7)
-    to json(f)
+    // write line("match:")
+    // match c {
+    //     red     { write line("red") }
+    //     green   { write line("green") }
+    //     blue    { write line("blue") }
+    // }
+    // write line("-----")
 }
 
     // TODO: fix foo(color.red,"bob",7) not working unless enum already emitted type info

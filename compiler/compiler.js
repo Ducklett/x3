@@ -61,6 +61,7 @@ const api = {
             kind: 'struct',
             parent: null,
             symbols: new Map(),
+            fields,
             used: new Set(),
         }
 
@@ -70,8 +71,12 @@ const api = {
 
         const size = fields.reduce((acc, cur) => {
             assert(cur.type.size > 0)
-            cur.offset = acc
-            acc += cur.type.size
+            if (cur.offset === undefined) {
+                cur.offset = acc
+                acc += cur.type.size
+            } else {
+                acc = Math.max(acc, cur.type.size + cur.offset)
+            }
             return acc
         }, 0)
         return B({ kind: 'struct', name, type: name, fields, size, scope })
@@ -221,7 +226,17 @@ ${[...data.keys()]
 
         // ==================
 
-        function emitArgs(args) {
+        function emitArgs(args, targetSize) {
+            if (targetSize == undefined) throw 'expected target size'
+
+            // unions might need some padding since the constructors are of variable size
+            // push the padding first since this means it will be added to the end of the object
+            let size = args.reduce((acc, cur) => acc + cur.type.size, 0)
+            while (size < targetSize) {
+                lines.push('push qword 0 ; padding')
+                size += 8
+            }
+
             // NOTE: we push the last item first, because the stack grows down
             // TODO: evaluate the args from left to right while still keeping the proper stack position
             // NOTE: currently the last arg is evaluated first, which may lead to some unexpected stuff happening if it mutates state
@@ -564,8 +579,10 @@ ${[...data.keys()]
                 }
                 case 'ctorcall': {
                     lines.push(`; new ${node.type.name}()`)
+
                     const args = node.args
-                    emitArgs(args)
+
+                    emitArgs(args, node.type.size)
                     return
                 }
                 case 'call': {
@@ -590,7 +607,7 @@ ${[...data.keys()]
                         lines.push(`sub rsp, ${returnSize} ; allocate returned struct`)
                     }
                     if (argSize) {
-                        emitArgs(args)
+                        emitArgs(args, 0)
                     }
 
 
