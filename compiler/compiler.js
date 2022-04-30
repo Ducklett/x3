@@ -116,7 +116,7 @@ const api = {
             throw 'illegal type of offset access'
         })()
     }),
-    binary: (op, a, b) => B({ kind: 'binary', op, a, b, type: a.type }),
+    binary: (op, a, b, type) => B({ kind: 'binary', op, a, b, type: type ?? a.type }),
     unary: (op, expr, type) => B({ kind: 'unary', op, expr, type }),
     ret: expr => B({ kind: 'return', expr }),
     goto: (label, condition) => B({ kind: 'goto', condition, label }),
@@ -231,6 +231,8 @@ ${[...data.keys()]
         }
 
         function emitVar(node, fieldOffset = 0) {
+            if (!(typeof node == 'string' ||
+                node.kind == 'declareVar' || node.kind == 'parameter' || node.kind == 'stringLiteral' || node.kind == 'arrayLiteral' || node.kind == 'numberLiteral')) throw 'aaa'
             assert(
                 typeof node == 'string' ||
                 node.kind == 'declareVar' || node.kind == 'parameter' || node.kind == 'stringLiteral' || node.kind == 'arrayLiteral' || node.kind == 'numberLiteral',

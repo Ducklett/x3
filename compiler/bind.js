@@ -723,6 +723,44 @@ function bind(files) {
 
                 return it
             }
+            case 'match': {
+                const operand = bindExpression(node.operand)
+                assert(operand.type.kind == 'enum')
+
+                const arms = []
+                const checkedValues = new Set()
+                for (let arm of node.arms) {
+                    assert(arm.pattern.kind == 'pattern equal')
+                    const value = findSymbol(arm.pattern.symbol.value, operand.type.scope, false)
+                    assert(value)
+                    if (checkedValues.has(value)) {
+                        assert(false, `duplicate entry ${arm.pattern.symbol.value}, ${JSON.stringify(arm.pattern.symbol.span)}`)
+                    }
+                    checkedValues.add(value)
+                    const body = bindBlock(arm.block)
+                    const span = spanFromRange(arm.pattern.symbol.span, body.span)
+                    const it = {
+                        kind: 'arm',
+                        pattern: value,
+                        body,
+                        span
+                    }
+                    arms.push(it)
+                }
+                for (let entry of operand.type.entries) {
+                    if (!checkedValues.has(entry)) {
+                        assert(false, `unhandled enum entry ${entry.name} at ${JSON.stringify(node.keyword.span)}`)
+                    }
+                }
+                const span = spanFromRange(node.keyword.span, node.end.span)
+                const it = {
+                    kind: 'match',
+                    operand,
+                    arms,
+                    span
+                }
+                return it
+            }
             case 'if': {
                 pushScope()
                 const then = bindDeclaration(node.thenBlock)
@@ -1759,6 +1797,42 @@ function lower(ast) {
             case 'module': return lowerNodeList(node.declarations.statements)
 
             case 'scope': return lowerNodeList(node.instructions.statements)
+            case 'match': {
+                // op = <expr>
+                // goto block1 if <match>
+                // goto block2 if <match>
+                // goto end
+                // <block1>
+                // goto end
+                // <block2>
+                // goto end
+                // end:
+
+                // we don't want to evaluate the expression multiple times, store it in a variable
+                const operand = declareVar('matchOperand', node.operand)
+                const endLabel = label('end')
+                const gotoEnd = goto(endLabel)
+                const conditions = []
+                const blocks = []
+                for (let arm of node.arms) {
+                    const blockLabel = label('block')
+
+                    assert(arm.pattern.kind == 'enum entry')
+                    const matchexpression = binary('==', ref(operand), arm.pattern, typeMap.bool)
+                    const blockGoto = goto(blockLabel, matchexpression)
+                    const block = arm.body
+
+                    conditions.push(blockGoto)
+                    blocks.push(blockLabel)
+                    blocks.push(block)
+                    blocks.push(gotoEnd)
+                }
+
+                conditions.push(gotoEnd)
+
+                const it = [operand, ...conditions, ...blocks, endLabel]
+                return lowerNodeList(it)
+            }
             case 'if': {
 
                 // goto then if (cond)
@@ -1953,6 +2027,9 @@ function lower(ast) {
                 return [node]
             }
             case 'reference': {
+                if (node.symbol.kind == 'enum entry') {
+                    return lowerNode(node.symbol)
+                }
                 if (node.symbol.kind == 'declareVar') {
                     if (node.symbol.notes.has('const') && node.symbol.expr) {
                         // HACK: typeinfo is stored as pointer and should not be inlined
@@ -2014,15 +2091,15 @@ function lower(ast) {
                 node.index = expr[0]
                 return [node]
             }
+            case 'enum entry': {
+                assert(node.type.backingType.type == 'int')
+                const numericRepresentation = num(node.value, node.type.backingType)
+                return lowerNode(numericRepresentation)
+            }
             case 'readProp': {
                 if (node.left.kind == 'reference') {
                     const symbol = node.left.symbol
-                    if (symbol.kind == 'enum') {
-                        assert(symbol.backingType.type == 'int')
-                        const numericRepresentation = num(node.prop.symbol.value, symbol.backingType)
-                        return lowerNode(numericRepresentation)
-                    }
-                    if (symbol.kind == 'module') {
+                    if (symbol.kind == 'module' || symbol.kind == 'enum') {
                         return lowerNode(node.prop)
                     }
                 }

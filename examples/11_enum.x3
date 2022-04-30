@@ -9,6 +9,16 @@ proc main[] {
 
     struct foo[c:color,name:string,num:int]
 
+    var c = color.blue
+
+    write line("match:")
+    match c {
+        red     { write line("red") }
+        green   { write line("green") }
+        blue    { write line("blue") }
+    }
+    write line("-----")
+
     println(color.red)
     println(color.green)
     println(color.blue)

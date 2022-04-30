@@ -185,7 +185,7 @@
 			"patterns": [
 				{
 					"name": "keyword.control.x3",
-					"match": "\\b(module|import|struct|union|proc|scope|return|break|continue|goto|label|var|const|for|do|while|each|enum|if|else|switch)\\b"
+					"match": "\\b(module|import|struct|union|proc|scope|return|break|continue|goto|label|var|const|for|do|while|each|enum|if|else|match)\\b"
 				},
 				{
 					"name": "constant.language.boolean.x3",

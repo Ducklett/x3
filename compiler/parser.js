@@ -9,7 +9,7 @@ function parse(source) {
 
     const code = source.code
 
-    const keywords = new Set(["module", "import", "use", "type", "struct", "union", "proc", "scope", "return", "break", "continue", "goto", "label", "var", "const", "for", "do", "while", "each", "enum", "if", "else", "switch", "true", "false"])
+    const keywords = new Set(["module", "import", "use", "type", "struct", "union", "proc", "scope", "return", "break", "continue", "goto", "label", "var", "const", "for", "do", "while", "each", "enum", "if", "else", "match", "true", "false"])
     const operators = new Set(["<<=", ">>=", "&&=", "||=", "==", "!=", ">=", "<=", "<<", ">>", "<-", "->", "=>", "&&", "||", "++", "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "~=", "=", "!", ">", "<", "+", "-", "/", "*", "%", "^", "~", "&", "|", "(", ")", "[", "]", "{", "}", "?", ":", ";", ".", ","])
     const binaryOperators = new Set(["==", "!=", ">=", "<=", "<<", ">>", "&&", "||", "=>", ">", "<", "+", "-", "/", "*", "%", "^", "&", "|"])
     const preUnaryOperators = new Set(["++", "--", "!", "-", "->", "<-"])
@@ -656,6 +656,31 @@ function parse(source) {
                     const label = take('symbol')
                     const colon = take('operator', ':')
                     return { kind: 'label', keyword, label, colon }
+                }
+                case 'match': {
+                    const keyword = take('keyword', 'match')
+                    const operand = parseExpression()
+                    const begin = take('operator', '{')
+                    const arms = []
+
+                    function parseArm() {
+                        function parsePattern() {
+                            // only support enum equality for now
+                            const symbol = parseSymbol()
+                            return { kind: 'pattern equal', symbol }
+                        }
+                        const pattern = parsePattern()
+                        const block = parseBlock('arm', true, true, true)
+                        return { kind: 'arm', pattern, block }
+                    }
+
+                    while (!isEndOfFile() && !is('operator', '}')) {
+                        const arm = parseArm()
+                        arms.push(arm)
+                    }
+                    const end = take('operator', '}')
+                    const it = { kind: 'match', keyword, operand, begin, arms, end }
+                    return it
                 }
                 case 'if': {
                     const keyword = take('keyword', 'if')
