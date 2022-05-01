@@ -665,7 +665,7 @@ function bind(files) {
                     fields = [param('tag', backingType), ...fields]
 
                     // update the backing type so it's a struct containing the tag followed by the fields
-                    backingType = struct(name + 'backingTaggedUnion', fields)
+                    backingType = struct(name + '$backingTaggedUnion', fields)
                 }
 
                 assert(!findSymbol(name, null, false), 'name is unique')
@@ -808,13 +808,35 @@ function bind(files) {
                         assert(false, `duplicate entry ${arm.pattern.symbol.value}, ${JSON.stringify(arm.pattern.symbol.span)}`)
                     }
                     checkedValues.add(value)
+
+                    const scope = pushScope()
+                    let alias
+                    if (arm.pattern.alias) {
+                        if (!value.params.length) {
+                            assert(false, `alias can only be bound for entries with parameters`)
+                        }
+                        const s = struct(value.name + '$backingStruct', value.params)
+                        aliasType = s
+                        alias = {
+                            kind: 'match alias',
+                            name: arm.pattern.alias.value,
+                            type: s,
+                            span: arm.pattern.alias.span
+                        }
+
+                        addSymbol(alias.name, alias)
+                    }
                     const body = bindBlock(arm.block)
                     const span = spanFromRange(arm.pattern.symbol.span, body.span)
+                    popScope()
+
                     const it = {
                         kind: 'arm',
                         pattern: value,
+                        alias,
                         body,
-                        span
+                        scope,
+                        span,
                     }
                     arms.push(it)
                 }
@@ -1901,7 +1923,23 @@ function lower(ast) {
                     const blockLabel = label('block')
 
                     assert(arm.pattern.kind == 'enum entry')
-                    const matchexpression = binary('==', ref(operand), arm.pattern, typeMap.bool)
+
+                    if (arm.alias) {
+                        arm.alias.of = operand
+                    }
+
+                    let tagRef
+
+                    if (!operand.type.backingType.fields) {
+                        // basic enum
+                        tagRef = ref(operand)
+                    } else {
+                        // tagged union
+                        const tag = operand.type.backingType.fields[0]
+                        tagRef = readProp(ref(operand), ref(tag))
+                    }
+
+                    const matchexpression = binary('==', tagRef, arm.pattern, typeMap.bool)
                     const blockGoto = goto(blockLabel, matchexpression)
                     const block = arm.body
 
@@ -2110,19 +2148,25 @@ function lower(ast) {
                 return [node]
             }
             case 'reference': {
-                if (node.symbol.kind == 'enum entry') {
-                    return lowerNode(node.symbol)
-                }
-                if (node.symbol.kind == 'declareVar') {
-                    if (node.symbol.notes.has('const') && node.symbol.expr) {
-                        // HACK: typeinfo is stored as pointer and should not be inlined
-                        if (node.type.type != 'pointer') {
-                            return lowerNode(node.symbol.expr)
-                        }
-                    }
-                }
 
-                return [node]
+                switch (node.symbol.kind) {
+                    case 'enum entry': return lowerNode(node.symbol)
+                    case 'declareVar': {
+                        if (node.symbol.notes.has('const') && node.symbol.expr) {
+                            // HACK: typeinfo is stored as pointer and should not be inlined
+                            if (node.type.type != 'pointer') {
+                                return lowerNode(node.symbol.expr)
+                            }
+                        }
+
+                        return [node]
+                    }
+                    case 'parameter': return [node]
+
+                    default:
+                        assert(false, `unhandled kind ${node.symbol.kind}`)
+                        break;
+                }
             }
 
             case 'pipe': {
@@ -2190,15 +2234,27 @@ function lower(ast) {
                 return [node]
             }
             case 'enum entry': {
-                assert(node.type.backingType.type == 'int')
+                // NOTE: only returns the tag, enum instances with values are instead stored in 'enumctor'
                 const numericRepresentation = num(node.value, node.type.backingType)
                 return lowerNode(numericRepresentation)
             }
             case 'readProp': {
                 if (node.left.kind == 'reference') {
                     const symbol = node.left.symbol
-                    if (symbol.kind == 'module' || symbol.kind == 'enum') {
-                        return lowerNode(node.prop)
+                    switch (symbol.kind) {
+                        case 'match alias': {
+                            assert(symbol.of)
+                            const r = ref(symbol.of)
+                            const prop = readProp(r, node.prop)
+                            return lowerNode(prop)
+                        }
+                        case 'module': return lowerNode(node.prop)
+                        case 'enum': return lowerNode(node.prop)
+
+                        case 'parameter': return [node]
+                        case 'declareVar': return [node]
+                        default:
+                            assert(false, `unhandled kind ${symbol.kind}`)
                     }
                 }
 

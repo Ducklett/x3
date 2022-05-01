@@ -1,11 +1,32 @@
 import "./lib/standard" use standard
 
-proc main[] {
-    enum action {
-        idle,
-        move[x:int,y:int],
-        heal[amount:int],
+enum action {
+    idle,
+    move[x:int,y:int],
+    heal[amount:int],
+}
+
+proc print action[action:action] {
+    match action {
+        idle {
+            write line("idle")
+        }
+        move: m {
+            write("move(")
+            write number(m.x)
+            write(", ")
+            write number(m.y)
+            write(")\n")
+        }
+        heal: h {
+            write("heal(")
+            write number(h.amount)
+            write line(")")
+        }
     }
+}
+
+proc main[] {
 
     // TODO: add the ability to just do action.idle
     var a = action.idle()
@@ -15,6 +36,10 @@ proc main[] {
     println(a)
     println(b)
     println(c)
+
+    print action(a)
+    print action(b)
+    print action(c)
 
     // write line("match:")
     // match c {

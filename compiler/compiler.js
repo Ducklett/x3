@@ -113,7 +113,7 @@ const api = {
     declareVar: (name, expr) => B({ kind: 'declareVar', name, expr, type: expr.type }),
     assignVar: (varDec, expr) => B({ kind: 'assignVar', varDec, expr }),
     ref: symbol => B({ kind: 'reference', symbol, type: symbol.type }),
-    readProp: (left, prop) => B({ kind: 'readProp', left, prop }),
+    readProp: (left, prop) => B({ kind: 'readProp', left, prop, type: prop.type }),
     offsetAccess: (left, index) => B({
         kind: 'offsetAccess', left, index, type: (() => {
             if (left.type.type == 'array') return left.type.of
@@ -226,17 +226,7 @@ ${[...data.keys()]
 
         // ==================
 
-        function emitArgs(args, targetSize) {
-            if (targetSize == undefined) throw 'expected target size'
-
-            // unions might need some padding since the constructors are of variable size
-            // push the padding first since this means it will be added to the end of the object
-            let size = args.reduce((acc, cur) => acc + cur.type.size, 0)
-            while (size < targetSize) {
-                lines.push('push qword 0 ; padding')
-                size += 8
-            }
-
+        function emitArgs(args) {
             // NOTE: we push the last item first, because the stack grows down
             // TODO: evaluate the args from left to right while still keeping the proper stack position
             // NOTE: currently the last arg is evaluated first, which may lead to some unexpected stuff happening if it mutates state
@@ -582,7 +572,35 @@ ${[...data.keys()]
 
                     const args = node.args
 
-                    emitArgs(args, node.type.size)
+                    const targetSize = node.type.size
+
+                    if (targetSize == undefined) throw 'expected target size'
+
+                    // unions might need some padding since the constructors are of variable size
+                    // push the padding first since this means it will be added to the end of the object
+                    // let startByte = args.reduce((acc, cur) => Math.min(acc, cur.type.offset ?? 0), Number.POSITIVE_INFINITY)
+                    let size = args.reduce((acc, cur) => acc + cur.type.size, 0)
+                    assert(!isNaN(size))
+                    // assert(!isNaN(endByte))
+                    // assert(startByte != Number.POSITIVE_INFINITY)
+
+                    // if ((startByte != 0 || endByte != targetSize) && targetSize != 0) {
+                    //     console.log(`${startByte}<args>${endByte} :: ${targetSize}`)
+                    // }
+
+                    while (size < targetSize) {
+                        lines.push('push qword 0 ; end padding')
+                        size += 8
+                    }
+
+                    emitArgs(args)
+
+
+                    // while (startByte > 0) {
+                    //     lines.push('push qword 0 ; start padding')
+                    //     startByte -= 8
+                    // }
+
                     return
                 }
                 case 'call': {
@@ -607,7 +625,7 @@ ${[...data.keys()]
                         lines.push(`sub rsp, ${returnSize} ; allocate returned struct`)
                     }
                     if (argSize) {
-                        emitArgs(args, 0)
+                        emitArgs(args)
                     }
 
 
@@ -737,6 +755,7 @@ ${[...data.keys()]
                     }
                     assert(node.left.kind == 'reference')
                     const kind = node.left.symbol.kind
+
                     assert(kind == 'parameter' || kind == 'declareVar')
 
                     assert(shouldReturn, 'reference should not be called at top level')
