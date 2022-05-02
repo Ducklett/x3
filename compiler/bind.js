@@ -1,4 +1,4 @@
-const { assert, declareVar, num, binary, ref, readProp, unary, label, goto, assignVar, offsetAccess, nop, call, ctor, struct, param, fn, str, MARK, union, bool } = require('./compiler')
+const { assert, declareVar, num, binary, ref, readProp, unary, label, goto, assignVar, indexedAccess, nop, call, ctor, struct, param, fn, str, MARK, union, bool } = require('./compiler')
 const { fileMap } = require('./parser')
 
 const tag_void = 0
@@ -533,6 +533,21 @@ function bind(files) {
         popScope()
     }
 
+    function createEnumAlias(entry, name) {
+        const s = struct(entry.name + '$backingStruct', entry.params)
+        aliasType = s
+        const alias = {
+            kind: 'enum alias',
+            name: name.value,
+            type: s,
+            span: name.span
+        }
+
+        addSymbol(alias.name, alias)
+
+        return alias
+    }
+
     function bindBody(node, symbol) {
         switch (node.kind) {
             case 'proc': {
@@ -815,16 +830,7 @@ function bind(files) {
                         if (!value.params.length) {
                             assert(false, `alias can only be bound for entries with parameters`)
                         }
-                        const s = struct(value.name + '$backingStruct', value.params)
-                        aliasType = s
-                        alias = {
-                            kind: 'match alias',
-                            name: arm.pattern.alias.value,
-                            type: s,
-                            span: arm.pattern.alias.span
-                        }
-
-                        addSymbol(alias.name, alias)
+                        alias = createEnumAlias(value, arm.pattern.alias)
                     }
                     const body = bindBlock(arm.block)
                     const span = spanFromRange(arm.pattern.symbol.span, body.span)
@@ -856,6 +862,7 @@ function bind(files) {
             }
             case 'if': {
                 pushScope()
+                const cond = bindExpression(node.condition)
                 const then = bindDeclaration(node.thenBlock)
                 popScope()
 
@@ -868,7 +875,7 @@ function bind(files) {
 
                 const it = {
                     kind: 'if',
-                    cond: bindExpression(node.condition),
+                    cond,
                     then,
                     els
                 }
@@ -1199,10 +1206,18 @@ function bind(files) {
                 return it
             }
             case 'symbol': {
+                if (node.value == 'x') {
+                    console.log("x scope")
+                    console.log(inScope)
+                }
+
                 const symbol = findSymbol(node.value, inScope)
                 if (!symbol) {
+                    console.log("SCOPE:")
                     console.log(inScope)
+                    console.log("NODE:")
                     console.log(node)
+                    throw '?'
                 }
                 assert(symbol, `symbol "${node.value}" is defined`)
                 const type = symbol.type
@@ -1225,7 +1240,7 @@ function bind(files) {
                 const index = bindExpression(node.index)
 
                 const it = {
-                    kind: 'offsetAccess',
+                    kind: 'indexedAccess',
                     left,
                     index,
                     span: spanFromRange(left, node.end.span)
@@ -1257,8 +1272,13 @@ function bind(files) {
                 checkIfLhsIsLegal(left)
 
                 let scope
+
                 if (left.symbol) {
-                    if (left.kind == 'reference' && left.symbol.type?.type == 'pointer') {
+                    if (left.kind == 'reference' && left.symbol.kind == 'enum alias') {
+                        assert(left.symbol.type.scope)
+                        scope = left.symbol.type.scope
+                    }
+                    else if (left.kind == 'reference' && left.symbol.type?.type == 'pointer') {
                         assert(left.symbol.type.to.scope)
                         scope = left.symbol.type.to.scope
                     } else if (left.symbol.type?.scope) {
@@ -1267,9 +1287,10 @@ function bind(files) {
                         scope = left.symbol?.scope
                     }
                 }
-                // left.symbol?.type?.scope ?? left.symbol?.scope
+
                 const right = bindExpression(node.property, scope)
-                assert(right.type)
+                // TODO: consider switching these around so assignment holds the full path to the property
+                if (right.kind != 'assignVar') assert(right.type)
                 const type = right.type
 
                 const it = {
@@ -1358,10 +1379,34 @@ function bind(files) {
             case 'binary': {
                 const op = node.op.value
 
+                // foo == bar:b
+                if (node.rhs.kind == 'alias') {
+                    const a = bindExpression(node.lhs)
+                    assert(op == '==', `alias can only be bound with operator == (got ${op})`)
+                    assert(a.kind == 'reference', `left hand side of type check shound reference a symbol`)
+                    assert(a.type.kind == 'enum', `left hand symbol should be an enum`)
+
+                    const b = ((node) => {
+                        console.log(node)
+                        console.log(a)
+                        const property = findSymbol(node.name.value, a.type.scope)
+                        assert(property)
+                        const alias = createEnumAlias(property, node.alias)
+                        const r = ref(property)
+                        r.alias = alias
+                        return r
+                    })(node.rhs)
+
+                    const type = typeMap.bool
+                    const it = { kind: 'binary', a, op, b, type, span: spanFromRange(a.span, b.span) }
+                    return it
+                }
+
                 const a = bindExpression(node.lhs)
                 const b = bindExpression(node.rhs)
                 assert(a.type)
 
+                // x => f => g
                 if (op == '=>') {
                     assert(b.kind == 'reference' && b.symbol.kind == 'function')
                     const it = {
@@ -1408,7 +1453,7 @@ function bind(files) {
                 return it
             }
             case 'assignment': {
-                const varDec = bindExpression(node.name)
+                const varDec = bindExpression(node.name, inScope)
                 assert(varDec, `symbol "${node.name.value}" is defined`)
 
                 const expr = bindExpression(node.expr)
@@ -1863,7 +1908,7 @@ function lower(ast) {
                 const lengthProp = typeMap.string.scope.symbols.get('length')
                 let condition = goto(endLabel, binary('>=', ref(i), readProp(ref(node.list), ref(lengthProp))))
                 let item = node.item
-                let setItem = assignVar(ref(item), offsetAccess(ref(node.list), ref(i)))
+                let setItem = assignVar(ref(item), indexedAccess(ref(node.list), ref(i)))
                 let body = node.block
                 let inc = unary('post++', ref(i))
                 let loop = goto(begin)
@@ -2098,6 +2143,11 @@ function lower(ast) {
             case 'block': return lowerNodeList(node.statements)
 
             case 'binary': {
+                if (node.b.alias) {
+                    assert(node.a.kind == 'reference')
+                    node.b.alias.of = node.a.symbol
+                }
+
                 if (node.type?.kind == 'struct') {
                     assert(node.type.notes.has('arithmetic'),
                         'operators are only implemented for #arithmetic structs')
@@ -2148,7 +2198,6 @@ function lower(ast) {
                 return [node]
             }
             case 'reference': {
-
                 switch (node.symbol.kind) {
                     case 'enum entry': return lowerNode(node.symbol)
                     case 'declareVar': {
@@ -2227,7 +2276,7 @@ function lower(ast) {
                     })
                 }]
             }
-            case 'offsetAccess': {
+            case 'indexedAccess': {
                 const expr = lowerNode(node.index)
                 assert(expr.length == 1)
                 node.index = expr[0]
@@ -2238,11 +2287,23 @@ function lower(ast) {
                 const numericRepresentation = num(node.value, node.type.backingType)
                 return lowerNode(numericRepresentation)
             }
+            case 'assignProp': {
+                const left = lowerNode(node.left)
+                const right = lowerNode(node.right)
+                const expr = lowerNode(node.expr)
+                assert(left.length == 1)
+                assert(right.length == 1)
+                assert(expr.length == 1)
+                node.left = left[0]
+                node.right = right[0]
+                node.expr = expr[0]
+                return [node]
+            }
             case 'readProp': {
                 if (node.left.kind == 'reference') {
                     const symbol = node.left.symbol
                     switch (symbol.kind) {
-                        case 'match alias': {
+                        case 'enum alias': {
                             assert(symbol.of)
                             const r = ref(symbol.of)
                             const prop = readProp(r, node.prop)
@@ -2252,7 +2313,18 @@ function lower(ast) {
                         case 'enum': return lowerNode(node.prop)
 
                         case 'parameter': return [node]
-                        case 'declareVar': return [node]
+                        case 'declareVar': {
+                            if (node.prop.kind == 'assignVar') {
+                                console.log(node.prop)
+                                const left = node.left
+                                const right = node.prop.varDec
+                                const expr = node.prop.expr
+                                const it = { kind: 'assignProp', left, right, expr, span: node.span }
+                                return lowerNode(it)
+                            }
+
+                            return [node]
+                        }
                         default:
                             assert(false, `unhandled kind ${symbol.kind}`)
                     }

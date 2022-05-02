@@ -114,8 +114,8 @@ const api = {
     assignVar: (varDec, expr) => B({ kind: 'assignVar', varDec, expr }),
     ref: symbol => B({ kind: 'reference', symbol, type: symbol.type }),
     readProp: (left, prop) => B({ kind: 'readProp', left, prop, type: prop.type }),
-    offsetAccess: (left, index) => B({
-        kind: 'offsetAccess', left, index, type: (() => {
+    indexedAccess: (left, index) => B({
+        kind: 'indexedAccess', left, index, type: (() => {
             if (left.type.type == 'array') return left.type.of
             if (left.type.type == 'string') return { type: 'char', size: 1 }
             throw 'illegal type of offset access'
@@ -692,7 +692,7 @@ ${[...data.keys()]
                     }
                     return
                 }
-                case 'offsetAccess': {
+                case 'indexedAccess': {
                     assert(node.left.kind == 'reference')
                     const legalTypes = ['array', 'pointer', 'string', 'cstring']
                     assert(node.left.type.kind == 'struct' || legalTypes.includes(node.left.type.type))
@@ -743,6 +743,24 @@ ${[...data.keys()]
                     emitExpr(node.expr)
                     assert(node.padding % 8 == 0)
                     lines.push(`sub rsp, ${node.padding} ; padding`)
+                    return
+                }
+                case 'assignProp': {
+                    const vardec = node.left.symbol
+                    const prop = node.right.symbol
+                    const offset = prop.offset
+                    const size = prop.type.size
+                    assert(vardec.kind == 'declareVar')
+                    assert(offset !== undefined)
+                    assert(size > 0 && size % 8 == 0)
+
+                    emitExpr(node.expr)
+
+                    for (let i = 0; i < size; i += 8) {
+                        lines.push(`pop rax`)
+                        lines.push(`mov ${emitVar(vardec, offset + i)}, rax`)
+                    }
+
                     return
                 }
                 case 'readProp': {
@@ -990,7 +1008,7 @@ ${[...data.keys()]
                     return
                 }
                 case 'assignVar': {
-                    if (node.varDec.kind == 'offsetAccess') {
+                    if (node.varDec.kind == 'indexedAccess') {
                         assert(node.varDec.left.kind == 'reference', 'must be reference')
                         assert(node.varDec.left.symbol.kind == 'declareVar' || node.varDec.symbol.kind == 'parameter', 'must reference variable')
                         assert(!shouldReturn)

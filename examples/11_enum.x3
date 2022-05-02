@@ -37,9 +37,29 @@ proc main[] {
     println(b)
     println(c)
 
+    if c == heal:h {
+        write("heal ")
+        write number(h.amount)
+        write("!\n")
+    } else {
+        write line("It's not heal")
+    }
+
+    assert(b==move:m, "b is a move")
+
+    write number(m.x)
+    write(", ")
+    write number(m.y)
+    write("\n")
+
+    m.x=45
+    m.y=68
+
     print action(a)
     print action(b)
     print action(c)
+
+
 
     // write line("match:")
     // match c {

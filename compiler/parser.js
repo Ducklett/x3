@@ -456,6 +456,13 @@ function parse(source) {
                         continue
                     }
 
+                    if (is('operator', ':')) {
+                        const colon = take('operator', ':')
+                        const alias = parseSymbol()
+                        lhs = { kind: 'alias', name: lhs, colon, alias }
+                        break
+                    }
+
                     break
                 }
 
