@@ -694,7 +694,6 @@ function bind(files) {
                     backingType,
                     size: backingType.size
                 }
-                console.log('enum size:' + it.size)
                 popScope(scope)
 
                 entries.forEach(v => {
@@ -1206,11 +1205,6 @@ function bind(files) {
                 return it
             }
             case 'symbol': {
-                if (node.value == 'x') {
-                    console.log("x scope")
-                    console.log(inScope)
-                }
-
                 const symbol = findSymbol(node.value, inScope)
                 if (!symbol) {
                     console.log("SCOPE:")
@@ -1387,8 +1381,6 @@ function bind(files) {
                     assert(a.type.kind == 'enum', `left hand symbol should be an enum`)
 
                     const b = ((node) => {
-                        console.log(node)
-                        console.log(a)
                         const property = findSymbol(node.name.value, a.type.scope)
                         assert(property)
                         const alias = createEnumAlias(property, node.alias)
@@ -2315,7 +2307,6 @@ function lower(ast) {
                         case 'parameter': return [node]
                         case 'declareVar': {
                             if (node.prop.kind == 'assignVar') {
-                                console.log(node.prop)
                                 const left = node.left
                                 const right = node.prop.varDec
                                 const expr = node.prop.expr
