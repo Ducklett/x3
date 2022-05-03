@@ -1670,7 +1670,7 @@ function lower(ast) {
         return newList
     }
 
-    function lowerNode(node, { makeBuffer = true } = {}) {
+    function lowerNode(node, { makeBuffer = true, asTag = false } = {}) {
         switch (node.kind) {
             case 'import':
             case 'type alias':
@@ -2157,7 +2157,7 @@ function lower(ast) {
                 }
 
                 const left = lowerNode(node.a)
-                const right = lowerNode(node.b)
+                const right = lowerNode(node.b, { asTag: true })
                 assert(left.length == 1)
                 assert(right.length == 1)
                 node.a = left[0]
@@ -2191,7 +2191,9 @@ function lower(ast) {
             }
             case 'reference': {
                 switch (node.symbol.kind) {
-                    case 'enum entry': return lowerNode(node.symbol)
+                    case 'enum entry':
+                        assert(node.alias)
+                        return lowerNode(node.symbol, { asTag: true })
                     case 'declareVar': {
                         if (node.symbol.notes.has('const') && node.symbol.expr) {
                             // HACK: typeinfo is stored as pointer and should not be inlined
@@ -2275,9 +2277,14 @@ function lower(ast) {
                 return [node]
             }
             case 'enum entry': {
-                // NOTE: only returns the tag, enum instances with values are instead stored in 'enumctor'
-                const numericRepresentation = num(node.value, node.type.backingType)
-                return lowerNode(numericRepresentation)
+                if (node.type.size == 8 || asTag) {
+                    // NOTE: only returns the tag, enum instances with values are instead stored in 'enumctor'
+                    const numericRepresentation = num(node.value, node.type.backingType)
+                    return lowerNode(numericRepresentation)
+                } else {
+                    console.log(node)
+                    throw 'h'
+                }
             }
             case 'assignProp': {
                 const left = lowerNode(node.left)
@@ -2302,7 +2309,16 @@ function lower(ast) {
                             return lowerNode(prop)
                         }
                         case 'module': return lowerNode(node.prop)
-                        case 'enum': return lowerNode(node.prop)
+                        case 'enum': {
+                            if (node.prop.kind == 'enumctorcall') return lowerNode(node.prop)
+
+                            assert(node.prop.kind == 'reference')
+                            assert(node.prop.symbol.kind == 'enum entry')
+                            const tagType = symbol.backingType.fields[0].type
+                            const tag = num(node.prop.symbol.value, tagType)
+                            const c = ctor(symbol.backingType, tag)
+                            return lowerNode(c)
+                        }
 
                         case 'parameter': return [node]
                         case 'declareVar': {

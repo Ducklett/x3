@@ -29,7 +29,7 @@ proc print action[action:action] {
 proc main[] {
 
     // TODO: add the ability to just do action.idle
-    var a = action.idle()
+    var a = action.idle
     var b = action.move(10,20)
     var c = action.heal(48)
 
