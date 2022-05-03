@@ -1520,10 +1520,9 @@ function bind(files) {
 
             arg = coerceType(param.type, arg)
             args[i] = arg
-
-
-            return args
         }
+
+        return args
     }
 
     function bindParameters(params) {

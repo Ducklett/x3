@@ -97,7 +97,16 @@ proc panic[
     exit(1)
 }
 
-proc TODO[call site:string #call site']
+proc trace[
+    it:any,
+    call site:string #call site
+] {
+    write(call site)
+    write(": ")
+    println(it)
+}
+
+proc TODO[call site:string #call site]
 {
     write(call site)
     write(" not implemented.\n")

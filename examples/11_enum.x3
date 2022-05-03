@@ -59,6 +59,7 @@ proc main[] {
     print action(b)
     print action(c)
 
+    trace(20)
 
 
     // write line("match:")
