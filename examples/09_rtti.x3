@@ -69,10 +69,12 @@ proc main {
     println(["hello", "world", "test"])
 
     struct vec3[x:int,y:int,z:int]
-    printf(["hey gamers", 10, true,false,vec3(1,2,3)])
-
-    // var js lol = ["foo", 50, true]
-    // trace(js lol)
+    var mixed array = ["hey gamers", 10, true, false, vec3(1,2,3)]
+    trace(mixed array)
+    println("---")
+    each x : mixed array {
+        println(x)
+    }
 
     // var str = "hello rtti"
     // var num = -42

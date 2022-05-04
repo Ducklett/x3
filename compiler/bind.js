@@ -303,12 +303,16 @@ function bind(files) {
             }
             else if (type.tag == tag_pointer) {
                 const to = findSymbol(typeInfoLabel(type.to), globalScope, false)
-                // TODO: support nested pointers
-                assert(to)
-                // args.push(ctor(pointerData, unary('->', to, ptr)))
-                args.push(ctor(pointerData, to))
+                // TODO: turn type info into a tagged union and support rtti for tagged unions
+                if (type.to.name == 'type info') {
+                    args.push(ctor(pointerData, num(0, typeMap.int)))
+                } else {
+                    assert(to)
+                    // args.push(ctor(pointerData, unary('->', to, ptr)))
+                    args.push(ctor(pointerData, to))
+                }
             } else if (type.tag == tag_array) {
-                const of = findSymbol(typeInfoLabel(type.of), globalScope, false)
+                const of = typeInfoFor(type.of) //findSymbol(typeInfoLabel(type.of), globalScope, false)
                 // TODO: support nested arrays
                 assert(of)
                 const count = num(type.count || 0, typeMap.int)
@@ -316,7 +320,7 @@ function bind(files) {
                 args.push(ctor(arrayData, of, count))
             } else if (type.tag == tag_struct) {
                 function emitField(structLabel, field) {
-                    const type = findSymbol(typeInfoLabel(field.type), globalScope, false)
+                    const type = typeInfoFor(field.type)//findSymbol(typeInfoLabel(field.type), globalScope, false)
                     if (!type) console.log(typeInfoLabel(field.type))
                     assert(type)
 
@@ -1775,7 +1779,12 @@ function lower(ast) {
 
                     // the expression MUST refer to some memory address at the end of the day, because we have to point to it
                     // if we encounter any immediates we will first have to store them in memory and then reference their address
-                    if (node.expr.kind != 'reference') {
+                    if (node.expr.type.type == 'void') {
+                        // just reinterpret
+                        node.expr.type = node.type
+                        return lowerNode(node.expr)
+                    }
+                    else if (node.expr.kind != 'reference') {
                         // if (loweredExpr.kind == 'numberLiteral') {
                         //     if (!buffers.includes(loweredExpr)) {
                         //         buffers.push(loweredExpr)
