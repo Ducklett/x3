@@ -79,7 +79,7 @@ const api = {
             }
             return acc
         }, 0)
-        return B({ kind: 'struct', name, type: name, fields, size, scope })
+        return B({ tag: 7, kind: 'struct', name, type: name, fields, size, scope })
     },
     union: (name, fields) => {
         const scope = {
@@ -270,6 +270,11 @@ ${[...data.keys()]
                         offset += ' + ' + fieldOffset
                     }
                 }
+
+                if (offset === undefined) {
+                    console.log('var not found!')
+                    console.log(node)
+                }
                 assert(
                     offset !== undefined,
                     'referenced variable will either be a local or a global'
@@ -376,12 +381,7 @@ ${[...data.keys()]
 
                     let localSize = vars.reduce((acc, cur) => {
                         if (cur.kind == 'buffer') {
-                            if (cur.data.kind == 'numberLiteral') {
-                                const size = cur.data.type.size
-                                assert(size % 8 == 0)
-                                return acc + size
-                            }
-                            else if (cur.data.kind == 'arrayLiteral') {
+                            if (cur.data.kind == 'arrayLiteral') {
                                 // TODO: also check if this one is correct? I think it should be cur.data.type.of.size
                                 const size = cur.data.type.count * cur.data.type.size
                                 if (size % 8 != 0) {
@@ -391,7 +391,7 @@ ${[...data.keys()]
                                 return acc + size
                             } else {
                                 if (cur.data.kind != 'stringLiteral') {
-                                    console.log(cur.data)
+                                    console.log(cur)
                                 }
                                 assert(cur.data.kind == 'stringLiteral')
                                 const count = Math.ceil(cur.data.len / 8) * 8

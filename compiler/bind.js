@@ -1677,6 +1677,16 @@ function lower(ast) {
     const loweredAst = lowerNodeList(ast)
     return [loweredAst, { entrypoint }]
 
+    function pushBuffer(b) {
+        // HACK: hoisting variables created by lowerer
+        if (b.kind == 'declareVar') {
+            const lowered = lowerNode(b)
+            for (let l of lowered) buffers.push(l)
+        } else {
+            buffers.push({ kind: 'buffer', data: b })
+        }
+    }
+
     function mangleLabel(name) {
         name = name.replace(/\s/g, '_')
 
@@ -1684,7 +1694,8 @@ function lower(ast) {
         labelCount.set(name, count + 1)
         const newName = count == 0
             ? name
-            : name + btoa(count).replace(/=/g, '')
+            // : name + btoa(count).replace(/=/g, '')
+            : name + Buffer.from([count]).toString('base64').replace(/=/g, '')
         return newName
     }
 
@@ -1758,29 +1769,37 @@ function lower(ast) {
                 }
 
                 if (node.type.type == 'any') {
-                    let loweredExpr = lowerNode(node.expr)
-                    assert(loweredExpr.length == 1)
-                    loweredExpr = loweredExpr[0]
+                    // let loweredExpr = lowerNode(node.expr)
+                    // assert(loweredExpr.length == 1)
+                    // loweredExpr = loweredExpr[0]
 
                     // the expression MUST refer to some memory address at the end of the day, because we have to point to it
                     // if we encounter any immediates we will first have to store them in memory and then reference their address
-                    if (loweredExpr.kind != 'reference') {
-                        if (loweredExpr.kind == 'numberLiteral') {
-                            if (!buffers.includes(loweredExpr)) {
-                                buffers.push(loweredExpr)
-                            }
+                    if (node.expr.kind != 'reference') {
+                        // if (loweredExpr.kind == 'numberLiteral') {
+                        //     if (!buffers.includes(loweredExpr)) {
+                        //         buffers.push(loweredExpr)
+                        //     }
 
-                            loweredExpr = ref(loweredExpr)
-                        }
+                        //     loweredExpr = ref(loweredExpr)
+                        // }
 
-                        if (loweredExpr.kind == 'stringLiteral') {
-                            if (!buffers.includes(loweredExpr)) {
-                                buffers.push(loweredExpr)
-                            }
+                        // if (loweredExpr.kind == 'stringLiteral') {
+                        //     if (!buffers.includes(loweredExpr)) {
+                        //         buffers.push(loweredExpr)
+                        //     }
 
-                            loweredExpr = ref(loweredExpr)
-                        }
+                        //     loweredExpr = ref(loweredExpr)
+                        // }
+                        const v = declareVar('v', node.expr)
+                        // TODO: maybe find some cleaner solution
+                        pushBuffer(v)
+                        node.expr = ref(v)
                     }
+
+                    let loweredExpr = lowerNode(node.expr)
+                    assert(loweredExpr.length == 1)
+                    loweredExpr = loweredExpr[0]
 
                     if (loweredExpr.kind == 'ctorcall' && loweredExpr.type.type == 'any') {
                         return [loweredExpr]
@@ -1893,7 +1912,7 @@ function lower(ast) {
                             // this can legitimately happen if the string is referenced twice
                             // throw "bruh"
                         } else {
-                            buffers.push(node)
+                            pushBuffer(node)
                         }
                     }
                 }
@@ -1908,7 +1927,7 @@ function lower(ast) {
                     if (buffers.includes(node)) {
                         // throw "bruh"
                     } else {
-                        buffers.push(node)
+                        pushBuffer(node)
                     }
                 }
 
@@ -2207,9 +2226,6 @@ function lower(ast) {
                         }
                     }
 
-                    if (buffers.length) {
-                        buffers = buffers.map(b => ({ kind: 'buffer', data: b }))
-                    }
                     node.instructions = [...buffers, ...outInstructions]
                 }
                 buffers = []

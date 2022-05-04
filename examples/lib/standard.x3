@@ -167,7 +167,15 @@ proc print[it:any] {
     // TODO: fix pointer following for nested property access
     var t = it.type
 
-    if t.kind == tag int {
+    if t.kind == tag bool {
+        // TODO: fix this not working with res:bool
+        var res:int = <-d
+        if res > 0 {
+            write("true")
+        } else {
+            write("false")
+        }
+    } else if t.kind == tag int {
         write number(<-d)
     } else if t.kind == tag string {
         // write("\"")

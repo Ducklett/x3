@@ -62,10 +62,17 @@ import "./lib/standard" use standard
 // }
 
 proc main {
-    // printf([10,20])
-    // var list =["Foo", "Bar", "Baz"]
-    // println(list)
+    printf([10,20])
+    var list =["Foo", "Bar", "Baz"]
+    println(list)
     println("hello")
+    println(["hello", "world", "test"])
+
+    struct vec3[x:int,y:int,z:int]
+    printf(["hey gamers", 10, true,false,vec3(1,2,3)])
+
+    // var js lol = ["foo", 50, true]
+    // trace(js lol)
 
     // var str = "hello rtti"
     // var num = -42
