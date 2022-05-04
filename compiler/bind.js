@@ -162,6 +162,9 @@ function bind(files) {
     $typeof = fn('typeof', [param('symbol')], typeInfo)
     addSymbol('typeof', $typeof)
 
+    $sizeof = fn('sizeof', [param('symbol')], typeMap.void)
+    addSymbol('sizeof', $sizeof)
+
 
     // struct any [
     //     data:->void,
@@ -432,9 +435,20 @@ function bind(files) {
         return scopeStack.pop()
     }
 
+    function typeEqual(a, b) {
+        if (a.type != b.type) return false
+        if (a.type == 'array') {
+            // TODO: factor in capacity
+            return typeEqual(a.of, b.of)
+        } else if (a.type == 'pointer') {
+            return typeEqual(a.to, b.to)
+        } else {
+            return true
+        }
+    }
+
     function coerceType(type, it) {
-        // TODO: better type equality checking
-        if (it.type.type == type.type) return it
+        if (typeEqual(type, it.type)) return it
 
         // string literal -> char literal
         if (it.kind == 'stringLiteral') {
@@ -445,6 +459,26 @@ function bind(files) {
                 assert(it.len == 1)
                 it.type = typeMap.char
             }
+        }
+
+        // implicit *T -> *void cast
+        if (type.type == 'pointer' && type.to.type == 'void' && it.type.type == 'pointer') {
+            const cast = { kind: 'implicit cast', type: type, expr: it }
+            return cast
+        }
+
+        // implicit T[] -> any[] cast
+        if (type.type == 'array' && type.of.type == 'any' && it.type.type == 'array') {
+
+            // cast entries to any
+            for (let i = 0; i < it.entries.length; i++) {
+                const entry = it.entries[i]
+                const castedEntry = { kind: 'implicit cast', type: type.of, expr: entry }
+                it.entries[i] = castedEntry
+            }
+
+            const cast = { kind: 'implicit cast', type: type, expr: it }
+            return cast
         }
 
         // implicit cstring -> *char AND string -> *void cast
@@ -495,13 +529,15 @@ function bind(files) {
             return cast
         }
 
-        if (type.type != it.type.type) {
+        const equal = typeEqual(type, it.type)
+
+        if (!equal) {
             console.log("expected:")
             console.log(type)
             console.log("got:")
             console.log(it)
         }
-        assert(type.type == it.type.type, 'it matches type after coersion')
+        assert(equal, 'it matches type after coersion')
 
         return it
         // if (!type) return it
@@ -1150,7 +1186,12 @@ function bind(files) {
                     type: undefined
                 }
 
-                const entryType = it.entries[0].type
+                const entryType = it.entries.reduce((acc, cur) => {
+                    if (!acc) return cur.type
+                    if (acc.type == cur.type.type) return acc
+                    // type didn't match, this must be an any[]
+                    return any
+                }, null)
 
                 const arrayType = {
                     tag: tag_array,
@@ -1164,7 +1205,8 @@ function bind(files) {
                 it.type = arrayType
 
                 for (let i = 0; i < it.entries.length; i++) {
-                    assert(it.entries[i].type.type == entryType.type)
+                    it.entries[i] = coerceType(entryType, it.entries[i])
+                    // assert(it.entries[i].type.type == entryType.type)
                 }
 
                 return it
@@ -1346,6 +1388,20 @@ function bind(files) {
                     return it
                 } else {
                     const isTypeof = node.name.value == 'typeof'
+                    const isSizeOf = node.name.value == 'sizeof'
+
+                    if (isSizeOf) {
+                        assert(node.argumentList.items.length == 1)
+                        const type = bindType(node.argumentList.items[0])
+                        const it = {
+                            kind: 'sizeof',
+                            arg: type,
+                            type: typeMap.int,
+                            span: spanFromRange(node.name.span, node.argumentList.end.span)
+                        }
+                        return it
+                    }
+
                     const args = bindList(node.argumentList.items, bindExpression)
 
 
@@ -1364,6 +1420,7 @@ function bind(files) {
                             type,
                             span: spanFromRange(node.name.span, node.argumentList.end.span)
                         }
+
                         it.args = validateArguments(it.args, params, node.name.span.file)
 
                         return it
@@ -1681,7 +1738,24 @@ function lower(ast) {
             case 'booleanLiteral':
             case 'charLiteral': return [node]
 
+            case 'sizeof': {
+                assert(node.arg)
+                assert(node.arg.size !== undefined)
+
+                const theSize = num(node.arg.size, node.type)
+                return lowerNode(theSize)
+            }
             case 'implicit cast': {
+
+                if (node.type.type == 'array' && node.expr.type.type == 'array') {
+                    assert(node.type.of.type == 'any')
+                    const count = node.expr.type.count
+                    assert(count !== undefined)
+                    node.expr.type = cloneType(node.type)
+                    node.expr.type.count = count
+
+                    return lowerNode(node.expr)
+                }
 
                 if (node.type.type == 'any') {
                     let loweredExpr = lowerNode(node.expr)
@@ -1695,8 +1769,25 @@ function lower(ast) {
                             if (!buffers.includes(loweredExpr)) {
                                 buffers.push(loweredExpr)
                             }
+
                             loweredExpr = ref(loweredExpr)
                         }
+
+                        if (loweredExpr.kind == 'stringLiteral') {
+                            if (!buffers.includes(loweredExpr)) {
+                                buffers.push(loweredExpr)
+                            }
+
+                            loweredExpr = ref(loweredExpr)
+                        }
+                    }
+
+                    if (loweredExpr.kind == 'ctorcall' && loweredExpr.type.type == 'any') {
+                        return [loweredExpr]
+                    }
+
+                    if (loweredExpr.kind != 'reference') {
+                        console.log(loweredExpr)
                     }
 
                     assert(loweredExpr.kind == 'reference')

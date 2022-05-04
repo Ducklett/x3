@@ -25,7 +25,7 @@ proc brk[brk:u64]                                            #syscall(0x00C)
 
 proc exit[code:int]                                          #syscall(0x03c)
 proc unlink[path:cstring]                                    #syscall(0x057)
-proc getrandom[buf:->!char,buflen:size_t,flags:uint] -> ssize_t  #syscall(0x13e)
+proc getrandom[buf:->!void,buflen:size_t,flags:uint] -> ssize_t  #syscall(0x13e)
 
 // IO file descriptors
 const stdin:int = 0

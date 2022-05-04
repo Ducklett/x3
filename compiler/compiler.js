@@ -384,6 +384,9 @@ ${[...data.keys()]
                             else if (cur.data.kind == 'arrayLiteral') {
                                 // TODO: also check if this one is correct? I think it should be cur.data.type.of.size
                                 const size = cur.data.type.count * cur.data.type.size
+                                if (size % 8 != 0) {
+                                    console.log(cur)
+                                }
                                 assert(size % 8 == 0)
                                 return acc + size
                             } else {

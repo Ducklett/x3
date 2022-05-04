@@ -435,6 +435,13 @@ function parse(source) {
                     }
 
                     if (is('operator', '(')) {
+
+                        if (lhs.value == 'sizeof') {
+                            const argumentList = parseList(parseType, "()")
+                            lhs = { kind: 'call', name: lhs, argumentList }
+                            break
+                        }
+
                         // function call
                         const argumentList = parseList(parseExpression, "()")
                         lhs = { kind: 'call', name: lhs, argumentList }

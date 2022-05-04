@@ -147,7 +147,7 @@
 					}
 				},
 				{
-					"match": "\\b(typeof)\\(",
+					"match": "\\b(typeof|sizeof)\\(",
 					"captures": {
 						"1": {
 							"name": "constant.language.builtin.x3"

@@ -243,6 +243,16 @@ proc println[it:any] {
     write("\n")
 }
 
+proc printf[xs:[]any] {
+    each x,i : xs {
+        print(x)
+        if i < (xs.length-1) {
+            write(", ")
+        }
+    }
+    write("\n")
+}
+
 // TODO: some allocation scheme so we can return this as a string
 proc to json[it:any] {
     proc pad[padding:int] {
@@ -377,7 +387,7 @@ proc to json[it:any] {
             write number(index)
         } else {
             write number(t.kind)
-            panic("Unsupported type tag")
+            panic(": Unsupported type tag")
         }
     }
 
@@ -400,7 +410,7 @@ proc random range[from:int,to:int] -> int
 {
     var value:int
     // TODO: pass proper flag?
-    sys.getrandom(->value,8,0)
+    sys.getrandom(->value,sizeof(int),0)
 
     // TODO: make unsigned int work and remove this
     if value < 0 { value = -value }
