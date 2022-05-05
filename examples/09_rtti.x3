@@ -62,7 +62,9 @@ import "./lib/standard" use standard
 // }
 
 proc main {
-    printf([10,20])
+    printf(10,20)
+    printf("ivy",23)
+
     var list =["Foo", "Bar", "Baz"]
     println(list)
     println("hello")

@@ -1,3 +1,5 @@
+const { copyFileSync } = require('fs')
+const { type } = require('os')
 const { assert, declareVar, num, binary, ref, readProp, unary, label, goto, assignVar, indexedAccess, nop, call, ctor, struct, param, fn, str, MARK, union, bool } = require('./compiler')
 const { fileMap } = require('./parser')
 
@@ -467,7 +469,7 @@ function bind(files) {
 
         // implicit *T -> *void cast
         if (type.type == 'pointer' && type.to.type == 'void' && it.type.type == 'pointer') {
-            const cast = { kind: 'implicit cast', type: type, expr: it }
+            const cast = { kind: 'implicit cast', type: type, expr: it, span: it.span }
             return cast
         }
 
@@ -477,11 +479,11 @@ function bind(files) {
             // cast entries to any
             for (let i = 0; i < it.entries.length; i++) {
                 const entry = it.entries[i]
-                const castedEntry = { kind: 'implicit cast', type: type.of, expr: entry }
+                const castedEntry = { kind: 'implicit cast', type: type.of, expr: entry, span: entry.span }
                 it.entries[i] = castedEntry
             }
 
-            const cast = { kind: 'implicit cast', type: type, expr: it }
+            const cast = { kind: 'implicit cast', type: type, expr: it, span: it.span }
             return cast
         }
 
@@ -490,7 +492,7 @@ function bind(files) {
         if (type.type == 'pointer' && (it.type.type == 'cstring' || it.type.type == 'string')) {
             const toType = type.to.type
             if (toType == 'void' || toType == 'char') {
-                const cast = { kind: 'implicit cast', type: type, expr: it }
+                const cast = { kind: 'implicit cast', type: type, expr: it, span: it.span }
                 return cast
             }
         }
@@ -498,25 +500,25 @@ function bind(files) {
         // implicit []foo -> *foo cast AND []foo -> *void cast
         if (type.type == 'pointer' && it.type.type == 'array') {
             if (type.to.type == it.type.of.type || type.to.type == 'void') {
-                const cast = { kind: 'implicit cast', type: type, expr: it }
+                const cast = { kind: 'implicit cast', type: type, expr: it, span: it.span }
                 return cast
             }
         }
 
         // TODO: introduce explicit cast
         if (type.type == 'int' && it.type.type == 'char') {
-            const cast = { kind: 'implicit cast', type: type, expr: it }
+            const cast = { kind: 'implicit cast', type: type, expr: it, span: it.span }
             return cast
         }
 
         // TODO: introduce explicit cast
         if (it.type.type == 'void') {
-            const cast = { kind: 'implicit cast', type: type, expr: it }
+            const cast = { kind: 'implicit cast', type: type, expr: it, span: it.span }
             return cast
         }
 
         if (type.kind == 'union') {
-            const cast = { kind: 'implicit cast', type: type, expr: it }
+            const cast = { kind: 'implicit cast', type: type, expr: it, span: it.span }
             return cast
         }
 
@@ -524,12 +526,12 @@ function bind(files) {
 
         if (intTypes.has(type.type) && intTypes.has(it.type.type)) {
             assert(type.size == it.type.size)
-            const cast = { kind: 'implicit cast', type: type, expr: it }
+            const cast = { kind: 'implicit cast', type: type, expr: it, span: it.span }
             return cast
         }
 
         if (type.type == 'any' && it.type.type != 'any') {
-            const cast = { kind: 'implicit cast', type: type, expr: it }
+            const cast = { kind: 'implicit cast', type: type, expr: it, span: it.span }
             return cast
         }
 
@@ -1572,6 +1574,24 @@ function bind(files) {
                 }
             }
 
+            // TODO: figure out a way to make this work with callee span, call site, etc.
+            if (param.spread) {
+
+                const targetType = param.type.of
+                // NOTE: mutates args in place
+                const remainingArgs = args.splice(i)
+                    .map(a => coerceType(targetType, a))
+
+                const it = {
+                    kind: 'spread',
+                    args: remainingArgs,
+                    span: remainingArgs.length == 0 ? null : spanFromRange(remainingArgs[0].span, remainingArgs[remainingArgs.length - 1].span),
+                    type: param.type,
+                }
+
+                args.push(it)
+            }
+
             assert(args[i], `argument supplied for each parameter`)
 
             let arg = args[i]
@@ -1583,20 +1603,31 @@ function bind(files) {
             args[i] = arg
         }
 
+        assert(params.length == args.length)
+
         return args
     }
 
     function bindParameters(params) {
         if (!params) return []
-        return params.items.filter((_, i) => i % 2 == 0).map(p => {
+        return params.items.filter((_, i) => i % 2 == 0).map((p, i, arr) => {
+            const isLast = i == arr.length - 1
+
+            const spread = !!p.spread
+
+            if (spread && !isLast) {
+                assert(false, `spread is only used on last parameter`)
+            }
+
             const it = {
                 kind: 'parameter',
                 name: p.name.value,
+                spread,
                 type: bindType(p.type),
                 notes: new Map(),
             }
 
-            it.span = spanFromRange(p.name.span, it.type.span)
+            it.span = spanFromRange(spread ? p.spread.span : p.name.span, it.type.span)
             addSymbol(it.name, it)
             return [p, it]
         }).map(([p, it]) => {
@@ -1759,6 +1790,19 @@ function lower(ast) {
 
                 const theSize = num(node.arg.size, node.type)
                 return lowerNode(theSize)
+            }
+            case 'spread': {
+                console.log(node)
+
+                const arr = {
+                    kind: 'arrayLiteral',
+                    entries: node.args,
+                    type: cloneType(node.type),
+                }
+
+                arr.type.count = node.args.length
+
+                return lowerNode(arr)
             }
             case 'implicit cast': {
 

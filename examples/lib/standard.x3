@@ -269,7 +269,7 @@ proc println[it:any] {
     write("\n")
 }
 
-proc printf[xs:[]any] {
+proc printf[...xs:[]any] {
     each x,i : xs {
         print(x)
         if i < (xs.length-1) {

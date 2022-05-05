@@ -382,6 +382,8 @@ ${[...data.keys()]
                     let localSize = vars.reduce((acc, cur) => {
                         if (cur.kind == 'buffer') {
                             if (cur.data.kind == 'arrayLiteral') {
+                                assert(cur.data.type.count !== undefined)
+
                                 // TODO: also check if this one is correct? I think it should be cur.data.type.of.size
                                 const size = cur.data.type.count * cur.data.type.size
                                 if (size % 8 != 0) {
