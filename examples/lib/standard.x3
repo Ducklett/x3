@@ -269,14 +269,16 @@ proc println[it:any] {
     write("\n")
 }
 
-proc printf[...xs:[]any] {
-    each x,i : xs {
-        print(x)
-        if i < (xs.length-1) {
-            write(", ")
+proc printf[fmt:string,...xs:[]any] {
+    var j = 0
+    each c,i : fmt {
+        if c == "%" {
+            print(xs[j])
+            j++
+        } else {
+            write char(c)
         }
     }
-    write("\n")
 }
 
 // TODO: some allocation scheme so we can return this as a string

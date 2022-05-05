@@ -263,11 +263,19 @@ ${[...data.keys()]
                 // so they are pointers
                 // to return the actual data we should do [offset]
                 offset = globals.get(node)
-                if (fieldOffset) {
-                    if (typeof offset == 'number') {
-                        offset += fieldOffset
+                if (offset) {
+                    if (fieldOffset) {
+                        if (typeof offset == 'number') {
+                            offset += fieldOffset
+                        } else {
+                            offset += ' + ' + fieldOffset
+                        }
+                    }
+
+                    if (node.type.name == 'type info') {
+                        // HACK: treat type info as a pointer
                     } else {
-                        offset += ' + ' + fieldOffset
+                        offset = `[${offset}]`
                     }
                 }
 

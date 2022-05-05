@@ -61,17 +61,17 @@ import "./lib/standard" use standard
 //     }
 // }
 
-proc main {
-    printf(10,20)
-    printf("ivy",23)
+// TODO: get this working in proc scope
+// TODO: property access in use statement (use foo.bar.baz)
+use tui' use color
 
-    var list =["Foo", "Bar", "Baz"]
-    println(list)
-    println("hello")
-    println(["hello", "world", "test"])
+proc main {
+    printf("some nums: %%%, %%%\n", yellow,10,reset, yellow,20,reset)
+    printf("its %%% (%age %%)\n", green, "ivy",reset, cyan, 23, reset)
 
     struct vec3[x:int,y:int,z:int]
     var mixed array = ["hey gamers", 10, true, false, vec3(1,2,3)]
+
     trace(mixed array)
     println("---")
     each x : mixed array {

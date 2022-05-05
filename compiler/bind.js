@@ -1792,8 +1792,6 @@ function lower(ast) {
                 return lowerNode(theSize)
             }
             case 'spread': {
-                console.log(node)
-
                 const arr = {
                     kind: 'arrayLiteral',
                     entries: node.args,
@@ -1851,8 +1849,14 @@ function lower(ast) {
                     }
 
                     let loweredExpr = lowerNode(node.expr)
+
                     assert(loweredExpr.length == 1)
                     loweredExpr = loweredExpr[0]
+
+                    if (loweredExpr.kind == 'stringLiteral') {
+                        console.log(node.expr)
+                        throw 'how'
+                    }
 
                     if (loweredExpr.kind == 'ctorcall' && loweredExpr.type.type == 'any') {
                         return [loweredExpr]
@@ -2356,7 +2360,10 @@ function lower(ast) {
                     case 'declareVar': {
                         if (node.symbol.notes.has('const') && node.symbol.expr) {
                             // HACK: typeinfo is stored as pointer and should not be inlined
-                            if (node.type.type != 'pointer') {
+                            //if (node.type.type != 'pointer') {
+
+                            // inline little constants
+                            if (node.type.size <= 8) {
                                 return lowerNode(node.symbol.expr)
                             }
                         }
