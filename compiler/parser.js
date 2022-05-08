@@ -371,9 +371,15 @@ function parse(source) {
             }
         }
 
+        function save() { return tokenIndex }
+        function restore(i) {
+            assert(i > 0 && i < tokens.length)
+            tokenIndex = i
+        }
+
         function take(kind, value) {
             expect(kind, value)
-            return tokens[tokenIndex++];
+            return tokens[tokenIndex++]
         }
 
         function parseFile() {
@@ -476,6 +482,57 @@ function parse(source) {
                 return lhs
             }
 
+            function parseArrayLiteralOrLambda() {
+                // we can figure out which it is in several cases:
+                //     v  colon means it's a lambda
+                // - [x:int] {}
+                //      v  arrow means it's a lambda
+                // - [] -> int { 10 }
+                //      v  block means its a lambda; NOTE: this means you can't have an array literal followed by a block literal.
+                // - [] { 10 }
+                //      v  tag means its a lambda
+                // - [] #foo { 10 }
+
+                let isLambda = false
+                const snapshot = save()
+
+                take('operator', '[')
+
+                if (is('operator', ']')) {
+                    take('operator', ']')
+                    if (is('tag'), is('operator', '->') || is('operator', '{')) {
+                        isLambda = true
+                    }
+                } else {
+                    if (is('symbol') || is('keyword')) {
+                        parseSymbol()
+                        if (is('operator', ':')) {
+                            isLambda = true
+                        }
+                    }
+                }
+
+                // TODO: rewrite parseSymbol so it doesn't mutate anything
+                // symbol mutations will fuck up the parser, 
+                restore(snapshot)
+
+                if (isLambda) {
+                    let parameters = parseList(parseTypedSymbol)
+                    let arrow, returnType
+                    if (is('operator', '->')) {
+                        arrow = take('operator', '->')
+                        returnType = parseType()
+                    }
+                    const tags = parseTags()
+                    let body = parseBlock('proc', true, true)
+                    return { kind: 'lambda', parameters, arrow, returnType, body, tags }
+                } else {
+                    const list = parseList(parsePrimaryExpression)
+                    list.kind = 'array literal'
+                    return list
+                }
+            }
+
             function parsePrimaryExpression() {
                 switch (current().kind) {
                     case 'operator': {
@@ -489,11 +546,9 @@ function parse(source) {
                             const close = take('operator', ')')
                             return { kind: 'parenthesized expression', open, expr, close }
                         }
-                        if (v == '[') {
-                            const list = parseList(parsePrimaryExpression)
-                            list.kind = 'array literal'
-                            return list
-                        }
+                        if (v == '[') return parseArrayLiteralOrLambda()
+
+                        console.log(current())
                         assert(false, `unexpected operator`)
                     }
                     case 'number': return take('number')
@@ -951,6 +1006,12 @@ function parse(source) {
                 let mutable = take('operator', '!')
                 let it = parseType()
                 return { kind: 'type mutable', mutable, it }
+            } else if (is('operator', '(')) {
+                // always a function for now, might be a tuple eventually
+                const params = parseList(parseType, '()')
+                const arrow = take('operator', '->')
+                const returnType = parseType()
+                return { kind: 'type function', params, arrow, returnType }
             }
             console.log(current())
             throw `unhandled type ${current().kind}::${current().value}`

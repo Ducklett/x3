@@ -1,0 +1,26 @@
+import "./lib/standard" use standard
+
+proc main[] {
+    var f = [] {
+        println( "f invoked!")
+    }
+    var g = [x:int] {
+        printf( "g invoked with %\n", x) 
+    }
+
+    proc indirect[f:()->void] { f() }
+
+    println("Lambdas:")
+    f()
+    g(13)
+    indirect(f)
+
+    println("---")
+
+    // TODO: fix this resulting in 'v not found'
+    // f = [] {
+    //     println("mutated f invoked!")
+    // }
+    f()
+    indirect(f)
+}

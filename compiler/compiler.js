@@ -48,12 +48,13 @@ const api = {
 
     nop: () => B({ kind: 'nop' }),
     MARK: (...notes) => node => ({ ...node, notes: new Set(notes) }),
-    fn: (name, params, returnType, instructions) => B({
+    fn: (name, params, returnType, instructions, type) => B({
         kind: 'function',
         name,
         params,
         returnType,
-        instructions
+        instructions,
+        type
     }),
     struct: (name, fields) => {
         const scope = {
@@ -236,13 +237,15 @@ ${[...data.keys()]
         }
 
         function emitVar(node, fieldOffset = 0) {
-            if (!(typeof node == 'string' ||
-                node.kind == 'declareVar' || node.kind == 'parameter' || node.kind == 'stringLiteral' || node.kind == 'arrayLiteral' || node.kind == 'numberLiteral')) throw 'aaa'
-            assert(
-                typeof node == 'string' ||
-                node.kind == 'declareVar' || node.kind == 'parameter' || node.kind == 'stringLiteral' || node.kind == 'arrayLiteral' || node.kind == 'numberLiteral',
-                `expected declareVar, got ${node.kind}`
-            )
+            const legalReferenceKinds = new Set(['declareVar', 'parameter', 'stringLiteral', 'arrayLiteral', 'numberLiteral', 'function'])
+
+            // if (!(typeof node == 'string' || legalReferenceKinds.has(node.kind))) throw 'aaa'
+
+            assert(typeof node == 'string' || legalReferenceKinds.has(node.kind), `expected declareVar, got ${node.kind}`)
+
+            if (node.kind == 'function') {
+                return '_' + node.name
+            }
 
             const registers = new Set("rax,rcx,rdx,rbx,rsi,rdi,rsp,rbp,r8,r9,r10,r11,r12,r13,r14,r15".split(','))
             if (registers.has(node)) {
@@ -617,8 +620,9 @@ ${[...data.keys()]
                     return
                 }
                 case 'call': {
+                    const isLambda = node.def.symbol.kind != 'function'
                     lines.push(
-                        `; ${node.def.symbol.name}(${node.def.symbol.params.map(n => n.name).join(', ')})`
+                        `; ${node.def.symbol.name}(${isLambda ? '?' : node.def.symbol.params.map(n => n.name).join(', ')})`
                     )
                     const args = node.args ?? []
                     let argSize = args.reduce((acc, cur, i) => {
@@ -649,7 +653,14 @@ ${[...data.keys()]
                         argSize += 8
                     }
 
-                    lines.push(`call _${node.def.symbol.name}`)
+                    if (isLambda) {
+                        console.log(node)
+                        emitExpr(node.def)
+                        lines.push(`pop rax`)
+                        lines.push(`call rax`)
+                    } else {
+                        lines.push(`call _${node.def.symbol.name}`)
+                    }
                     if (argSize) {
                         lines.push(`add rsp, ${argSize}`)
                     }

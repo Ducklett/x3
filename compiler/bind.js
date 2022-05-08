@@ -13,6 +13,7 @@ const tag_array = 6
 const tag_struct = 7
 const tag_type = 8
 const tag_enum = 9
+const tag_function = 10
 
 let any, $typeof, typeInfo, $typeInfoFor
 
@@ -30,6 +31,7 @@ const typeMap = {
     'char': { tag: tag_char, type: 'char', size: 1 },
     'bool': { tag: tag_bool, type: 'bool', size: 1 },
     'pointer': { tag: tag_pointer, type: 'pointer', size: 8, to: undefined },
+    'function': { tag: tag_function, type: 'function', size: 8, params: [], returns: undefined },
 }
 
 function cloneType(t) {
@@ -1152,6 +1154,13 @@ function bind(files) {
                 it.mutable = true
                 return it
             }
+            case 'type function': {
+                const it = cloneType(typeMap.function)
+                it.params = node.params.items.map(bindType)
+                it.returns = bindType(node.returnType)
+                it.span = spanFromRange(node.params.begin.span, it.returns.span)
+                return it
+            }
             default:
                 console.log(node)
                 assert(false, `unhandled node kind`)
@@ -1350,9 +1359,14 @@ function bind(files) {
 
                 const isStruct = def.symbol.kind == 'struct'
                 const isEnumCtor = def.symbol.kind == 'enum entry'
+                // TODO: better lambda check
+                // eventually normals procedures will also have a function type
+                const isLambda = def.symbol?.type?.type == 'function'
 
                 if (isEnumCtor) {
                     assert(def.symbol.type.backingType.kind == 'struct')
+                } else if (isLambda) {
+                    assert(def.symbol.type.returns)
                 } else if (!isStruct) {
                     assert(def.symbol.returnType)
                 }
@@ -1361,7 +1375,29 @@ function bind(files) {
 
                 const isSyscall = def.symbol.notes.has('syscall')
 
+                // NOTE: as of right now lambas only record parameter types, no notes or spreads
+                if (isLambda) {
+                    const paramTypes = def.symbol.type.params
+                    const args = bindList(node.argumentList.items, bindExpression)
+                    assert(args.length == paramTypes.length)
+                    let i = 0
+                    for (let arg of args) {
+                        args[i] = coerceType(paramTypes[i], arg)
+                        i++
+                    }
+
+                    const it = {
+                        kind: 'call',
+                        def,
+                        args,
+                        type: def.symbol.type.returns,
+                        span: spanFromRange(node.name.span, node.argumentList.end.span)
+                    }
+                    return it
+                }
+
                 const params = isStruct ? def.symbol.fields : def.symbol.params;
+
                 if (isEnumCtor) {
                     const it = {
                         kind: 'enumctorcall',
@@ -1529,6 +1565,42 @@ function bind(files) {
                     expr,
                     span: spanFromRange(node.name.span, expr.span)
                 }
+                return it
+            }
+            case 'lambda': {
+                const returnType = node.returnType
+                    ? bindType(node.returnType)
+                    : typeMap.void
+
+                const type = cloneType(typeMap.function)
+                type.returns = returnType
+
+                const it = {
+                    kind: 'lambda',
+                    instructions: undefined,
+                    type,
+                    returnType,
+                    notes: new Map(),
+                }
+
+
+                for (let n of node.tags) {
+                    it.notes.set(...bindTag(n))
+                }
+
+                addSymbol(it.name, it)
+                it.scope = pushScope(null, it.name)
+                it.params = bindParameters(node.parameters)
+
+                type.params = it.params.map(p => p.type)
+
+                assert(node.body.kind == 'block')
+                it.instructions = bindBlock(node.body)
+
+                popScope()
+
+                it.span = spanFromRange(node.parameters.begin.span, node.body.end.span)
+
                 return it
             }
             default:
@@ -1714,7 +1786,11 @@ function lower(ast) {
 
     function pushBuffer(b) {
         // HACK: hoisting variables created by lowerer
-        if (b.kind == 'declareVar') {
+        if (b.kind == 'function') {
+            const lowered = lowerNode(b)
+            for (let l of lowered) buffers.push(l)
+        }
+        else if (b.kind == 'declareVar') {
             const lowered = lowerNode(b)
             for (let l of lowered) buffers.push(l)
         } else {
@@ -1827,21 +1903,6 @@ function lower(ast) {
                         return lowerNode(node.expr)
                     }
                     else if (node.expr.kind != 'reference') {
-                        // if (loweredExpr.kind == 'numberLiteral') {
-                        //     if (!buffers.includes(loweredExpr)) {
-                        //         buffers.push(loweredExpr)
-                        //     }
-
-                        //     loweredExpr = ref(loweredExpr)
-                        // }
-
-                        // if (loweredExpr.kind == 'stringLiteral') {
-                        //     if (!buffers.includes(loweredExpr)) {
-                        //         buffers.push(loweredExpr)
-                        //     }
-
-                        //     loweredExpr = ref(loweredExpr)
-                        // }
                         const v = declareVar('v', node.expr)
                         // TODO: maybe find some cleaner solution
                         pushBuffer(v)
@@ -2269,12 +2330,17 @@ function lower(ast) {
                     assert(!entrypoint)
                     entrypoint = node;
                 }
-                const instructions = lowerNodeList(node.instructions?.statements)
+                const unloweredInstructions = Array.isArray(node.instructions)
+                    ? node.instructions
+                    : node.instructions?.statements
+                let instructions = lowerNodeList(unloweredInstructions)
 
                 const outInstructions = []
                 const outDeclarations = [node]
 
                 if (instructions) {
+                    instructions = [...buffers, ...instructions]
+
                     for (let instr of instructions) {
                         if (instr.kind == 'function') {
                             outDeclarations.push(instr)
@@ -2283,10 +2349,17 @@ function lower(ast) {
                         }
                     }
 
-                    node.instructions = [...buffers, ...outInstructions]
+                    node.instructions = outInstructions //[...buffers, ...outInstructions]
                 }
                 buffers = []
                 return outDeclarations
+            }
+            case 'lambda': {
+                const name = mangleLabel('lambda')
+                const asFn = fn(name, node.params, node.returnType, node.instructions.statements, node.type)
+                pushBuffer(asFn)
+                const asRef = ref(asFn)
+                return lowerNode(asRef)
             }
 
             case 'union':
@@ -2371,6 +2444,7 @@ function lower(ast) {
                         return [node]
                     }
                     case 'parameter': return [node]
+                    case 'function': return [node]
 
                     default:
                         assert(false, `unhandled kind ${node.symbol.kind}`)
