@@ -1904,6 +1904,10 @@ function lower(ast) {
                     }
                     else if (node.expr.kind != 'reference') {
                         const v = declareVar('v', node.expr)
+
+                        // for debugging purposes
+                        v.originalExpr = node.expr
+
                         // TODO: maybe find some cleaner solution
                         pushBuffer(v)
                         node.expr = ref(v)
@@ -2325,6 +2329,10 @@ function lower(ast) {
                 // NOTE: we can't create a new copy because this would break the symbol
                 node.name = mangleName(node)
 
+                // labdas need their own buffer, so store the previous buffer on the stack and restore it when we're done
+                let prevBuffer = buffers
+                buffers = []
+
                 const isEntrypoint = node.notes.has('entrypoint')
                 if (isEntrypoint) {
                     assert(!entrypoint)
@@ -2351,7 +2359,10 @@ function lower(ast) {
 
                     node.instructions = outInstructions //[...buffers, ...outInstructions]
                 }
-                buffers = []
+                if (node.name == 'main') {
+                    console.log('foo')
+                }
+                buffers = prevBuffer
                 return outDeclarations
             }
             case 'lambda': {

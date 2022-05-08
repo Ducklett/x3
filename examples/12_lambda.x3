@@ -18,9 +18,9 @@ proc main[] {
     println("---")
 
     // TODO: fix this resulting in 'v not found'
-    // f = [] {
-    //     println("mutated f invoked!")
-    // }
+    f = [] {
+        println("mutated f invoked!")
+    }
     f()
     indirect(f)
 }
