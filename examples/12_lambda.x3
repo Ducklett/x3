@@ -17,7 +17,6 @@ proc main[] {
 
     println("---")
 
-    // TODO: fix this resulting in 'v not found'
     f = [] {
         println("mutated f invoked!")
     }
