@@ -4,79 +4,85 @@ import "./lib/standard" use standard
 // struct person[name:string,age:int,gender:string]
 // struct complex[entity:person,pos:point]
 
-// proc write type[t:->type info] {
-//     const tag void    = 0
-//     const tag int     = 1
-//     const tag bool    = 2
-//     const tag string  = 3
-//     const tag char    = 4
-//     const tag pointer = 5
-//     const tag array   = 6
-//     const tag struct  = 7
-//     const tag type    = 8
+proc write type[t:->type info] {
+    const tag void    = 0
+    const tag int     = 1
+    const tag bool    = 2
+    const tag string  = 3
+    const tag char    = 4
+    const tag pointer = 5
+    const tag array   = 6
+    const tag struct  = 7
+    const tag type    = 8
 
-//     if t.kind == tag struct {
-//         write ("struct ")
-//     }
+    if t.kind == tag struct {
+        write ("struct ")
+    }
 
-//     // write number(t.size)
-//     // write("::")
-//     write(t.name)
+    // write number(t.size)
+    // write("::")
+    write(t.name)
 
-//     if t.kind == tag int {
-//         write("(")
-//         if t.data.intData.signed {
-//             write("signed")
-//         } else {
-//             write("unsigned")
-//         }
-//         write(")")
-//     } else if t.kind == tag pointer {
-//         write("<")
-//         write type(t.data.pointerData.to)
-//         write(">")
-//     } else if t.kind == tag array {
-//         write("[")
-//         if (t.data.arrayData.count > 0) {
-//             write number(t.data.arrayData.count)
-//         }
-//         write("]")
-//         write type(t.data.arrayData.of)
-//     } else if t.kind == tag struct {
-//         write(" {\n")
-//         // TODO: property access from array (foo[0].bar)
-//         // TODO: allow property in each loop
-//         var fields = t.data.structData.fields
+    if t.kind == tag int {
+        write("(")
+        if t.data.intData.signed {
+            write("signed")
+        } else {
+            write("unsigned")
+        }
+        write(")")
+    } else if t.kind == tag pointer {
+        write("<")
+        write type(t.data.pointerData.to)
+        write(">")
+    } else if t.kind == tag array {
+        write("[")
+        if (t.data.arrayData.count > 0) {
+            write number(t.data.arrayData.count)
+        }
+        write("]")
+        write type(t.data.arrayData.of)
+    } else if t.kind == tag struct {
+        write(" {\n")
+        // TODO: property access from array (foo[0].bar)
+        // TODO: allow property in each loop
+        var fields = t.data.structData.fields
 
-//         each field : fields {
-//             write("  ")
-//             write number(field.offset)
-//             write("->")
-//             write(field.name)
-//             write(":")
-//             write type(field.type)
-//             write("\n")
-//         }
-//         write("}")
-//     }
-// }
+        each field : fields {
+            write("  ")
+            write number(field.offset)
+            write("->")
+            write(field.name)
+            write(":")
+            write type(field.type)
+            write("\n")
+        }
+        write("}")
+    }
+}
 
 // TODO: get this working in proc scope
 // TODO: property access in use statement (use foo.bar.baz)
 use tui' use color
 
 proc main {
-    printf("some nums: %%%, %%%\n", yellow,10,reset, yellow,20,reset)
-    printf("its %%% (%age %%)\n", green, "ivy",reset, cyan, 23, reset)
+    // printf("some nums: %%%, %%%\n", yellow,10,reset, yellow,20,reset)
+    // printf("its %%% (%age %%)\n", green, "ivy",reset, cyan, 23, reset)
 
+    // printf("hex: %\n", format.hex(0xF00BAB123))
+    // TODO: fix this again 
     struct vec3[x:int,y:int,z:int]
-    var mixed array = ["hey gamers", 10, true, false, vec3(1,2,3)]
+    // var mixed array = ["hey gamers", 10, true, false, vec3(1,2,3)]
 
-    trace(mixed array)
-    println("---")
-    each x : mixed array {
-        println(x)
-    }
+    var v = vec3(1,2,3)
+    // print(vec3(6,7,8))
+    write type(typeof(v))
+
+    // trace(mixed array)
+    // println("---")
+    // each x : mixed array {
+    //     println(x)
+    // }
 
     // var str = "hello rtti"
     // var num = -42

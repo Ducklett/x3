@@ -296,6 +296,17 @@ proc printf[fmt:string,...xs:[]any] {
     }
 }
 
+module format {
+    proc hex[it:any] -> formatter {
+        return formatter([it:any] {
+            var d = it.data
+            var t = it.type
+            assert(t.kind == 1)
+            write hex(<-d)
+        }, it)
+    }
+}
+
 // TODO: some allocation scheme so we can return this as a string
 proc to json[it:any] {
     proc pad[padding:int] {
