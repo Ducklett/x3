@@ -269,11 +269,26 @@ proc println[it:any] {
     write("\n")
 }
 
+// allows for custom formatting in printf
+// e.g. hex/binary numbers, alignment, coloring
+struct formatter[run:(any)->void, args:any]
+
 proc printf[fmt:string,...xs:[]any] {
     var j = 0
     each c,i : fmt {
         if c == "%" {
-            print(xs[j])
+            var it = xs[j]
+            // TODO: allow <-it.data
+            var d = it.data
+            // TODO: allow it.type.name
+            var t = it.type
+            if strequal(t.name, "formatter") {
+                var fmt:formatter = <-d
+                fmt.run(fmt.args)
+            } else {
+                print(it)
+            }
+            
             j++
         } else {
             write char(c)

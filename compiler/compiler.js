@@ -654,7 +654,6 @@ ${[...data.keys()]
                     }
 
                     if (isLambda) {
-                        console.log(node)
                         emitExpr(node.def)
                         lines.push(`pop rax`)
                         lines.push(`call rax`)
@@ -795,27 +794,49 @@ ${[...data.keys()]
                         emitExpr(field)
                         return
                     }
-                    assert(node.left.kind == 'reference')
-                    const kind = node.left.symbol.kind
+                    // assert(node.left.kind == 'reference')
+                    assert(node.left.kind == 'reference' || node.left.kind == 'readProp')
+
+
+                    let prop = node.prop
+                    assert(prop.kind == 'reference')
+                    let offset = 0
+                    let left = node.left
+
+                    while (left.kind == 'readProp') {
+                        // console.log(left)
+                        // assert(false)
+
+                        assert(left.prop.kind == 'reference')
+                        assert(left.prop.symbol.offset !== undefined)
+                        offset += left.prop.symbol.offset
+
+                        left = left.left
+                    }
+
+                    assert(left.kind == 'reference')
+
+                    const kind = left.symbol.kind
+                    left = left.symbol
 
                     assert(kind == 'parameter' || kind == 'declareVar')
 
                     assert(shouldReturn, 'reference should not be called at top level')
 
-                    let offset = 0
-                    let prop = node.prop
+                    // let offset = 0
+                    // let prop = node.prop
 
-                    while (prop.kind == 'readProp') {
-                        assert(prop.left.kind == 'reference')
-                        assert(prop.left.symbol.offset !== undefined)
-                        offset += prop.left.symbol.offset
+                    // while (prop.kind == 'readProp') {
+                    //     assert(prop.left.kind == 'reference')
+                    //     assert(prop.left.symbol.offset !== undefined)
+                    //     offset += prop.left.symbol.offset
 
-                        prop = prop.prop
-                    }
+                    //     prop = prop.prop
+                    // }
 
-                    if (prop.kind != 'reference') {
-                        console.log(prop)
-                    }
+                    // if (prop.kind != 'reference') {
+                    //     console.log(prop)
+                    // }
                     assert(prop.kind == 'reference')
                     assert(prop.symbol.offset !== undefined)
 
@@ -823,7 +844,7 @@ ${[...data.keys()]
 
                     const size = prop.symbol.type.size
 
-                    let left = node.left.symbol
+                    // let left = node.left.symbol
 
                     if (node.left.type.type == 'pointer') {
                         lines.push(`mov rdx, ${emitVar(node.left.symbol)} ; (<-${left.name})`)

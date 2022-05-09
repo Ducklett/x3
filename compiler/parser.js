@@ -3,6 +3,10 @@ const path = require("path")
 
 const fileMap = new Map()
 
+function spanFromRange(from, to) {
+    return { ...from, to: to.to }
+}
+
 function parse(source) {
 
     fileMap.set(source.path, source.code)
@@ -404,12 +408,14 @@ function parse(source) {
             if (currentIsPreUnaryOperator()) {
                 const op = take('operator')
                 const expr = parsePrimaryExpression()
-                lhs = { kind: 'pre unary', expr, op }
+                const span = spanFromRange(op.span, expr.span)
+                lhs = { kind: 'pre unary', expr, op, span }
             } else {
                 const expr = parsePrimaryExpression()
                 if (currentIsPostUnaryOperator()) {
                     const op = take('operator')
-                    lhs = { kind: 'post unary', expr, op }
+                    const span = spanFromRange(expr.span, op.span)
+                    lhs = { kind: 'post unary', expr, op, span }
                 } else {
                     lhs = expr
                 }
@@ -421,7 +427,8 @@ function parse(source) {
                 // NOTE: only the first part of parseExpression can currently have unary operator
                 const rhs = parsePrimaryExpression()
                 assert(rhs)
-                lhs = { kind: 'binary', lhs, op, rhs }
+                const span = spanFromRange(lhs.span, rhs.span)
+                lhs = { kind: 'binary', lhs, op, rhs, span }
             }
             return lhs
 
@@ -433,10 +440,11 @@ function parse(source) {
                     if (is('operator', '.')) {
                         // property acces
                         const dot = take('operator', '.')
-                        const property = parsePrimaryExpression()
+                        const property = parseSymbol()
+                        const span = spanFromRange(lhs.span, property.span)
 
                         // use property access as lhs, try for assignement
-                        lhs = { kind: 'property access', scope: lhs, dot, property }
+                        lhs = { kind: 'property access', scope: lhs, dot, property, span }
                         continue
                     }
 
@@ -444,35 +452,43 @@ function parse(source) {
 
                         if (lhs.value == 'sizeof') {
                             const argumentList = parseList(parseType, "()")
-                            lhs = { kind: 'call', name: lhs, argumentList }
+                            const span = spanFromRange(lhs.span, argumentList.span)
+                            lhs = { kind: 'call', name: lhs, argumentList, span }
                             break
                         }
 
                         // function call
-                        const argumentList = parseList(parseExpression, "()")
-                        lhs = { kind: 'call', name: lhs, argumentList }
-                        continue
+                        {
+
+                            const argumentList = parseList(parseExpression, "()")
+                            const span = spanFromRange(lhs.span, argumentList.span)
+                            lhs = { kind: 'call', name: lhs, argumentList, span }
+                            continue
+                        }
                     }
 
                     if (is('operator', '[')) {
                         const begin = take('operator', '[')
                         const index = parseExpression()
                         const end = take('operator', ']')
-                        lhs = { kind: 'offset access', name: lhs, begin, index, end }
+                        const span = spanFromRange(lhs.span, end.span)
+                        lhs = { kind: 'offset access', name: lhs, begin, index, end, span }
                         continue
                     }
 
                     if (isAssignmentOperator(current())) {
                         const operator = take('operator')
                         const expr = parseExpression()
-                        lhs = { kind: 'assignment', name: lhs, operator, expr }
+                        const span = spanFromRange(lhs.span, expr.span)
+                        lhs = { kind: 'assignment', name: lhs, operator, expr, span }
                         continue
                     }
 
                     if (is('operator', ':')) {
                         const colon = take('operator', ':')
                         const alias = parseSymbol()
-                        lhs = { kind: 'alias', name: lhs, colon, alias }
+                        const span = spanFromRange(lhs.span, alias.span)
+                        lhs = { kind: 'alias', name: lhs, colon, alias, span }
                         break
                     }
 
@@ -525,7 +541,8 @@ function parse(source) {
                     }
                     const tags = parseTags()
                     let body = parseBlock('proc', true, true)
-                    return { kind: 'lambda', parameters, arrow, returnType, body, tags }
+                    const span = spanFromRange(parameters.span, body.span)
+                    return { kind: 'lambda', parameters, arrow, returnType, body, tags, span }
                 } else {
                     const list = parseList(parsePrimaryExpression)
                     list.kind = 'array literal'
@@ -544,7 +561,8 @@ function parse(source) {
                             const open = take('operator', '(')
                             const expr = parseExpression()
                             const close = take('operator', ')')
-                            return { kind: 'parenthesized expression', open, expr, close }
+                            const span = spanFromRange(open.span, close.span)
+                            return { kind: 'parenthesized expression', open, expr, close, span }
                         }
                         if (v == '[') return parseArrayLiteralOrLambda()
 
@@ -573,7 +591,8 @@ function parse(source) {
                             case 'return': {
                                 take('keyword')
                                 const expr = parseExpression()
-                                return { kind: 'return', keyword, expr }
+                                const span = spanFromRange(keyword.span, expr.span)
+                                return { kind: 'return', keyword, expr, span }
                             }
                             default: {
                                 return parseSymbolExpression()
@@ -937,7 +956,8 @@ function parse(source) {
                 }
             }
             const end = take('operator', bookend[1])
-            return { kind: 'list', begin, items, end }
+            const span = spanFromRange(begin.span, end.span)
+            return { kind: 'list', begin, items, end, span }
         }
 
         function parseBlock(scope, allowDeclarations, allowExpressions, withBrackets = true) {
@@ -972,7 +992,14 @@ function parse(source) {
             }
             let end
             if (withBrackets) end = take('operator', '}')
-            return { kind: 'block', begin, statements, end }
+
+            let span
+
+            if (withBrackets) {
+                span = spanFromRange(begin.span, end.span)
+            }
+
+            return { kind: 'block', begin, statements, end, span }
         }
 
         function parseChain() {

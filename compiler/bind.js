@@ -1312,11 +1312,14 @@ function bind(files) {
                 assert(left)
 
                 function checkIfLhsIsLegal(left) {
-                    if (left.kind == 'reference' && left.symbol?.type?.type == 'pointer') {
+                    if ((left.kind == 'readProp' || left.kind == 'reference') && left.symbol?.type?.type == 'pointer') {
                         const to = left.symbol.type.to
                         assert(to.kind == 'struct' || to.kind == 'union' || to.type == 'string' || to.type == 'array')
                     } else {
-                        const isLegal = left.symbol?.type?.kind == 'struct' || left.symbol?.type?.kind == 'union' || left.symbol.scope || node.property.value == 'length'
+                        const isLegal = left.symbol?.type?.kind == 'struct' || left.symbol?.type?.kind == 'union' || left.symbol?.type?.type == 'string' || left.symbol?.type?.type == 'array' || left.symbol.scope
+                        if (!isLegal) {
+                            console.log(left)
+                        }
                         assert(isLegal, `property access is allowed to be: module, struct, union, pointer`)
                     }
                 }
@@ -1340,14 +1343,19 @@ function bind(files) {
                 }
 
                 const right = bindExpression(node.property, scope)
-                // TODO: consider switching these around so assignment holds the full path to the property
-                if (right.kind != 'assignVar') assert(right.type)
+
+                // TODO: give functions a type
+                if (right.symbol.kind != 'function') assert(right.type)
                 const type = right.type
 
                 const it = {
                     kind: 'readProp',
                     left,
                     prop: right,
+                    // the symbol this readprop represents
+                    // this makes it some others parts of the compiler don't have to care about
+                    // wether something is a ref<symbol> or ref<readprop>
+                    symbol: right.symbol,
                     type,
                     span: spanFromRange(left.span, right.span)
                 }
@@ -2358,9 +2366,6 @@ function lower(ast) {
                     }
 
                     node.instructions = outInstructions //[...buffers, ...outInstructions]
-                }
-                if (node.name == 'main') {
-                    console.log('foo')
                 }
                 buffers = prevBuffer
                 return outDeclarations

@@ -22,4 +22,14 @@ proc main[] {
     }
     f()
     indirect(f)
+
+    proc fancy[it:any] -> formatter {
+        return formatter(
+            [it:any] { printf("✩｡:*•.─  ❁ % ❁  ─.•*:｡✩", it) },
+            it
+        )
+    }
+
+    printf("%\n",fancy(10))
+    printf("%\n",fancy("ivy dingeman"))
 }
