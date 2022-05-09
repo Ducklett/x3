@@ -807,6 +807,7 @@ ${[...data.keys()]
                         // console.log(left)
                         // assert(false)
 
+                        assert(left.prop.type.type !== 'pointer')
                         assert(left.prop.kind == 'reference')
                         assert(left.prop.symbol.offset !== undefined)
                         offset += left.prop.symbol.offset
@@ -846,8 +847,10 @@ ${[...data.keys()]
 
                     // let left = node.left.symbol
 
-                    if (node.left.type.type == 'pointer') {
-                        lines.push(`mov rdx, ${emitVar(node.left.symbol)} ; (<-${left.name})`)
+                    // if (node.left.type.type == 'pointer') {
+                    if (left.type.type == 'pointer') {
+                        // lines.push(`mov rdx, ${emitVar(node.left.symbol)} ; (<-${left.name})`)
+                        lines.push(`mov rdx, ${emitVar(left)} ; (<-${left.name})`)
                         left = 'rdx'
                     }
 

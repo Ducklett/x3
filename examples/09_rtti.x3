@@ -66,23 +66,17 @@ proc write type[t:->type info] {
 use tui' use color
 
 proc main {
-    // printf("some nums: %%%, %%%\n", yellow,10,reset, yellow,20,reset)
-    // printf("its %%% (%age %%)\n", green, "ivy",reset, cyan, 23, reset)
+    printf("some nums: %%%, %%%\n", yellow,10,reset, yellow,20,reset)
+    printf("its %%% (%age %%)\n", green, "ivy",reset, cyan, 23, reset)
 
-    // printf("hex: %\n", format.hex(0xF00BAB123))
-    // TODO: fix this again 
+    printf("hex: %\n", format.hex(0xF00BAB123))
     struct vec3[x:int,y:int,z:int]
-    // var mixed array = ["hey gamers", 10, true, false, vec3(1,2,3)]
-
-    var v = vec3(1,2,3)
-    // print(vec3(6,7,8))
-    write type(typeof(v))
-
-    // trace(mixed array)
-    // println("---")
-    // each x : mixed array {
-    //     println(x)
-    // }
+    var mixed array = ["hey gamers", 10, true, false, vec3(1,2,3)]
+    trace(mixed array)
+    println("---")
+    each x : mixed array {
+        println(x)
+    }
 
     // var str = "hello rtti"
     // var num = -42
