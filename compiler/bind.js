@@ -324,6 +324,9 @@ function bind(files) {
                 args.push(ctor(arrayData, of, count))
             } else if (type.tag == tag_struct) {
                 function emitField(structLabel, field) {
+                    // TODO: rewrite this so it stores pointer to reference of type
+                    // (currently it just stored the declarevar directly)
+
                     const type = typeInfoFor(field.type)//findSymbol(typeInfoLabel(field.type), globalScope, false)
                     if (!type) console.log(typeInfoLabel(field.type))
                     assert(type)
@@ -2311,10 +2314,6 @@ function lower(ast) {
 
                     // just treat it as a normal variable for now
                     // only difference is that we prevent you from reassigning the value
-
-                    // else {
-                    //     return [node]
-                    // }
                 }
 
                 if (node.expr) {
@@ -2449,11 +2448,12 @@ function lower(ast) {
                     case 'declareVar': {
                         if (node.symbol.notes.has('const') && node.symbol.expr) {
                             // HACK: typeinfo is stored as pointer and should not be inlined
-                            //if (node.type.type != 'pointer') {
-
-                            // inline little constants
-                            if (node.type.size <= 8) {
-                                return lowerNode(node.symbol.expr)
+                            // (typeinfo will be of size 8 since pointer has size 8)
+                            if (node.type.type != 'pointer') {
+                                // inline little constants
+                                if (node.type.size <= 8) {
+                                    return lowerNode(node.symbol.expr)
+                                }
                             }
                         }
 
