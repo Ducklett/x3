@@ -305,148 +305,166 @@ module format {
             write hex(<-d)
         }, it)
     }
+
+    proc json[it:any] -> formatter {
+        proc to json internal[it:any,padding:int,use padding:bool] {
+            proc pad[padding:int] {
+                for var i = 0; i < padding; i++ {
+                    write char(" ") 
+                }
+            }
+
+            if use padding {
+                pad(padding)
+            }
+
+            // TODO: make an enum out of this 
+            const tag void    = 0
+            const tag int     = 1
+            const tag bool    = 2
+            const tag string  = 3
+            const tag char    = 4
+            const tag pointer = 5
+            const tag array   = 6
+            const tag struct  = 7
+            const tag type    = 8
+            const tag enum    = 9
+
+            var d = it.data
+            // TODO: fix pointer following for nested property access
+            var t = it.type
+
+            if t.kind == tag bool {
+                // TODO: fix this not working with res:bool
+                var res:int = <-d
+                if res > 0 {
+                    write("true")
+                } else {
+                    write("false")
+                }
+            }
+            else if t.kind == tag int {
+                write number(<-d)
+            } else if t.kind == tag string {
+                write("\"")
+                write(<-d)
+                write("\"")
+            } else if t.kind == tag pointer {
+                panic("pointers cannot be serialized")
+            } else if t.kind == tag array {
+                var entries:[]void = <-d
+                var entryType = t.data.arrayData.of
+                var entrySize = entryType.size
+                var is complex = (entries.length > 12) || ((entryType.kind != tag int) && (entries.length > 1))
+
+                // TODO: fix if and else statement having the same scope?
+                var i = 0
+                if is complex {
+                    write("[\n")
+
+                    while(i<entries.length) {
+                        var ptr = entries.buffer + (i * entrySize)
+                        to json internal(any(ptr,entryType),padding+4,true)
+                        if i != (entries.length-1) {
+                            write(",")
+                        }
+                        write("\n")
+                        i++
+                    }
+                    write("]")
+                } else {
+                    write("[")
+
+                    while(i<entries.length) {
+                        var ptr = entries.buffer + (i * entrySize)
+                        to json internal(any(ptr,entryType),padding,false)
+                        if i != (entries.length-1) {
+                            write(", ")
+                        }
+                        i++
+                    }
+                    write("]")
+                }
+
+            } else if t.kind == tag struct {
+                if strequal(t.name, "any") {
+                    var asAny:any = <-d
+                    to json internal(asAny,padding-4,true)
+                    return
+                }
+                var basePtr = d
+                var fields = t.data.structData.fields
+                // TODO: 'fix is complex = field.length>4' not working for some reason
+                var is complex = false
+                if fields.length > 4 {
+                    is complex = true
+                } else {
+                    each field : fields {
+                        var fieldType = field.type
+                        if (field.name.length > 12) {
+                            is complex = true
+                            break
+                        }
+                        if (fieldType.kind != tag int) {
+                            is complex = true
+                            break
+                        }
+                    }
+                }
+
+                if is complex {
+                    write("{\n")
+                    each field,i : fields {
+                        var fieldPtr = basePtr + field.offset
+                        var fieldType = field.type
+                        pad(padding+4)
+                        write("\"")
+                        write(field.name)
+                        write("\"")
+                        write(": ")
+                        to json internal(any(fieldPtr, fieldType), padding+4,false)
+                        if (i != (fields.length-1)) {
+                            write(",\n")
+                        } else {
+                            write("\n")
+                        }
+                    }
+                    pad(padding)
+                    write("}")
+                } else {
+                    write("{")
+                    each field,i : fields {
+                        var fieldPtr = basePtr + field.offset
+                        var fieldType = field.type
+                        write("\"")
+                        write(field.name)
+                        write("\"")
+                        write(": ")
+                        to json internal(any(fieldPtr, fieldType), padding,false)
+                        if (i != (fields.length-1)) {
+                            write(", ")
+                        }
+                    }
+                    write("}")
+                }
+            } else if t.kind == tag enum {
+                // TODO: add cast so we can just cast(int, <-d)
+                var index:int = <-d
+                write number(index)
+            } else {
+                write number(t.kind)
+                panic(": Unsupported type tag")
+            }
+        }
+
+        return formatter([it:any] {
+            to json internal(it,0,false)
+        }, it)
+    }
 }
 
-// TODO: some allocation scheme so we can return this as a string
 proc to json[it:any] {
-    proc pad[padding:int] {
-        for var i = 0; i < padding; i++ {
-            write char(" ") 
-        }
-    }
 
-    proc to json internal[it:any,padding:int,use padding:bool] {
-        if use padding {
-            pad(padding)
-        }
-
-        // TODO: make an enum out of this 
-        const tag void    = 0
-        const tag int     = 1
-        const tag bool    = 2
-        const tag string  = 3
-        const tag char    = 4
-        const tag pointer = 5
-        const tag array   = 6
-        const tag struct  = 7
-        const tag type    = 8
-        const tag enum    = 9
-
-        var d = it.data
-        // TODO: fix pointer following for nested property access
-        var t = it.type
-
-        if t.kind == tag int {
-            write number(<-d)
-        } else if t.kind == tag string {
-            write("\"")
-            write(<-d)
-            write("\"")
-        } else if t.kind == tag pointer {
-            panic("pointers cannot be serialized")
-        } else if t.kind == tag array {
-            var entries:[]void = <-d
-            var entryType = t.data.arrayData.of
-            var entrySize = entryType.size
-            var is complex = (entries.length > 12) || ((entryType.kind != tag int) && (entries.length > 1))
-
-            // TODO: fix if and else statement having the same scope?
-            var i = 0
-            if is complex {
-                write("[\n")
-
-                while(i<entries.length) {
-                    var ptr = entries.buffer + (i * entrySize)
-                    to json internal(any(ptr,entryType),padding+4,true)
-                    if i != (entries.length-1) {
-                        write(",")
-                    }
-                    write("\n")
-                    i++
-                }
-                write("]")
-            } else {
-                write("[")
-
-                while(i<entries.length) {
-                    var ptr = entries.buffer + (i * entrySize)
-                    to json internal(any(ptr,entryType),padding,false)
-                    if i != (entries.length-1) {
-                        write(", ")
-                    }
-                    i++
-                }
-                write("]")
-            }
-
-        } else if t.kind == tag struct {
-            var basePtr = d
-            var fields = t.data.structData.fields
-            // TODO: 'fix is complex = field.length>4' not working for some reason
-            var is complex = false
-            if fields.length > 4 {
-                is complex = true
-            } else {
-                each field : fields {
-                    var fieldType = field.type
-                    if (field.name.length > 12) {
-                        is complex = true
-                        break
-                    }
-                    if (fieldType.kind != tag int) {
-                        is complex = true
-                        break
-                    }
-                }
-            }
-
-            if is complex {
-                write("{\n")
-                each field,i : fields {
-                    var fieldPtr = basePtr + field.offset
-                    var fieldType = field.type
-                    pad(padding+4)
-                    write("\"")
-                    write(field.name)
-                    write("\"")
-                    write(": ")
-                    to json internal(any(fieldPtr, fieldType), padding+4,false)
-                    if (i != (fields.length-1)) {
-                        write(",\n")
-                    } else {
-                        write("\n")
-                    }
-                }
-                pad(padding)
-                write("}")
-            } else {
-                write("{")
-                each field,i : fields {
-                    var fieldPtr = basePtr + field.offset
-                    var fieldType = field.type
-                    write("\"")
-                    write(field.name)
-                    write("\"")
-                    write(": ")
-                    to json internal(any(fieldPtr, fieldType), padding,false)
-                    if (i != (fields.length-1)) {
-                        write(", ")
-                    }
-                }
-                write("}")
-            }
-        } else if t.kind == tag enum {
-            // TODO: add cast so we can just cast(int, <-d)
-            var index:int = <-d
-            write number(index)
-        } else {
-            write number(t.kind)
-            panic(": Unsupported type tag")
-        }
-    }
-
-    to json internal(it,0,false)
-    write("\n")
 }
 
 
@@ -485,6 +503,7 @@ module tui {
         write number(x)
         write("H")
     }
+
     module color {
         const black = "\x1B[0;30m"
         const red = "\x1B[0;31m"
@@ -496,4 +515,5 @@ module tui {
         const white = "\x1B[0;37m"
         const reset = "\x1B[0m"
     }
+
 }

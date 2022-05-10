@@ -880,8 +880,8 @@ ${[...data.keys()]
                         '<=': 'setle',
                         '==': 'sete',
                         '!=': 'setne',
-                        '>>': 'shr', // TODO: research difference between shl/sal
-                        '<<': 'shl',
+                        '>>': 'sar', // TODO: research difference between shl/sal
+                        '<<': 'sal',
                         '&': 'and',
                         '|': 'or',
                         '||': 'or',  // TODO: short circuit
