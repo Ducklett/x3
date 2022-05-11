@@ -14,7 +14,7 @@ proc write[msg:string]
 
 proc write char[c:char]
 {
-    sys.write(sys.stdout, ->c, 1)
+    sys.write(sys.stdout, ~>c, 1)
 }
 
 proc write number[number:int]
@@ -181,24 +181,24 @@ proc print[it:any] {
 
     if t.kind == tag bool {
         // TODO: fix this not working with res:bool
-        var res:int = <-d
+        var res:int = <~d
         if res > 0 {
             write("true")
         } else {
             write("false")
         }
     } else if t.kind == tag int {
-        write number(<-d)
+        write number(<~d)
     } else if t.kind == tag string {
         // write("\"")
-        write(<-d)
+        write(<~d)
         // write("\"")
     } else if t.kind == tag pointer {
-        write("->")
-        print(any(<-d, t.data.pointerData.to))
+        write("~>")
+        print(any(<~d, t.data.pointerData.to))
     } else if t.kind == tag array {
         write("[")
-        var entries:[]void = <-d
+        var entries:[]void = <~d
         var entryType = t.data.arrayData.of
         var entrySize = entryType.size
 
@@ -213,7 +213,7 @@ proc print[it:any] {
     } else if t.kind == tag struct {
         var name = t.name
         if strequal(name,"any") {
-            var it:any = <-d
+            var it:any = <~d
             print(it)
             return
         }
@@ -236,7 +236,7 @@ proc print[it:any] {
     } else if t.kind == tag enum {
         write(t.name)
         write(".")
-        var index:int = <-d
+        var index:int = <~d
         var entries = t.data.enumData.entries
         assert(index<entries.length)
         // TODO: allow expressions like 'entries[index].name'
@@ -278,12 +278,12 @@ proc printf[fmt:string,...xs:[]any] {
     each c,i : fmt {
         if c == "%" {
             var it = xs[j]
-            // TODO: allow <-it.data
+            // TODO: allow <~it.data
             var d = it.data
             // TODO: allow it.type.name
             var t = it.type
             if strequal(t.name, "formatter") {
-                var fmt:formatter = <-d
+                var fmt:formatter = <~d
                 fmt.run(fmt.args)
             } else {
                 print(it)
@@ -302,7 +302,7 @@ module format {
             var d = it.data
             var t = it.type
             assert(t.kind == 1)
-            write hex(<-d)
+            write hex(<~d)
         }, it)
     }
 
@@ -356,7 +356,7 @@ module format {
 
             if t.kind == tag bool {
                 // TODO: fix this not working with res:bool
-                var res:int = <-d
+                var res:int = <~d
                 if res > 0 {
                     write("true")
                 } else {
@@ -364,15 +364,15 @@ module format {
                 }
             }
             else if t.kind == tag int {
-                write number(<-d)
+                write number(<~d)
             } else if t.kind == tag string {
                 write("\"")
-                write(<-d)
+                write(<~d)
                 write("\"")
             } else if t.kind == tag pointer {
                 panic("pointers cannot be serialized")
             } else if t.kind == tag array {
-                var entries:[]void = <-d
+                var entries:[]void = <~d
                 var entryType = t.data.arrayData.of
                 var entrySize = entryType.size
                 var is complex = (entries.length > 12) || ((entryType.kind != tag int) && (entries.length > 1))
@@ -408,7 +408,7 @@ module format {
 
             } else if t.kind == tag struct {
                 if strequal(t.name, "any") {
-                    var asAny:any = <-d
+                    var asAny:any = <~d
                     to json internal(asAny,padding-4,true)
                     return
                 }
@@ -468,8 +468,8 @@ module format {
                     write("}")
                 }
             } else if t.kind == tag enum {
-                // TODO: add cast so we can just cast(int, <-d)
-                var index:int = <-d
+                // TODO: add cast so we can just cast(int, <~d)
+                var index:int = <~d
                 write number(index)
             } else {
                 write number(t.kind)
@@ -538,7 +538,7 @@ proc random range[from:int,to:int] -> int
 {
     var value:int
     // TODO: pass proper flag?
-    sys.getrandom(->value,sizeof(int),0)
+    sys.getrandom(~>value,sizeof(int),0)
 
     // TODO: make unsigned int work and remove this
     if value < 0 { value = -value }

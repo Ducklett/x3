@@ -4,7 +4,7 @@ import "./lib/standard" use standard
 // struct person[name:string,age:int,gender:string]
 // struct complex[entity:person,pos:point]
 
-proc write type[t:->type info] {
+proc write type[t:~>type info] {
     const tag void    = 0
     const tag int     = 1
     const tag bool    = 2
@@ -51,7 +51,7 @@ proc write type[t:->type info] {
         each field : fields {
             write("  ")
             write number(field.offset)
-            write("->")
+            write("~>")
             write(field.name)
             write(":")
             write type(field.type)
@@ -68,6 +68,7 @@ use tui
 use format
 
 proc main {
+    printf("% % % %\n", magenta("var"), red("x"), cyan("="), yellow(10))
     printf("some nums: %, %\n", yellow(10), yellow(20))
     // TODO: fix lowerer so I can do tui.color.cyan
     printf("its % (%age %)\n", bgGreen(black("ivy")), color.cyan, bold(23))
@@ -87,9 +88,9 @@ proc main {
     // var str = "hello rtti"
     // var num = -42
     // var unum:u64 = 20
-    // var sptr = ->str
-    // var nptr = ->num
-    // var uptr = ->unum
+    // var sptr = ~>str
+    // var nptr = ~>num
+    // var uptr = ~>unum
     // var num list = [10,20,30]
     // var str list = ["foo","bar","baz"]
     // var p = point(32,45)

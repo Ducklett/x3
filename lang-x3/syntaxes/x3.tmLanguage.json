@@ -258,7 +258,7 @@
 				},
 				{
 					"name": "keyword.operator.assignment.x3",
-					"match": "(->|<-|=)"
+					"match": "(~>|<~|=|->)"
 				}
 			]
 		}

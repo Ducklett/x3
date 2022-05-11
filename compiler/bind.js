@@ -171,8 +171,8 @@ function bind(files) {
 
 
     // struct any [
-    //     data:->void,
-    //     type:->type info
+    //     data:~>void,
+    //     type:~>type info
     // ]
 
     const voidPtr = cloneType(typeMap.pointer)
@@ -472,7 +472,7 @@ function bind(files) {
             }
         }
 
-        // implicit *T -> *void cast
+        // implicit *T -> ~>void cast
         if (type.type == 'pointer' && type.to.type == 'void' && it.type.type == 'pointer') {
             const cast = { kind: 'implicit cast', type: type, expr: it, span: it.span }
             return cast
@@ -492,8 +492,8 @@ function bind(files) {
             return cast
         }
 
-        // implicit cstring -> *char AND string -> *void cast
-        // implicit string -> *char AND string -> *void cast
+        // implicit cstring -> ~>char AND string -> ~>void cast
+        // implicit string -> ~>char AND string -> ~>void cast
         if (type.type == 'pointer' && (it.type.type == 'cstring' || it.type.type == 'string')) {
             const toType = type.to.type
             if (toType == 'void' || toType == 'char') {
@@ -502,7 +502,7 @@ function bind(files) {
             }
         }
 
-        // implicit []foo -> *foo cast AND []foo -> *void cast
+        // implicit []foo -> ~>foo cast AND []foo -> ~>void cast
         if (type.type == 'pointer' && it.type.type == 'array') {
             if (type.to.type == it.type.of.type || type.to.type == 'void') {
                 const cast = { kind: 'implicit cast', type: type, expr: it, span: it.span }
@@ -1266,11 +1266,11 @@ function bind(files) {
                     op: node.op.value,
                     expr: bindExpression(node.expr),
                 }
-                if (it.op == '<-') {
+                if (it.op == '<~') {
                     assert(it.expr.type.type == 'pointer')
                     assert(it.expr.type.to)
                     it.type = it.expr.type.to
-                } else if (it.op == '->') {
+                } else if (it.op == '~>') {
                     it.type = cloneType(typeMap.pointer)
                     it.type.to = it.expr.type
                 } else {
@@ -1982,7 +1982,7 @@ function lower(ast) {
                     const tPtr = cloneType(typeMap.pointer)
                     tPtr.to = node.expr.type
 
-                    const expr = unary('->', loweredExpr, tPtr)
+                    const expr = unary('~>', loweredExpr, tPtr)
 
                     // NOTE: we are using the raw expr type. not the lowered one
                     // this is because enums get lowered to their backing type but we still want to print them as enums

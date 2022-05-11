@@ -5,18 +5,18 @@ type ssize_t = i64
 type mode_t = i64
 
 // see linux manual for syscall documentation
-proc read[fd:uint,buf:->!char,count:size_t] -> ssize_t       #syscall(0x000)
-proc write[fd:int,buf:->void,count:size_t] -> ssize_t        #syscall(0x001)
+proc read[fd:uint,buf:~>!char,count:size_t] -> ssize_t       #syscall(0x000)
+proc write[fd:int,buf:~>void,count:size_t] -> ssize_t        #syscall(0x001)
 proc open[filename:cstring,flags:int,mode:mode_t] -> int     #syscall(0x002)
 proc close[fd:int] -> int                                    #syscall(0x003)
 
 // TODO:proper types
-proc stat[filename:cstring,statbuf:->void] -> int            #syscall(0x003)
-proc fstat[fd:int,statbuf:->void] -> int                     #syscall(0x005)
-proc lstat[filename:cstring,statbuf:->void] -> int           #syscall(0x006)
-proc poll[ufds:->void,ndfs:int,timeout:int] -> int           #syscall(0x007)
+proc stat[filename:cstring,statbuf:~>void] -> int            #syscall(0x003)
+proc fstat[fd:int,statbuf:~>void] -> int                     #syscall(0x005)
+proc lstat[filename:cstring,statbuf:~>void] -> int           #syscall(0x006)
+proc poll[ufds:~>void,ndfs:int,timeout:int] -> int           #syscall(0x007)
 proc lseek[fd:int,offset:int,whence:int] -> int              #syscall(0x008)
-proc mmap[addr:->void, length:int, prot:int, flags:int, fd:int, offset:int] -> ->void #syscall(0x009)
+proc mmap[addr:~>void, length:int, prot:int, flags:int, fd:int, offset:int] -> ~>void #syscall(0x009)
 
 // TODO:read manual
 proc mprotect[start:u64,len:u64,prot:u64]                    #syscall(0x00A)
@@ -25,7 +25,7 @@ proc brk[brk:u64]                                            #syscall(0x00C)
 
 proc exit[code:int]                                          #syscall(0x03c)
 proc unlink[path:cstring]                                    #syscall(0x057)
-proc getrandom[buf:->!void,buflen:size_t,flags:uint] -> ssize_t  #syscall(0x13e)
+proc getrandom[buf:~>!void,buflen:size_t,flags:uint] -> ssize_t  #syscall(0x13e)
 
 // IO file descriptors
 const stdin:int = 0
