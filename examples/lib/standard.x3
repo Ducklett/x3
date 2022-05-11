@@ -306,6 +306,26 @@ module format {
         }, it)
     }
 
+    proc bold  [it:any] -> formatter { return formatter([it:any] { printf("\x1B[1m%\x1B[0m", it) }, it) }
+
+    proc black  [it:any] -> formatter { return formatter([it:any] { printf("\x1B[30m%\x1B[0m", it) }, it) }
+    proc red    [it:any] -> formatter { return formatter([it:any] { printf("\x1B[31m%\x1B[0m", it) }, it) }
+    proc green  [it:any] -> formatter { return formatter([it:any] { printf("\x1B[32m%\x1B[0m", it) }, it) }
+    proc yellow [it:any] -> formatter { return formatter([it:any] { printf("\x1B[33m%\x1B[0m", it) }, it) }
+    proc blue   [it:any] -> formatter { return formatter([it:any] { printf("\x1B[34m%\x1B[0m", it) }, it) }
+    proc magenta[it:any] -> formatter { return formatter([it:any] { printf("\x1B[35m%\x1B[0m", it) }, it) }
+    proc cyan   [it:any] -> formatter { return formatter([it:any] { printf("\x1B[36m%\x1B[0m", it) }, it) }
+    proc white  [it:any] -> formatter { return formatter([it:any] { printf("\x1B[37m%\x1B[0m", it) }, it) }
+
+    proc bgBlack  [it:any] -> formatter { return formatter([it:any] { printf("\x1B[40m%\x1B[0m", it) }, it) }
+    proc bgRed    [it:any] -> formatter { return formatter([it:any] { printf("\x1B[41m%\x1B[0m", it) }, it) }
+    proc bgGreen  [it:any] -> formatter { return formatter([it:any] { printf("\x1B[42m%\x1B[0m", it) }, it) }
+    proc bgYellow [it:any] -> formatter { return formatter([it:any] { printf("\x1B[43m%\x1B[0m", it) }, it) }
+    proc bgBlue   [it:any] -> formatter { return formatter([it:any] { printf("\x1B[44m%\x1B[0m", it) }, it) }
+    proc bgMagenta[it:any] -> formatter { return formatter([it:any] { printf("\x1B[45m%\x1B[0m", it) }, it) }
+    proc bgCyan   [it:any] -> formatter { return formatter([it:any] { printf("\x1B[46m%\x1B[0m", it) }, it) }
+    proc bgWhite  [it:any] -> formatter { return formatter([it:any] { printf("\x1B[47m%\x1B[0m", it) }, it) }
+
     proc json[it:any] -> formatter {
         proc to json internal[it:any,padding:int,use padding:bool] {
             proc pad[padding:int] {
@@ -461,6 +481,42 @@ module format {
             to json internal(it,0,false)
         }, it)
     }
+
+    // //   bg   fg
+    // //   vvv  vvv
+    // // 0bxxxx_xxxx
+    // //      |    |
+    // //      |    fg flag
+    // //      bg flag
+    // enum color options #bitfield {
+    //     black   = 1,
+    //     red     = 3,
+    //     green   = 5,
+    //     yellow  = 7,
+    //     blue    = 9,
+    //     magenta = 11,
+    //     cyan    = 13,
+    //     white   = 15,
+    // }
+
+    // proc chalk[it:any,options:color options] -> formatter {
+    //     return formatter([it:any] {
+    //         // TODO: somehow pass the actual color
+    //         // we can't do this currently because all the values die after we return
+    //         // some options:
+    //         // - the caller allocates everything; this is currently only possible through []any which makes us lose static typing
+    //         // - allow formatter to store arbitrary data of fixed size; limited
+    //         // - allow formatter to store arbitrary data of any size; hard
+    //         var color = color options.yellow
+    //         var useColor = color&1
+    //         if useColor {
+    //             var colorCode = color >> 1 & 0b111
+    //             printf("\x1B[0;3%m%\x1B[0m",colorCode, it)
+    //         } else {
+    //             printf("%",it)
+    //         }
+    //     }, it)
+    // }
 }
 
 proc to json[it:any] {

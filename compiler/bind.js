@@ -699,10 +699,19 @@ function bind(files) {
                         }
                     }
                     popScope()
+
+                    let value
+                    if (node.value) {
+                        assert(node.value.kind == 'number')
+                        value = node.value.value
+                    } else {
+                        value = i++
+                    }
+
                     const it = {
                         kind: 'enum entry',
                         name,
-                        value: i++,
+                        value,
                         params,
                         scope,
                         notes: new Map(),
@@ -739,13 +748,18 @@ function bind(files) {
                     scope,
                     entries,
                     backingType,
-                    size: backingType.size
+                    size: backingType.size,
+                    notes: new Map()
                 }
                 popScope(scope)
 
                 entries.forEach(v => {
                     v.type = it
                 })
+
+                for (let n of node.tags) {
+                    it.notes.set(...bindTag(n))
+                }
 
                 addSymbol(name, it)
 
@@ -1085,6 +1099,7 @@ function bind(files) {
                 return bindBlock(node)
             }
             default:
+                console.log(node)
                 assert(false, `unhandled kind "${node.kind}"`)
         }
     }
@@ -1348,7 +1363,10 @@ function bind(files) {
                 const right = bindExpression(node.property, scope)
 
                 // TODO: give functions a type
-                if (right.symbol.kind != 'function') assert(right.type)
+                if (right.symbol.kind != 'function') {
+                    if (!right.type) console.log(right)
+                    assert(right.type)
+                }
                 const type = right.type
 
                 const it = {
@@ -1528,6 +1546,9 @@ function bind(files) {
                 }
 
                 assert(b.type)
+
+                let type = null
+
                 if (a.kind == 'stringLiteral' && (b.type.type == 'int' || b.type.type == 'char')) {
                     a.type = typeMap.char
                 }
@@ -1535,22 +1556,37 @@ function bind(files) {
                     b.type = typeMap.char
                 }
 
-                if (a.type.type == 'pointer' && b.type.type == 'int' || b.type.type == 'pointer' && a.type.type == 'int') {
+                if (a.type.kind == 'enum' && b.type.type == 'int') {
+                    type = b.type
+
+                    assert(a.kind == 'reference')
+                    assert(a.symbol.type.notes.has('bitfield'), 'enum arithmetic is only executed on enums marked as #bitfield')
+                    // allow it
+                }
+                else if (b.type.kind == 'enum' && a.type.type == 'int') {
+                    type = a.type
+
+                    assert(b.kind == 'reference')
+                    assert(b.symbol.type.notes.has('bitfield'), 'enum arithmetic is only executed on enums marked as #bitfield')
+                    // allow it
+                }
+                else if (a.type.type == 'pointer' && b.type.type == 'int' || b.type.type == 'pointer' && a.type.type == 'int') {
                     // HACK: allow pointer arithmetic
                 }
                 else if (a.type.type == 'char' && b.type.type == 'int' || b.type.type == 'char' && a.type.type == 'int') {
                     // allow it
                 } else {
                     if (a.type.type != b.type.type) {
+                        console.log(a)
                         console.log(b)
                     }
                     assert(a.type.type == b.type.type)
                 }
 
-
                 const logicalOperators = new Set(['>', '>=', '<', '<=', '==', '!='])
                 const isLogical = logicalOperators.has(op)
-                const type = isLogical ? cloneType(typeMap.bool) : a.type
+                if (!type) type = isLogical ? cloneType(typeMap.bool) : a.type
+
                 const it = { kind: 'binary', a, op, b, type, span: spanFromRange(a.span, b.span) }
                 return it
             }
@@ -2570,7 +2606,11 @@ function lower(ast) {
 
                             assert(node.prop.kind == 'reference')
                             assert(node.prop.symbol.kind == 'enum entry')
-                            const tagType = symbol.backingType.fields[0].type
+
+                            const tagType = symbol.backingType.type == 'int'
+                                ? symbol.backingType
+                                : symbol.backingType.fields[0].type
+
                             const tag = num(node.prop.symbol.value, tagType)
                             const c = ctor(symbol.backingType, tag)
                             return lowerNode(c)

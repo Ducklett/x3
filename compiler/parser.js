@@ -63,6 +63,10 @@ function parse(source) {
             return (c >= 0 && c <= 7)
         }
 
+        function isLegalBinaryNumber(c) {
+            return (c == 0 || c == 1)
+        }
+
 
         const maxTokenLength = 3;
         let lexerIndex = 0;
@@ -201,7 +205,18 @@ function parse(source) {
             // number
             if (isLegalNumber(current())) {
                 let from = lexerIndex
-                if (current() == '0' && peek(1) == 'x') {
+                if (current() == '0' && peek(1) == 'b') {
+                    // binary
+                    lexerIndex += 2
+                    let from = lexerIndex
+                    while (isLegalBinaryNumber(current())) lexerIndex++
+
+                    const slice = code.slice(from, lexerIndex)
+                    let num = parseInt(slice, 2)
+                    tokens.push({ kind: 'number', value: num, span: takeSpan() })
+                    continue
+                }
+                else if (current() == '0' && peek(1) == 'x') {
                     // hex
                     lexerIndex += 2
                     let from = lexerIndex
@@ -694,10 +709,14 @@ function parse(source) {
                         // - red[colorspace:string] = 0
                         const name = parseSymbol()
                         let params = null
+                        let equals, value = null
                         if (is('operator', '[')) {
                             params = parseList(parseTypedSymbol)
+                        } else if (is('operator', '=')) {
+                            equals = take('operator', '=')
+                            value = parseExpression()
                         }
-                        return { kind: 'enum entry', name, params }
+                        return { kind: 'enum entry', name, params, equals, value }
                     }
                     const keyword = take('keyword')
                     const name = take('symbol')
