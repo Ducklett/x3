@@ -5,60 +5,50 @@ import "./lib/standard" use standard
 // struct complex[entity:person,pos:point]
 
 proc write type[t:~>type info] {
-    const tag void    = 0
-    const tag int     = 1
-    const tag bool    = 2
-    const tag string  = 3
-    const tag char    = 4
-    const tag pointer = 5
-    const tag array   = 6
-    const tag struct  = 7
-    const tag type    = 8
+	if t.kind == type tag.struct {
+		write ("struct ")
+	}
 
-    if t.kind == tag struct {
-        write ("struct ")
-    }
+	// write number(t.size)
+	// write("::")
+	write(t.name)
 
-    // write number(t.size)
-    // write("::")
-    write(t.name)
+	if t.kind == type tag.int {
+		write("(")
+		if t.data.intData.signed {
+			write("signed")
+		} else {
+			write("unsigned")
+		}
+		write(")")
+	} else if t.kind == type tag.pointer {
+		write("<")
+		write type(t.data.pointerData.to)
+		write(">")
+	} else if t.kind == type tag.array {
+		write("[")
+		if (t.data.arrayData.count > 0) {
+			write number(t.data.arrayData.count)
+		}
+		write("]")
+		write type(t.data.arrayData.of)
+	} else if t.kind == type tag.struct {
+		write(" {\n")
+		// TODO: property access from array (foo[0].bar)
+		// TODO: allow property in each loop
+		var fields = t.data.structData.fields
 
-    if t.kind == tag int {
-        write("(")
-        if t.data.intData.signed {
-            write("signed")
-        } else {
-            write("unsigned")
-        }
-        write(")")
-    } else if t.kind == tag pointer {
-        write("<")
-        write type(t.data.pointerData.to)
-        write(">")
-    } else if t.kind == tag array {
-        write("[")
-        if (t.data.arrayData.count > 0) {
-            write number(t.data.arrayData.count)
-        }
-        write("]")
-        write type(t.data.arrayData.of)
-    } else if t.kind == tag struct {
-        write(" {\n")
-        // TODO: property access from array (foo[0].bar)
-        // TODO: allow property in each loop
-        var fields = t.data.structData.fields
-
-        each field : fields {
-            write("  ")
-            write number(field.offset)
-            write("~>")
-            write(field.name)
-            write(":")
-            write type(field.type)
-            write("\n")
-        }
-        write("}")
-    }
+		each field : fields {
+			write("  ")
+			write number(field.offset)
+			write("~>")
+			write(field.name)
+			write(":")
+			write type(field.type)
+			write("\n")
+		}
+		write("}")
+	}
 }
 
 // TODO: get this working in proc scope
@@ -68,66 +58,66 @@ use tui
 use format
 
 proc main {
-    printf("% % % %\n", magenta("var"), red("x"), cyan("="), yellow(10))
-    printf("some nums: %, %\n", yellow(10), yellow(20))
-    // TODO: fix lowerer so I can do tui.color.cyan
-    printf("its % (%age %)\n", bgGreen(black("ivy")), color.cyan, bold(23))
+	printf("% % % %\n", magenta("var"), red("x"), cyan("="), yellow(10))
+	printf("some nums: %, %\n", yellow(10), yellow(20))
+	// TODO: fix lowerer so I can do tui.color.cyan
+	printf("its % (%age %)\n", bgGreen(black("ivy")), color.cyan, bold(23))
 
-    printf("hex: %\n", format.hex(0xF00BAB00))
-    struct vec3[x:int,y:int,z:int]
-    var mixed array = ["hey gamers", 10, true, false, vec3(1,2,3)]
-    trace(mixed array)
-    println("---")
-    each x : mixed array {
-        println(x)
-    }
+	printf("hex: %\n", format.hex(0xABC99F00BAB00))
+	struct vec3[x:int,y:int,z:int]
+	var mixed array = ["hey gamers", 10, true, false, vec3(1,2,3)]
+	trace(mixed array)
+	println("---")
+	each x : mixed array {
+		println(x)
+	}
 
-    printf("%\n", format.json(mixed array))
-    printf("%\n", format.json(vec3(2,3,4)))
+	printf("%\n", format.json(mixed array))
+	printf("%\n", format.json(vec3(2,3,4)))
 
-    // var str = "hello rtti"
-    // var num = -42
-    // var unum:u64 = 20
-    // var sptr = ~>str
-    // var nptr = ~>num
-    // var uptr = ~>unum
-    // var num list = [10,20,30]
-    // var str list = ["foo","bar","baz"]
-    // var p = point(32,45)
-    // var me = person("ivy", 23, "male")
-    // var c = complex(me,p)
+	// var str = "hello rtti"
+	// var num = -42
+	// var unum:u64 = 20
+	// var sptr = ~>str
+	// var nptr = ~>num
+	// var uptr = ~>unum
+	// var num list = [10,20,30]
+	// var str list = ["foo","bar","baz"]
+	// var p = point(32,45)
+	// var me = person("ivy", 23, "male")
+	// var c = complex(me,p)
 
-    // // TODO: fix const being broken
+	// // TODO: fix const being broken
 
-    // // what's broken
-    // // - .data section consts just assume everything is a qword currently; firgure out how to switch to other sizes so we can properly do bools and chars
-    // write type(typeof(str)) write("\n")
-    // write type(typeof(num)) write("\n")
-    // write type(typeof(sptr)) write("\n")
-    // write type(typeof(nptr)) write("\n")
-    // write type(typeof(uptr)) write("\n")
-    // write type(typeof(num list)) write("\n")
-    // write type(typeof(str list)) write("\n")
-    // write type(typeof(p)) write("\n")
-    // write type(typeof(me)) write("\n")
+	// // what's broken
+	// // - .data section consts just assume everything is a qword currently; firgure out how to switch to other sizes so we can properly do bools and chars
+	// write type(typeof(str)) write("\n")
+	// write type(typeof(num)) write("\n")
+	// write type(typeof(sptr)) write("\n")
+	// write type(typeof(nptr)) write("\n")
+	// write type(typeof(uptr)) write("\n")
+	// write type(typeof(num list)) write("\n")
+	// write type(typeof(str list)) write("\n")
+	// write type(typeof(p)) write("\n")
+	// write type(typeof(me)) write("\n")
 
-    // println(num)
-    // println(str)
-    // println(sptr)
-    // println(nptr)
-    // println(uptr)
-    // println(num list)
-    // println(str list)
-    // println(p)
-    // println(me)
+	// println(num)
+	// println(str)
+	// println(sptr)
+	// println(nptr)
+	// println(uptr)
+	// println(num list)
+	// println(str list)
+	// println(p)
+	// println(me)
 
-    // write line("json gang:")
-    // to json(num)
-    // to json(str)
-    // to json(num list)
-    // to json(str list)
-    // to json(p)
-    // to json(me)
-    // to json(c)
-    // write line("私は猫がラブ😭🐾")
+	// write line("json gang:")
+	// to json(num)
+	// to json(str)
+	// to json(num list)
+	// to json(str list)
+	// to json(p)
+	// to json(me)
+	// to json(c)
+	// write line("私は猫がラブ😭🐾")
 }

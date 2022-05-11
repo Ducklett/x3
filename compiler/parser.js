@@ -719,7 +719,7 @@ function parse(source) {
                         return { kind: 'enum entry', name, params, equals, value }
                     }
                     const keyword = take('keyword')
-                    const name = take('symbol')
+                    const name = parseSymbol()
                     const tags = parseTags()
                     const entries = parseList(parseEnumEntry, '{}')
                     return { kind: 'enum', keyword, name, tags, entries }

@@ -975,8 +975,13 @@ ${[...data.keys()]
                 }
                 case 'numberLiteral': {
                     assert(shouldReturn, 'number should not be called at top level')
-                    // TODO: get a fitting empty register instead of hardcoded rax
-                    lines.push(`push ${node.n}`)
+                    if (node.type.signed) {
+                        lines.push(`push ${node.n}`)
+                    } else {
+                        // NOTE: we put it into rax first, because pushing a number into the stack directly causes it to be sign extended
+                        lines.push(`mov rax, ${node.n}`)
+                        lines.push(`push rax`)
+                    }
                     return
                 }
                 case 'arrayLiteral': {

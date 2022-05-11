@@ -179,29 +179,29 @@ const ERFKILL:int = 132 // Operation not possible due to RF-kill
 const EHWPOISON:int = 133 // Memory page has hardware error
 
 // open flags
-const O_ACCMODE:int =	   0o003
-const O_RDONLY:int =	     0o0
-const O_WRONLY:int =	     0o1
-const O_RDWR:int =		     0o2
-const O_CREAT:int =	   0o100
-const O_EXCL:int =		   0o200
-const O_NOCTTY:int =	   0o400
-const O_TRUNC:int =	  0o1000
-const O_APPEND:int =	  0o2000
-const O_NONBLOCK:int =	  0o4000
-const O_NDELAY:int =	O_NONBLOCK
-const O_SYNC:int =	       0o4010000
-const O_FSYNC:int =		O_SYNC
-const O_ASYNC:int =	 0o20000
-const __O_LARGEFILE:int =	0o100000
-const __O_DIRECTORY:int =	0o200000
-const __O_NOFOLLOW:int =	0o400000
-const __O_CLOEXEC:int =   0o2000000
-const __O_DIRECT:int =	 0o40000
-const __O_NOATIME:int =   0o1000000
-const __O_PATH:int =     0o10000000
-const __O_DSYNC:int =	 0o10000
-const __O_TMPFILE:int =   (0o20000000 | __O_DIRECTORY)
+const O_ACCMODE:uint		= 0o003
+const O_RDONLY:uint			= 0o0
+const O_WRONLY:uint			= 0o1
+const O_RDWR:uint			= 0o2
+const O_CREAT:uint			= 0o100
+const O_EXCL:uint			= 0o200
+const O_NOCTTY:uint			= 0o400
+const O_TRUNC:uint			= 0o1000
+const O_APPEND:uint			= 0o2000
+const O_NONBLOCK:uint		= 0o4000
+const O_NDELAY:uint			= O_NONBLOCK
+const O_SYNC:uint			= 0o4010000
+const O_FSYNC:uint			= O_SYNC
+const O_ASYNC:uint			= 0o20000
+const __O_LARGEFILE:uint	= 0o100000
+const __O_DIRECTORY:uint	= 0o200000
+const __O_NOFOLLOW:uint		= 0o400000
+const __O_CLOEXEC:uint		= 0o2000000
+const __O_DIRECT:uint		= 0o40000
+const __O_NOATIME:uint		= 0o1000000
+const __O_PATH:uint			= 0o10000000
+const __O_DSYNC:uint		= 0o10000
+const __O_TMPFILE:uint		= (0o20000000 | __O_DIRECTORY)
 
 // TODO: add the remaining flags
 

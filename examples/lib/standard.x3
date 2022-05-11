@@ -4,269 +4,271 @@ module standard
 
 proc exit[code:int]
 {
-    sys.exit(code)
+	sys.exit(code)
 }
 
 proc write[msg:string]
 {
-    sys.write(sys.stdout, msg, msg.length)
+	sys.write(sys.stdout, msg, msg.length)
 }
 
 proc write char[c:char]
 {
-    sys.write(sys.stdout, ~>c, 1)
+	sys.write(sys.stdout, ~>c, 1)
 }
 
 proc write number[number:int]
 {
-    if number == 0 {
-        write char("0")
-        return
-    }
+	if number == 0 {
+		write char("0")
+		return
+	}
 
-    if number < 0 {
-        write char("-")
-        number = 0 - number
-    }
+	if number < 0 {
+		write char("-")
+		number = 0 - number
+	}
 
-    // find highest decimal place
-    var decimal place = 1
-    while number > decimal place {
-        decimal place *= 10
-    }
-    if number / decimal place == 0 {
-        decimal place /= 10
-    }
+	// find highest decimal place
+	var decimal place = 1
+	while number > decimal place {
+		decimal place *= 10
+	}
+	if number / decimal place == 0 {
+		decimal place /= 10
+	}
 
-    // work our way down, printing along the way
-    while decimal place > 0 {
-        var digit = number / decimal place
-        write char("0" + digit)
-        number -= digit * decimal place
-        decimal place /= 10
-    }
+	// work our way down, printing along the way
+	while decimal place > 0 {
+		var digit = number / decimal place
+		write char("0" + digit)
+		number -= digit * decimal place
+		decimal place /= 10
+	}
 }
 
 proc write hex[number:int] {
-    write char("0")
-    write char("x")
-    const lut = "0123456789ABCDEF"
-    for var i = 60; i >= 0; i-=4 {
-        write char(lut[(number>>i) & 0xF])
-    }
+	write char("0")
+	write char("x")
+	const lut = "0123456789ABCDEF"
+	for var i = 60; i >= 0; i-=4 {
+		write char(lut[(number>>i) & 0xF])
+	}
 }
 
 proc write line[msg:string] {
-    write(msg)
-    write("\n")
+	write(msg)
+	write("\n")
 }
 
 proc strlen[str:cstring] -> int
 {
-    var len = 0
-    while str[len] != 0 { len++ }
-    return len
+	var len = 0
+	while str[len] != 0 { len++ }
+	return len
 }
 
 proc write cstring[str:cstring] {
-    sys.write(sys.stdout, str, strlen(str))
+	sys.write(sys.stdout, str, strlen(str))
 }
 
 proc assert[
-    condition:bool      #callee span(message),
-    message:string,
-    call site:string    #call site
+	condition:bool      #callee span(message),
+	message:string,
+	call site:string    #call site
 ] {
-    if condition { return }
+	if condition { return }
 
-    write(call site)
-    write(" assertion failed: ")
-    write(message)
-    write("\n")
-    exit(1)
+	write(call site)
+	write(" assertion failed: ")
+	write(message)
+	write("\n")
+	exit(1)
 }
 
 proc panic[
-    message:string,
-    call site:string #call site
+	message:string,
+	call site:string #call site
 ] {
-    write(call site)
-    write(" PANIC: ")
-    write(message)
-    write("\n")
-    exit(1)
+	write(call site)
+	write(" PANIC: ")
+	write(message)
+	write("\n")
+	exit(1)
 }
 
 proc trace[
-    it:any,
-    call site:string #call site
+	it:any,
+	call site:string #call site
 ] {
-    write(call site)
-    write(": ")
-    println(it)
+	write(call site)
+	write(": ")
+	println(it)
 }
 
 proc TODO[call site:string #call site]
 {
-    write(call site)
-    write(" not implemented.\n")
-    exit(1)
+	write(call site)
+	write(" not implemented.\n")
+	exit(1)
 }
 
 // reads into the input buffer from stdin
 // returns a string containing the input
 proc read[buffer:![]char] -> string
 {
-    var len = sys.read(sys.stdin, buffer, buffer.length)
-    return string(buffer, len)
+	var len = sys.read(sys.stdin, buffer, buffer.length)
+	return string(buffer, len)
 }
 
 
 proc write file text base[filename:cstring, content:string, flags:int, mode: sys.mode_t] #private
 {
-    var fd = sys.open(filename, flags, mode)
-    assert(fd>=0)
+	var fd = sys.open(filename, flags, mode)
+	assert(fd>=0)
 
-    sys.write(fd,content,content.length)
+	sys.write(fd,content,content.length)
 
-    var error = sys.close(fd)
-    assert(error == 0)
+	var error = sys.close(fd)
+	assert(error == 0)
 }
 
 proc write all text[filename:cstring, content:string]
 {
-    const flags = sys.O_CREAT|sys.O_WRONLY
-    const mode = sys.S_IRUSR|sys.S_IWUSR
+	const flags = sys.O_CREAT|sys.O_WRONLY
+	const mode = sys.S_IRUSR|sys.S_IWUSR
 
-    sys.unlink(filename)
-    write file text base(filename, content, flags, mode)
+	sys.unlink(filename)
+	write file text base(filename, content, flags, mode)
 }
 
 proc append text[filename:cstring, content:string]
 {
-    const flags = sys.O_CREAT|sys.O_WRONLY|sys.O_APPEND
-    const mode = sys.S_IRUSR|sys.S_IWUSR
+	const flags = sys.O_CREAT|sys.O_WRONLY|sys.O_APPEND
+	const mode = sys.S_IRUSR|sys.S_IWUSR
 
-    write file text base(filename, content, flags, mode)
+	write file text base(filename, content, flags, mode)
 }
 
 proc strequal[a:string,b:string] {
-    if a.length != b.length {
-        return false
-    }
-    each c,i : a {
-        if c != b[i] {
-            return false
-        }
-    }
-    return true
+	if a.length != b.length {
+		return false
+	}
+	each c,i : a {
+		if c != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// TODO: turn type info into tagged union
+enum type tag #bitfield {
+	void    = 0,
+	int     = 1,
+	bool    = 2,
+	string  = 3,
+	char    = 4,
+	pointer = 5,
+	array   = 6,
+	struct  = 7,
+	type    = 8,
+	enum    = 9,
 }
 
 proc print[it:any] {
-    // TODO: make an enum out of this 
-    const tag void    = 0
-    const tag int     = 1
-    const tag bool    = 2
-    const tag string  = 3
-    const tag char    = 4
-    const tag pointer = 5
-    const tag array   = 6
-    const tag struct  = 7
-    const tag type    = 8
-    const tag enum    = 9
+	var d = it.data
+	// TODO: fix pointer following for nested property access
+	var t = it.type
 
-    var d = it.data
-    // TODO: fix pointer following for nested property access
-    var t = it.type
+	if t.kind == type tag.bool {
+		// TODO: fix this not working with res:bool
+		var res:int = <~d
+		if res > 0 {
+			write("true")
+		} else {
+			write("false")
+		}
+	} else if t.kind == type tag.int {
+		write number(<~d)
+	} else if t.kind == type tag.string {
+		// write("\"")
+		write(<~d)
+		// write("\"")
+	} else if t.kind == type tag.pointer {
+		write("~>")
+		print(any(<~d, t.data.pointerData.to))
+	} else if t.kind == type tag.array {
+		write("[")
+		var entries:[]void = <~d
+		var entryType = t.data.arrayData.of
+		var entrySize = entryType.size
 
-    if t.kind == tag bool {
-        // TODO: fix this not working with res:bool
-        var res:int = <~d
-        if res > 0 {
-            write("true")
-        } else {
-            write("false")
-        }
-    } else if t.kind == tag int {
-        write number(<~d)
-    } else if t.kind == tag string {
-        // write("\"")
-        write(<~d)
-        // write("\"")
-    } else if t.kind == tag pointer {
-        write("~>")
-        print(any(<~d, t.data.pointerData.to))
-    } else if t.kind == tag array {
-        write("[")
-        var entries:[]void = <~d
-        var entryType = t.data.arrayData.of
-        var entrySize = entryType.size
+		var i = 0
+		while(i<entries.length) {
+			if (i != 0) { write(", ") }
+			var ptr = entries.buffer + (i * entrySize)
+			print(any(ptr,entryType))
+			i++
+		}
+		write("]")
+	} else if t.kind == type tag.struct {
+		var name = t.name
+		if strequal(name,"any") {
+			var it:any = <~d
+			print(it)
+			return
+		}
+		var basePtr = d
+		var fields = t.data.structData.fields
 
-        var i = 0
-        while(i<entries.length) {
-            if (i != 0) { write(", ") }
-            var ptr = entries.buffer + (i * entrySize)
-            print(any(ptr,entryType))
-            i++
-        }
-        write("]")
-    } else if t.kind == tag struct {
-        var name = t.name
-        if strequal(name,"any") {
-            var it:any = <~d
-            print(it)
-            return
-        }
-        var basePtr = d
-        var fields = t.data.structData.fields
-
-        write(t.name)
-        write("{")
-        each field,i : fields {
-            if (i != 0) {
-                write(", ")
-            }
-            var fieldPtr = basePtr + field.offset
-            var fieldType = field.type
-            write(field.name)
-            write("=")
-            print(any(fieldPtr, fieldType))
-        }
-        write("}")
-    } else if t.kind == tag enum {
-        write(t.name)
-        write(".")
-        var index:int = <~d
-        var entries = t.data.enumData.entries
-        assert(index<entries.length)
-        // TODO: allow expressions like 'entries[index].name'
-        var entry = entries[index]
-        var fields = entry.fields
-        write(entry.name)
-        if fields.length > 0 {
-            write("[")
-            var basePtr=d
-            each field,i : fields {
-                if (i != 0) {
-                    write(", ")
-                }
-                var fieldPtr = basePtr + field.offset
-                var fieldType = field.type
-                write(field.name)
-                write("=")
-                print(any(fieldPtr, fieldType))
-            }
-            write("]")
-        }
-    } else {
-        write number(t.kind)
-        assert(false, "Unsupported type tag")
-    }
+		write(t.name)
+		write("{")
+		each field,i : fields {
+			if (i != 0) {
+				write(", ")
+			}
+			var fieldPtr = basePtr + field.offset
+			var fieldType = field.type
+			write(field.name)
+			write("=")
+			print(any(fieldPtr, fieldType))
+		}
+		write("}")
+	} else if t.kind == type tag.enum {
+		write(t.name)
+		write(".")
+		var index:int = <~d
+		var entries = t.data.enumData.entries
+		assert(index<entries.length)
+		// TODO: allow expressions like 'entries[index].name'
+		var entry = entries[index]
+		var fields = entry.fields
+		write(entry.name)
+		if fields.length > 0 {
+			write("[")
+			var basePtr=d
+			each field,i : fields {
+				if (i != 0) {
+					write(", ")
+				}
+				var fieldPtr = basePtr + field.offset
+				var fieldType = field.type
+				write(field.name)
+				write("=")
+				print(any(fieldPtr, fieldType))
+			}
+			write("]")
+		}
+	} else {
+		write number(t.kind)
+		assert(false, "Unsupported type tag")
+	}
 }
 
 proc println[it:any] {
-    print(it)
-    write("\n")
+	print(it)
+	write("\n")
 }
 
 // allows for custom formatting in printf
@@ -274,302 +276,285 @@ proc println[it:any] {
 struct formatter[run:(any)->void, args:any]
 
 proc printf[fmt:string,...xs:[]any] {
-    var j = 0
-    each c,i : fmt {
-        if c == "%" {
-            var it = xs[j]
-            // TODO: allow <~it.data
-            var d = it.data
-            // TODO: allow it.type.name
-            var t = it.type
-            if strequal(t.name, "formatter") {
-                var fmt:formatter = <~d
-                fmt.run(fmt.args)
-            } else {
-                print(it)
-            }
-            
-            j++
-        } else {
-            write char(c)
-        }
-    }
+	var j = 0
+	each c,i : fmt {
+		if c == "%" {
+			var it = xs[j]
+			// TODO: allow <~it.data
+			var d = it.data
+			// TODO: allow it.type.name
+			var t = it.type
+			if strequal(t.name, "formatter") {
+				var fmt:formatter = <~d
+				fmt.run(fmt.args)
+			} else {
+				print(it)
+			}
+			
+			j++
+		} else {
+			write char(c)
+		}
+	}
 }
 
 module format {
-    proc hex[it:any] -> formatter {
-        return formatter([it:any] {
-            var d = it.data
-            var t = it.type
-            assert(t.kind == 1)
-            write hex(<~d)
-        }, it)
-    }
+	proc hex[it:any] -> formatter {
+		return formatter([it:any] {
+			var d = it.data
+			var t = it.type
+			assert(t.kind == 1)
+			write hex(<~d)
+		}, it)
+	}
 
-    proc bold  [it:any] -> formatter { return formatter([it:any] { printf("\x1B[1m%\x1B[0m", it) }, it) }
+	proc bold  [it:any] -> formatter { return formatter([it:any] { printf("\x1B[1m%\x1B[0m", it) }, it) }
 
-    proc black  [it:any] -> formatter { return formatter([it:any] { printf("\x1B[30m%\x1B[0m", it) }, it) }
-    proc red    [it:any] -> formatter { return formatter([it:any] { printf("\x1B[31m%\x1B[0m", it) }, it) }
-    proc green  [it:any] -> formatter { return formatter([it:any] { printf("\x1B[32m%\x1B[0m", it) }, it) }
-    proc yellow [it:any] -> formatter { return formatter([it:any] { printf("\x1B[33m%\x1B[0m", it) }, it) }
-    proc blue   [it:any] -> formatter { return formatter([it:any] { printf("\x1B[34m%\x1B[0m", it) }, it) }
-    proc magenta[it:any] -> formatter { return formatter([it:any] { printf("\x1B[35m%\x1B[0m", it) }, it) }
-    proc cyan   [it:any] -> formatter { return formatter([it:any] { printf("\x1B[36m%\x1B[0m", it) }, it) }
-    proc white  [it:any] -> formatter { return formatter([it:any] { printf("\x1B[37m%\x1B[0m", it) }, it) }
+	proc black  [it:any] -> formatter { return formatter([it:any] { printf("\x1B[30m%\x1B[0m", it) }, it) }
+	proc red    [it:any] -> formatter { return formatter([it:any] { printf("\x1B[31m%\x1B[0m", it) }, it) }
+	proc green  [it:any] -> formatter { return formatter([it:any] { printf("\x1B[32m%\x1B[0m", it) }, it) }
+	proc yellow [it:any] -> formatter { return formatter([it:any] { printf("\x1B[33m%\x1B[0m", it) }, it) }
+	proc blue   [it:any] -> formatter { return formatter([it:any] { printf("\x1B[34m%\x1B[0m", it) }, it) }
+	proc magenta[it:any] -> formatter { return formatter([it:any] { printf("\x1B[35m%\x1B[0m", it) }, it) }
+	proc cyan   [it:any] -> formatter { return formatter([it:any] { printf("\x1B[36m%\x1B[0m", it) }, it) }
+	proc white  [it:any] -> formatter { return formatter([it:any] { printf("\x1B[37m%\x1B[0m", it) }, it) }
 
-    proc bgBlack  [it:any] -> formatter { return formatter([it:any] { printf("\x1B[40m%\x1B[0m", it) }, it) }
-    proc bgRed    [it:any] -> formatter { return formatter([it:any] { printf("\x1B[41m%\x1B[0m", it) }, it) }
-    proc bgGreen  [it:any] -> formatter { return formatter([it:any] { printf("\x1B[42m%\x1B[0m", it) }, it) }
-    proc bgYellow [it:any] -> formatter { return formatter([it:any] { printf("\x1B[43m%\x1B[0m", it) }, it) }
-    proc bgBlue   [it:any] -> formatter { return formatter([it:any] { printf("\x1B[44m%\x1B[0m", it) }, it) }
-    proc bgMagenta[it:any] -> formatter { return formatter([it:any] { printf("\x1B[45m%\x1B[0m", it) }, it) }
-    proc bgCyan   [it:any] -> formatter { return formatter([it:any] { printf("\x1B[46m%\x1B[0m", it) }, it) }
-    proc bgWhite  [it:any] -> formatter { return formatter([it:any] { printf("\x1B[47m%\x1B[0m", it) }, it) }
+	proc bgBlack  [it:any] -> formatter { return formatter([it:any] { printf("\x1B[40m%\x1B[0m", it) }, it) }
+	proc bgRed    [it:any] -> formatter { return formatter([it:any] { printf("\x1B[41m%\x1B[0m", it) }, it) }
+	proc bgGreen  [it:any] -> formatter { return formatter([it:any] { printf("\x1B[42m%\x1B[0m", it) }, it) }
+	proc bgYellow [it:any] -> formatter { return formatter([it:any] { printf("\x1B[43m%\x1B[0m", it) }, it) }
+	proc bgBlue   [it:any] -> formatter { return formatter([it:any] { printf("\x1B[44m%\x1B[0m", it) }, it) }
+	proc bgMagenta[it:any] -> formatter { return formatter([it:any] { printf("\x1B[45m%\x1B[0m", it) }, it) }
+	proc bgCyan   [it:any] -> formatter { return formatter([it:any] { printf("\x1B[46m%\x1B[0m", it) }, it) }
+	proc bgWhite  [it:any] -> formatter { return formatter([it:any] { printf("\x1B[47m%\x1B[0m", it) }, it) }
 
-    proc json[it:any] -> formatter {
-        proc to json internal[it:any,padding:int,use padding:bool] {
-            proc pad[padding:int] {
-                for var i = 0; i < padding; i++ {
-                    write char(" ") 
-                }
-            }
+	proc json[it:any] -> formatter {
+		proc to json internal[it:any,padding:int,use padding:bool] {
+			proc pad[padding:int] {
+				for var i = 0; i < padding; i++ {
+					write char(" ") 
+				}
+			}
 
-            if use padding {
-                pad(padding)
-            }
+			if use padding {
+				pad(padding)
+			}
 
-            // TODO: make an enum out of this 
-            const tag void    = 0
-            const tag int     = 1
-            const tag bool    = 2
-            const tag string  = 3
-            const tag char    = 4
-            const tag pointer = 5
-            const tag array   = 6
-            const tag struct  = 7
-            const tag type    = 8
-            const tag enum    = 9
+			var d = it.data
+			// TODO: fix pointer following for nested property access
+			var t = it.type
 
-            var d = it.data
-            // TODO: fix pointer following for nested property access
-            var t = it.type
+			if t.kind == type tag.bool {
+				// TODO: fix this not working with res:bool
+				var res:int = <~d
+				if res > 0 {
+					write("true")
+				} else {
+					write("false")
+				}
+			}
+			else if t.kind == type tag.int {
+				write number(<~d)
+			} else if t.kind == type tag.string {
+				write("\"")
+				write(<~d)
+				write("\"")
+			} else if t.kind == type tag.pointer {
+				panic("pointers cannot be serialized")
+			} else if t.kind == type tag.array {
+				var entries:[]void = <~d
+				var entryType = t.data.arrayData.of
+				var entrySize = entryType.size
+				var is complex = (entries.length > 12) || ((entryType.kind != type tag.int) && (entries.length > 1))
 
-            if t.kind == tag bool {
-                // TODO: fix this not working with res:bool
-                var res:int = <~d
-                if res > 0 {
-                    write("true")
-                } else {
-                    write("false")
-                }
-            }
-            else if t.kind == tag int {
-                write number(<~d)
-            } else if t.kind == tag string {
-                write("\"")
-                write(<~d)
-                write("\"")
-            } else if t.kind == tag pointer {
-                panic("pointers cannot be serialized")
-            } else if t.kind == tag array {
-                var entries:[]void = <~d
-                var entryType = t.data.arrayData.of
-                var entrySize = entryType.size
-                var is complex = (entries.length > 12) || ((entryType.kind != tag int) && (entries.length > 1))
+				// TODO: fix if and else statement having the same scope?
+				var i = 0
+				if is complex {
+					write("[\n")
 
-                // TODO: fix if and else statement having the same scope?
-                var i = 0
-                if is complex {
-                    write("[\n")
+					while(i<entries.length) {
+						var ptr = entries.buffer + (i * entrySize)
+						to json internal(any(ptr,entryType),padding+4,true)
+						if i != (entries.length-1) {
+							write(",")
+						}
+						write("\n")
+						i++
+					}
+					write("]")
+				} else {
+					write("[")
 
-                    while(i<entries.length) {
-                        var ptr = entries.buffer + (i * entrySize)
-                        to json internal(any(ptr,entryType),padding+4,true)
-                        if i != (entries.length-1) {
-                            write(",")
-                        }
-                        write("\n")
-                        i++
-                    }
-                    write("]")
-                } else {
-                    write("[")
+					while(i<entries.length) {
+						var ptr = entries.buffer + (i * entrySize)
+						to json internal(any(ptr,entryType),padding,false)
+						if i != (entries.length-1) {
+							write(", ")
+						}
+						i++
+					}
+					write("]")
+				}
 
-                    while(i<entries.length) {
-                        var ptr = entries.buffer + (i * entrySize)
-                        to json internal(any(ptr,entryType),padding,false)
-                        if i != (entries.length-1) {
-                            write(", ")
-                        }
-                        i++
-                    }
-                    write("]")
-                }
+			} else if t.kind == type tag.struct {
+				if strequal(t.name, "any") {
+					var asAny:any = <~d
+					to json internal(asAny,padding-4,true)
+					return
+				}
+				var basePtr = d
+				var fields = t.data.structData.fields
+				// TODO: 'fix is complex = field.length>4' not working for some reason
+				var is complex = false
+				if fields.length > 4 {
+					is complex = true
+				} else {
+					each field : fields {
+						var fieldType = field.type
+						if (field.name.length > 12) {
+							is complex = true
+							break
+						}
+						if (fieldType.kind != type tag.int) {
+							is complex = true
+							break
+						}
+					}
+				}
 
-            } else if t.kind == tag struct {
-                if strequal(t.name, "any") {
-                    var asAny:any = <~d
-                    to json internal(asAny,padding-4,true)
-                    return
-                }
-                var basePtr = d
-                var fields = t.data.structData.fields
-                // TODO: 'fix is complex = field.length>4' not working for some reason
-                var is complex = false
-                if fields.length > 4 {
-                    is complex = true
-                } else {
-                    each field : fields {
-                        var fieldType = field.type
-                        if (field.name.length > 12) {
-                            is complex = true
-                            break
-                        }
-                        if (fieldType.kind != tag int) {
-                            is complex = true
-                            break
-                        }
-                    }
-                }
+				if is complex {
+					write("{\n")
+					each field,i : fields {
+						var fieldPtr = basePtr + field.offset
+						var fieldType = field.type
+						pad(padding+4)
+						write("\"")
+						write(field.name)
+						write("\"")
+						write(": ")
+						to json internal(any(fieldPtr, fieldType), padding+4,false)
+						if (i != (fields.length-1)) {
+							write(",\n")
+						} else {
+							write("\n")
+						}
+					}
+					pad(padding)
+					write("}")
+				} else {
+					write("{")
+					each field,i : fields {
+						var fieldPtr = basePtr + field.offset
+						var fieldType = field.type
+						write("\"")
+						write(field.name)
+						write("\"")
+						write(": ")
+						to json internal(any(fieldPtr, fieldType), padding,false)
+						if (i != (fields.length-1)) {
+							write(", ")
+						}
+					}
+					write("}")
+				}
+			} else if t.kind == type tag.enum {
+				// TODO: add cast so we can just cast(int, <~d)
+				var index:int = <~d
+				write number(index)
+			} else {
+				write number(t.kind)
+				panic(": Unsupported type tag")
+			}
+		}
 
-                if is complex {
-                    write("{\n")
-                    each field,i : fields {
-                        var fieldPtr = basePtr + field.offset
-                        var fieldType = field.type
-                        pad(padding+4)
-                        write("\"")
-                        write(field.name)
-                        write("\"")
-                        write(": ")
-                        to json internal(any(fieldPtr, fieldType), padding+4,false)
-                        if (i != (fields.length-1)) {
-                            write(",\n")
-                        } else {
-                            write("\n")
-                        }
-                    }
-                    pad(padding)
-                    write("}")
-                } else {
-                    write("{")
-                    each field,i : fields {
-                        var fieldPtr = basePtr + field.offset
-                        var fieldType = field.type
-                        write("\"")
-                        write(field.name)
-                        write("\"")
-                        write(": ")
-                        to json internal(any(fieldPtr, fieldType), padding,false)
-                        if (i != (fields.length-1)) {
-                            write(", ")
-                        }
-                    }
-                    write("}")
-                }
-            } else if t.kind == tag enum {
-                // TODO: add cast so we can just cast(int, <~d)
-                var index:int = <~d
-                write number(index)
-            } else {
-                write number(t.kind)
-                panic(": Unsupported type tag")
-            }
-        }
+		return formatter([it:any] {
+			to json internal(it,0,false)
+		}, it)
+	}
 
-        return formatter([it:any] {
-            to json internal(it,0,false)
-        }, it)
-    }
+	// //   bg   fg
+	// //   vvv  vvv
+	// // 0bxxxx_xxxx
+	// //      |    |
+	// //      |    fg flag
+	// //      bg flag
+	// enum color options #bitfield {
+	//     black   = 1,
+	//     red     = 3,
+	//     green   = 5,
+	//     yellow  = 7,
+	//     blue    = 9,
+	//     magenta = 11,
+	//     cyan    = 13,
+	//     white   = 15,
+	// }
 
-    // //   bg   fg
-    // //   vvv  vvv
-    // // 0bxxxx_xxxx
-    // //      |    |
-    // //      |    fg flag
-    // //      bg flag
-    // enum color options #bitfield {
-    //     black   = 1,
-    //     red     = 3,
-    //     green   = 5,
-    //     yellow  = 7,
-    //     blue    = 9,
-    //     magenta = 11,
-    //     cyan    = 13,
-    //     white   = 15,
-    // }
-
-    // proc chalk[it:any,options:color options] -> formatter {
-    //     return formatter([it:any] {
-    //         // TODO: somehow pass the actual color
-    //         // we can't do this currently because all the values die after we return
-    //         // some options:
-    //         // - the caller allocates everything; this is currently only possible through []any which makes us lose static typing
-    //         // - allow formatter to store arbitrary data of fixed size; limited
-    //         // - allow formatter to store arbitrary data of any size; hard
-    //         var color = color options.yellow
-    //         var useColor = color&1
-    //         if useColor {
-    //             var colorCode = color >> 1 & 0b111
-    //             printf("\x1B[0;3%m%\x1B[0m",colorCode, it)
-    //         } else {
-    //             printf("%",it)
-    //         }
-    //     }, it)
-    // }
+	// proc chalk[it:any,options:color options] -> formatter {
+	//     return formatter([it:any] {
+	//         // TODO: somehow pass the actual color
+	//         // we can't do this currently because all the values die after we return
+	//         // some options:
+	//         // - the caller allocates everything; this is currently only possible through []any which makes us lose static typing
+	//         // - allow formatter to store arbitrary data of fixed size; limited
+	//         // - allow formatter to store arbitrary data of any size; hard
+	//         var color = color options.yellow
+	//         var useColor = color&1
+	//         if useColor {
+	//             var colorCode = color >> 1 & 0b111
+	//             printf("\x1B[0;3%m%\x1B[0m",colorCode, it)
+	//         } else {
+	//             printf("%",it)
+	//         }
+	//     }, it)
+	// }
 }
-
-proc to json[it:any] {
-
-}
-
 
 proc parse int[s:string] -> int {
-    var num = 0
-    each c : s {
-        // TODO: get precedence working
-        if (c < "0") || (c > "9") { break }
-        num = (num * 10) + (c - "0")
-    }
-    return num
+	var num = 0
+	each c : s {
+		// TODO: get precedence working
+		if (c < "0") || (c > "9") { break }
+		num = (num * 10) + (c - "0")
+	}
+	return num
 }
 
 proc random range[from:int,to:int] -> int
 {
-    var value:int
-    // TODO: pass proper flag?
-    sys.getrandom(~>value,sizeof(int),0)
+	var value:int
+	// TODO: pass proper flag?
+	sys.getrandom(~>value,sizeof(int),0)
 
-    // TODO: make unsigned int work and remove this
-    if value < 0 { value = -value }
+	// TODO: make unsigned int work and remove this
+	if value < 0 { value = -value }
 
-    return (value % (to-from)) + from
+	return (value % (to-from)) + from
 }
 
 module tui {
-    proc clear[] {
-        // goto 0,0; clear
-        write("\x1B[H\x1B[J")
-    }
+	proc clear[] {
+		// goto 0,0; clear
+		write("\x1B[H\x1B[J")
+	}
 
-    proc cursor to[x:int,y:int] {
-        write("\x1B[")
-        write number(y)
-        write(";")
-        write number(x)
-        write("H")
-    }
+	proc cursor to[x:int,y:int] {
+		write("\x1B[")
+		write number(y)
+		write(";")
+		write number(x)
+		write("H")
+	}
 
-    module color {
-        const black = "\x1B[0;30m"
-        const red = "\x1B[0;31m"
-        const green = "\x1B[0;32m"
-        const yellow = "\x1B[0;33m"
-        const blue = "\x1B[0;34m"
-        const magenta = "\x1B[0;35m"
-        const cyan = "\x1B[0;36m"
-        const white = "\x1B[0;37m"
-        const reset = "\x1B[0m"
-    }
+	module color {
+		const black = "\x1B[0;30m"
+		const red = "\x1B[0;31m"
+		const green = "\x1B[0;32m"
+		const yellow = "\x1B[0;33m"
+		const blue = "\x1B[0;34m"
+		const magenta = "\x1B[0;35m"
+		const cyan = "\x1B[0;36m"
+		const white = "\x1B[0;37m"
+		const reset = "\x1B[0m"
+	}
 
 }
