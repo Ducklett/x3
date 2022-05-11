@@ -1363,7 +1363,7 @@ function bind(files) {
                 const right = bindExpression(node.property, scope)
 
                 // TODO: give functions a type
-                if (right.symbol.kind != 'function') {
+                if (right.symbol.kind != 'function' && right.symbol.kind != 'module') {
                     if (!right.type) console.log(right)
                     assert(right.type)
                 }
@@ -1794,7 +1794,6 @@ function bind(files) {
         for (let i in body.statements) {
             const stmt = body.statements[i]
             if (stmt.kind == 'label') {
-                console.log('label first')
                 boundStatements[i] = bindDeclaration(stmt)
             }
         }
@@ -1803,8 +1802,6 @@ function bind(files) {
         for (let i in body.statements) {
             const stmt = body.statements[i]
             if (!boundStatements[i]) {
-
-                if (stmt.kind == 'goto') console.log('goto :)')
                 boundStatements[i] = bindDeclaration(stmt)
             }
         }
@@ -2497,6 +2494,8 @@ function lower(ast) {
                     }
                     case 'parameter': return [node]
                     case 'function': return [node]
+                    // this will be handled in readProp
+                    case 'module': return [node]
 
                     default:
                         assert(false, `unhandled kind ${node.symbol.kind}`)
@@ -2591,32 +2590,23 @@ function lower(ast) {
                 return [node]
             }
             case 'readProp': {
+
+                while (node.left.kind == 'readProp') {
+                    let left = lowerNode(node.left)
+                    assert(left.length == 1)
+                    left = left[0]
+                    if (left == node.left) {
+                        // done lowering this side
+                        break
+                    }
+                    node.left = left
+                }
+
                 if (node.left.kind == 'reference') {
                     const symbol = node.left.symbol
                     switch (symbol.kind) {
-                        case 'enum alias': {
-                            assert(symbol.of)
-                            const r = ref(symbol.of)
-                            const prop = readProp(r, node.prop)
-                            return lowerNode(prop)
-                        }
-                        case 'module': return lowerNode(node.prop)
-                        case 'enum': {
-                            if (node.prop.kind == 'enumctorcall') return lowerNode(node.prop)
-
-                            assert(node.prop.kind == 'reference')
-                            assert(node.prop.symbol.kind == 'enum entry')
-
-                            const tagType = symbol.backingType.type == 'int'
-                                ? symbol.backingType
-                                : symbol.backingType.fields[0].type
-
-                            const tag = num(node.prop.symbol.value, tagType)
-                            const c = ctor(symbol.backingType, tag)
-                            return lowerNode(c)
-                        }
-
                         case 'parameter': return [node]
+                        case 'module': return lowerNode(node.prop)
                         case 'declareVar': {
                             if (node.prop.kind == 'assignVar') {
                                 const left = node.left
@@ -2625,13 +2615,54 @@ function lower(ast) {
                                 const it = { kind: 'assignProp', left, right, expr, span: node.span }
                                 return lowerNode(it)
                             }
-
                             return [node]
                         }
                         default:
+                            console.log(node)
                             assert(false, `unhandled kind ${symbol.kind}`)
                     }
                 }
+                // if (node.left.kind == 'reference') {
+                //     const symbol = node.left.symbol
+                //     switch (symbol.kind) {
+                //         case 'enum alias': {
+                //             assert(symbol.of)
+                //             const r = ref(symbol.of)
+                //             const prop = readProp(r, node.prop)
+                //             return lowerNode(prop)
+                //         }
+                //         case 'module': return lowerNode(node.prop)
+                //         case 'enum': {
+                //             if (node.prop.kind == 'enumctorcall') return lowerNode(node.prop)
+
+                //             assert(node.prop.kind == 'reference')
+                //             assert(node.prop.symbol.kind == 'enum entry')
+
+                //             const tagType = symbol.backingType.type == 'int'
+                //                 ? symbol.backingType
+                //                 : symbol.backingType.fields[0].type
+
+                //             const tag = num(node.prop.symbol.value, tagType)
+                //             const c = ctor(symbol.backingType, tag)
+                //             return lowerNode(c)
+                //         }
+
+                //         case 'parameter': return [node]
+                //         case 'declareVar': {
+                //             if (node.prop.kind == 'assignVar') {
+                //                 const left = node.left
+                //                 const right = node.prop.varDec
+                //                 const expr = node.prop.expr
+                //                 const it = { kind: 'assignProp', left, right, expr, span: node.span }
+                //                 return lowerNode(it)
+                //             }
+
+                //             return [node]
+                //         }
+                //         default:
+                //             assert(false, `unhandled kind ${symbol.kind}`)
+                //     }
+                // }
 
                 return [node]
             }

@@ -4,7 +4,6 @@ proc main[] {
     play snake()
 }
 
-
 proc play snake[] {
 
     // TODO: read board size constant from outer scope
@@ -19,13 +18,15 @@ proc play snake[] {
     var score = 0
     var apple pos = random position()
     var player pos = random position()
+    var key err = false 
 
     // TODO: make goto work when the label is in another block (don't jump into scope blocks though)
     // we always want to render once before taking user input
     goto render
 
     label game loop:
-    scope update[player pos:int,apple pos:int,score:int] {
+    scope update[player pos:int,apple pos:int,score:int, key err:!bool] {
+        key err = false
         var key:[2]char // NOTE: it's 2 characters because otherwise it will buffer and return the buffered character
         read(key)
         // TODO: handle wrapping
@@ -38,9 +39,9 @@ proc play snake[] {
         } else if key[0] == "d" {
             player pos += 1
         } else {
-            write(tui.color.yellow)
-            write("unkown key; use wasd to move\n")
-            write(tui.color.reset)
+            key err = true
+            // TODO: find lab
+            // goto game loop
         }
 
         if apple pos == player pos {
@@ -51,7 +52,7 @@ proc play snake[] {
     }
 
     label render:
-    scope render[board:[]char, apple pos:int,player pos:int,score:int] {
+    scope render[board:[]char, apple pos:int,player pos:int,score:int, key err:bool] {
         tui.clear()
         tui.cursor to(0,5)
         // tui.clear()
@@ -64,10 +65,7 @@ proc play snake[] {
         board[player pos] = body
         board[apple pos] = apple
 
-        write("Score: ")
-        write(tui.color.green)
-        println(score)
-        write(tui.color.reset)
+        printf("Score: %\n", format.green(score))
 
         each cell,i : board {
             var color = tui.color.white
@@ -85,6 +83,10 @@ proc play snake[] {
             }
         }
         write(tui.color.reset)
+
+        if key err {
+            printf("%\n", format.yellow("unkown key; use wasd to move"))
+        }
     }
 
     if score < 10 goto game loop
