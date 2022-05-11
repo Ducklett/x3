@@ -1,0 +1,54 @@
+proc write[fd:int,msg:~>void,msg length:int] #syscall(0x001)
+proc exit[code:int]                          #syscall(0x03c)
+
+const stdout = 1
+const stderr = 2
+
+proc main[args:[]cstring]
+{
+	if args.length <= 1 				{ show help() }
+	if cstr equal(args[1], "-h")   		{ show help() }
+	if cstr equal(args[1], "--help")   	{ show help() }
+
+	each arg,i : args {
+		// TODO: fix break and continue in each loop
+		if i != 0 {
+			var len = strlen(arg)
+			write(stdout, arg, len)
+
+			if i != (args.length-1) {
+				write(stdout, " ", 1)
+			} else {
+				write(stdout, "\n", 1)
+			}
+		}
+	}
+}
+
+proc show help[] {
+	const msg = "
+Usage: echo [options] text
+
+Options:
+  -h|--Help      get help
+"
+	write(stderr, msg, msg.length)
+	exit(1)
+}
+
+proc strlen[c:cstring] -> int {
+	var i = 0
+	while c[i] != 0 { i++ }
+	return i
+}
+
+proc cstr equal[c:cstring,s:string] -> bool {
+	var i = 0
+	while c[i] != 0 {
+		if i >= s.length { return false }
+		if c[i] != s[i] { return false }
+		i++
+	}
+
+	return i == s.length
+}

@@ -1,0 +1,26 @@
+proc write[fd:int,msg:~>void,msg length:int] #syscall(0x001)
+proc exit[code:int]                          #syscall(0x03c)
+
+const stdout = 1
+const stderr = 2
+
+proc main[args:[]cstring]
+{
+	if args.length > 1 { show help() }
+
+	// goto 0,0; clear
+    const msg = "\x1B[H\x1B[J"
+
+    write(stdout, msg, msg.length)
+}
+
+proc show help[] {
+	const msg = "
+Usage: clear [options]
+
+Options:
+  -h|--Help      get help
+"
+	write(stderr, msg, msg.length)
+	exit(1)
+}
