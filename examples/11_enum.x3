@@ -62,10 +62,10 @@ proc main[] {
     // print action(b)
     // print action(c)
 
-	var i = type.number("int", 8, true)
-	var u = type.number("uint", 8, false)
-	var pi = type.pointer("pointer", 8, ~>i)
-	var pu = type.pointer("pointer", 8, ~>u)
+	var i  = type.number (name="int",     size=8, signed=true)
+	var u  = type.number (name="uint",    size=8, signed=false)
+	var pi = type.pointer(name="pointer", size=8, to=~>i)
+	var pu = type.pointer(name="pointer", size=8, to=~>u)
 
     printf("%: %\n", i.name, i.size)
     printf("%: %\n", u.name, u.size)

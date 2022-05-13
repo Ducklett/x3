@@ -1213,6 +1213,25 @@ function bind(files) {
 		return [t, args]
 	}
 
+	function bindPossiblyNamedExpression(node, inScope) {
+		// interpret x=foo as named argument
+		const isNamedArgument = node.kind == 'assignment' && node.name.kind == 'symbol' && node.operator.value == '='
+
+		if (!isNamedArgument) {
+			return bindExpression(node, inScope)
+		}
+
+		const expr = bindExpression(node.expr, inScope)
+		const it = {
+			kind: 'named argument',
+			name: node.name.value,
+			expr,
+			type: expr.type,
+			span: expr.span,
+		}
+		return it
+	}
+
 	function bindExpression(node, inScope) {
 		switch (node.kind) {
 			case 'boolean literal':
@@ -1448,6 +1467,8 @@ function bind(files) {
 						type: def.symbol.type.returns,
 						span: spanFromRange(node.name.span, node.argumentList.end.span)
 					}
+					// TODO: validate lambda arguments
+					// it.args = validateArguments(it.args, params, node.name.span.file)
 					return it
 				}
 
@@ -1456,7 +1477,7 @@ function bind(files) {
 					const it = {
 						kind: 'enumctorcall',
 						entry: def.symbol,
-						args: bindList(node.argumentList.items, bindExpression),
+						args: bindList(node.argumentList.items, bindPossiblyNamedExpression),
 						type,
 						span: spanFromRange(node.name.span, node.argumentList.end.span)
 					}
@@ -1467,7 +1488,7 @@ function bind(files) {
 					const params = def.symbol.fields
 					const it = {
 						kind: 'ctorcall',
-						args: bindList(node.argumentList.items, bindExpression),
+						args: bindList(node.argumentList.items, bindPossiblyNamedExpression),
 						type,
 						span: spanFromRange(node.name.span, node.argumentList.end.span)
 					}
@@ -1478,7 +1499,7 @@ function bind(files) {
 					const it = {
 						kind: 'syscall',
 						code: def.symbol.notes.get('syscall')[0],
-						args: bindList(node.argumentList.items, bindExpression),
+						args: bindList(node.argumentList.items, bindPossiblyNamedExpression),
 						type,
 						span: spanFromRange(node.name.span, node.argumentList.end.span)
 					}
@@ -1501,7 +1522,7 @@ function bind(files) {
 						return it
 					}
 
-					const args = bindList(node.argumentList.items, bindExpression)
+					const args = bindList(node.argumentList.items, bindPossiblyNamedExpression)
 
 
 					if (isTypeof) {
@@ -1750,6 +1771,13 @@ function bind(files) {
 
 			let arg = args[i]
 
+			if (arg.kind == 'named argument') {
+				if (arg.name != param.name) {
+					console.log(`its name should be '${param.name}', but got '${arg.name}' (${JSON.stringify(arg.span)})`)
+				}
+				assert(arg.name == param.name)
+			}
+
 			assert(param.type, `param has a type`)
 			assert(arg.type, `arument has a type`)
 
@@ -1938,6 +1966,8 @@ function lower(ast) {
 			case 'numberLiteral':
 			case 'booleanLiteral':
 			case 'charLiteral': return [node]
+
+			case 'named argument': return lowerNode(node.expr)
 
 			case 'sizeof': {
 				assert(node.arg)
