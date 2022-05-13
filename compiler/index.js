@@ -10,13 +10,13 @@ compile('examples/coreutils/echo.x3')
 function compile(filename) {
 	const file = ({ path: filename, code: read(filename) })
 	const syntaxTree = parse(file)
-	const ast = bind(syntaxTree)
-	const [loweredAst, meta] = lower(ast)
 
-	const entrypoint = meta.entrypoint?.name || 'main'
+	// const ast = bind(syntaxTree)
+	// const [loweredAst, meta] = lower(ast)
+	// const entrypoint = meta.entrypoint?.name || 'main'
+	// emitAsm(loweredAst, { entrypoint })
 
-	//outputHtml(st)
-	emitAsm(loweredAst, { entrypoint })
+	outputHtml(syntaxTree)
 
 	// console.log(inspect(ast, { depth: 2 }))
 }

@@ -1,8 +1,14 @@
 const fs = require('fs')
 const { format } = require('./format')
 
+function escapeHtml(text) {
+    return text
+        .replace(/>/g, '&gt;')
+        .replace(/</g, '&lt;')
+}
 function markHtml(kind, text) {
-    return `<span class="${kind}">${text}</span>`
+    text = text.toString()
+    return `<span class="${kind}">${escapeHtml(text)}</span>`
 }
 
 module.exports = {
@@ -18,8 +24,8 @@ module.exports = {
     body {
         margin:0;
         min-height: 100vh;
-        display:grid;
-        place-content:center;
+        // display:grid;
+        // place-content:center;
     }
     .code {
         font-size:14px;
@@ -38,7 +44,7 @@ module.exports = {
     .operator { color: #56B6C2; }
     .pseudo-operator { color: #ABB2BF; }
     .comment { color: #7F848E; }
-    .number { color: #D19A66; }
+    .number,.bool { color: #D19A66; }
     .string { color: #98C379; }
     .tag { color: #E5C07B; }
     .line-nr { color: #495162; }
