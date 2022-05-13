@@ -1,6 +1,6 @@
 const { copyFileSync } = require('fs')
 const { type } = require('os')
-const { assert, declareVar, num, binary, ref, readProp, unary, label, goto, assignVar, indexedAccess, nop, call, ctor, struct, param, fn, str, MARK, union, bool } = require('./compiler')
+const { assert, declareVar, num, binary, ref, readProp, unary, label, goto, assignVar, indexedAccess, nop, call, ctor, struct, param, fn, str, MARK, union, bool, roundToIncrement } = require('./compiler')
 const { fileMap } = require('./parser')
 
 const tag_void = 0
@@ -693,8 +693,8 @@ function bind(files) {
 						let offset = 0
 						for (let param of params) {
 							param.offset = offset
-							assert(param.type.size && param.type.size % 8 == 0)
-							offset += param.type.size
+							assert(param.type.size)
+							offset += roundToIncrement(param.type.size, 8)
 							fields.push(param)
 						}
 					}
@@ -720,37 +720,53 @@ function bind(files) {
 					addSymbol(name, it)
 					return it
 				}
+
 				const name = node.name.value
 				assert(name)
-				const scope = pushScope(null, name, 'enum')
-				let backingType = typeMap.int
-				const entries = bindList(node.entries.items, bindEnumEntry)
-
-				if (fields.length) {
-					// update the field offsets to account for the tag
-					for (let f of fields) {
-						f.offset += backingType.size
-					}
-
-					// put tag at the start of fields
-					fields = [param('tag', backingType), ...fields]
-
-					// update the backing type so it's a struct containing the tag followed by the fields
-					backingType = struct(name + '$backingTaggedUnion', fields)
-				}
-
 				assert(!findSymbol(name, null, false), 'name is unique')
+
 				const it = {
 					tag: tag_enum,
 					kind: 'enum',
 					type: name,
 					name,
-					scope,
-					entries,
-					backingType,
-					size: backingType.size,
+					scope: null,
+					sharedFields: null,
+					entries: null,
+					backingType: null,
+					size: null,//backingType.size,
 					notes: new Map()
 				}
+
+
+				addSymbol(name, it)
+
+				const scope = pushScope(null, name, 'enum')
+
+				let backingType = typeMap.int
+				let offset = backingType.size
+				let sharedFields = bindParameters(node.params)
+				for (let field of sharedFields) {
+					field.offset = offset
+					assert(field.type.size)
+					offset += roundToIncrement(field.type.size, 8)
+				}
+
+
+				const entries = bindList(node.entries.items, bindEnumEntry)
+				if (fields.length || sharedFields.length) {
+					// update the field offsets to account for the tag
+					for (let f of fields) {
+						f.offset += offset
+					}
+
+					// put tag and shared fields at the start of fields
+					fields = [param('tag', backingType), ...sharedFields, ...fields]
+
+					// update the backing type so it's a struct containing the tag followed by the fields
+					backingType = struct(name + '$backingTaggedUnion', fields)
+				}
+
 				popScope(scope)
 
 				entries.forEach(v => {
@@ -761,7 +777,11 @@ function bind(files) {
 					it.notes.set(...bindTag(n))
 				}
 
-				addSymbol(name, it)
+				it.scope = scope
+				it.sharedFields = sharedFields
+				it.entries = entries
+				it.backingType = backingType
+				it.size = backingType.size
 
 				return it
 			}
@@ -1431,9 +1451,8 @@ function bind(files) {
 					return it
 				}
 
-				const params = isStruct ? def.symbol.fields : def.symbol.params;
-
 				if (isEnumCtor) {
+					const params = [...def.symbol.type.sharedFields, ...def.symbol.params]
 					const it = {
 						kind: 'enumctorcall',
 						entry: def.symbol,
@@ -1445,6 +1464,7 @@ function bind(files) {
 					return it
 				}
 				else if (isStruct) {
+					const params = def.symbol.fields
 					const it = {
 						kind: 'ctorcall',
 						args: bindList(node.argumentList.items, bindExpression),
@@ -1454,6 +1474,7 @@ function bind(files) {
 					it.args = validateArguments(it.args, params, node.name.span.file)
 					return it
 				} else if (isSyscall) {
+					const params = def.symbol.params
 					const it = {
 						kind: 'syscall',
 						code: def.symbol.notes.get('syscall')[0],
@@ -1464,6 +1485,7 @@ function bind(files) {
 					it.args = validateArguments(it.args, params, node.name.span.file)
 					return it
 				} else {
+					const params = def.symbol.params
 					const isTypeof = node.name.value == 'typeof'
 					const isSizeOf = node.name.value == 'sizeof'
 
@@ -1614,16 +1636,9 @@ function bind(files) {
 				const varDec = bindExpression(node.name, inScope)
 				assert(varDec, `symbol "${node.name.value}" is defined`)
 
-				const expr = bindExpression(node.expr)
+				let expr = bindExpression(node.expr)
 
-				// TODO: real type coersion
-				if (varDec.type.type == 'char' && expr.kind == 'stringLiteral') {
-					assert(expr.len == 1)
-					expr.kind = 'charLiteral'
-					expr.type = cloneType(typeMap.char)
-				}
-
-				assert(varDec.type.type == expr.type.type)
+				expr = coerceType(varDec.type, expr)
 
 				const it = {
 					kind: 'assignVar',
@@ -2487,6 +2502,18 @@ function lower(ast) {
 					node.expr = binary(binaryOp, node.varDec, node.expr)
 				}
 
+				const vardec = lowerNode(node.varDec)
+				assert(vardec.length == 1)
+				node.varDec = vardec[0]
+
+				if (node.varDec.kind == 'readProp') {
+					const left = node.varDec.left
+					const right = node.varDec.prop
+					const expr = node.expr
+					const it = { kind: 'assignProp', left, right, expr, span: node.span }
+					return lowerNode(it)
+				}
+
 				const expr = lowerNode(node.expr)
 
 				assert(expr.length == 1)
@@ -2627,15 +2654,12 @@ function lower(ast) {
 					switch (symbol.kind) {
 						case 'parameter': return [node]
 						case 'module': return lowerNode(node.prop)
-						case 'declareVar': {
-							if (node.prop.kind == 'assignVar') {
-								const left = node.left
-								const right = node.prop.varDec
-								const expr = node.prop.expr
-								const it = { kind: 'assignProp', left, right, expr, span: node.span }
-								return lowerNode(it)
-							}
-							return [node]
+						case 'declareVar': return [node]
+						case 'enum alias': {
+							assert(symbol.of)
+							const r = ref(symbol.of)
+							const prop = readProp(r, node.prop)
+							return lowerNode(prop)
 						}
 						case 'enum': {
 							if (node.prop.kind == 'enumctorcall') return lowerNode(node.prop)

@@ -39,6 +39,7 @@ const api = {
 	read,
 	write,
 	assert,
+	roundToIncrement(number, increment) { return Math.ceil(number / increment) * increment },
 
 	fd: {
 		stdin: 0,

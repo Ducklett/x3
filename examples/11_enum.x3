@@ -6,6 +6,11 @@ enum action {
     heal[amount:int],
 }
 
+enum type[name:string,size:int] {
+	number[signed:bool],
+	pointer[to:~>type],
+}
+
 proc print action[action:action] {
     match action {
         idle {
@@ -27,40 +32,45 @@ proc print action[action:action] {
 }
 
 proc main[] {
+    // var a = action.idle
+    // var b = action.move(10,20)
+    // var c = action.heal(48)
 
-    // TODO: add the ability to just do action.idle
-    var a = action.idle
-    var b = action.move(10,20)
-    var c = action.heal(48)
+    // println(a)
+    // println(b)
+    // println(c)
 
-    println(a)
-    println(b)
-    println(c)
+    // if c == heal:h {
+    //     write("heal ")
+    //     write number(h.amount)
+    //     write("!\n")
+    // } else {
+    //     write line("It's not heal")
+    // }
 
-    if c == heal:h {
-        write("heal ")
-        write number(h.amount)
-        write("!\n")
-    } else {
-        write line("It's not heal")
-    }
+    // assert(b==move:m, "b is a move")
 
-    assert(b==move:m, "b is a move")
+    // write number(m.x)
+    // write(", ")
+    // write number(m.y)
+    // write("\n")
 
-    write number(m.x)
-    write(", ")
-    write number(m.y)
-    write("\n")
+    // m.x=45
+    // m.y=68
 
-    m.x=45
-    m.y=68
+    // print action(a)
+    // print action(b)
+    // print action(c)
 
-    print action(a)
-    print action(b)
-    print action(c)
+	var i = type.number("int", 8, true)
+	var u = type.number("uint", 8, false)
+	var pi = type.pointer("pointer", 8, ~>i)
+	var pu = type.pointer("pointer", 8, ~>u)
 
-    trace(20)
-
+    printf("%: %\n", i.name, i.size)
+    // printf("%: %\n", u.name, u.size)
+    // printf("%: %\n", pi.name, pi.size)
+    // printf("%: %\n", pu.name, pu.size)
 
     // write line("match:")
     // match c {

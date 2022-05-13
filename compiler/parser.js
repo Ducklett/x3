@@ -720,9 +720,13 @@ function parse(source) {
 					}
 					const keyword = take('keyword')
 					const name = parseSymbol()
+					let params
+					if (is('operator', '[')) {
+						params = parseList(parseTypedSymbol)
+					}
 					const tags = parseTags()
 					const entries = parseList(parseEnumEntry, '{}')
-					return { kind: 'enum', keyword, name, tags, entries }
+					return { kind: 'enum', keyword, name, params, tags, entries }
 				}
 				case 'union':
 				case 'struct': {
