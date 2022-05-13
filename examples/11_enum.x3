@@ -68,9 +68,9 @@ proc main[] {
 	var pu = type.pointer("pointer", 8, ~>u)
 
     printf("%: %\n", i.name, i.size)
-    // printf("%: %\n", u.name, u.size)
-    // printf("%: %\n", pi.name, pi.size)
-    // printf("%: %\n", pu.name, pu.size)
+    printf("%: %\n", u.name, u.size)
+    printf("%: %\n", pi.name, pi.size)
+    printf("%: %\n", pu.name, pu.size)
 
     // write line("match:")
     // match c {

@@ -1981,7 +1981,7 @@ function lower(ast) {
 						node.expr.type = node.type
 						return lowerNode(node.expr)
 					}
-					else if (node.expr.kind != 'reference') {
+					else if (node.expr.kind != 'reference' && node.expr.kind != 'readProp') {
 						const v = declareVar('v', node.expr)
 
 						// for debugging purposes
@@ -2006,11 +2006,7 @@ function lower(ast) {
 						return [loweredExpr]
 					}
 
-					if (loweredExpr.kind != 'reference') {
-						console.log(loweredExpr)
-					}
-
-					assert(loweredExpr.kind == 'reference')
+					assert(loweredExpr.kind == 'reference' || loweredExpr.kind == 'readProp')
 					const tPtr = cloneType(typeMap.pointer)
 					tPtr.to = node.expr.type
 

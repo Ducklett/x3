@@ -461,6 +461,7 @@ ${[...data.keys()]
 									value.push(0)
 								}
 
+								lines.push(`; ${escapeCharSequence(node.value)}`)
 								for (let i = bufferLen - 8; i >= 0; i -= 8) {
 									let chunk = 0n
 									// it goes in reverse for some reason
@@ -940,16 +941,27 @@ ${[...data.keys()]
 						'!': 'not',
 						'-': 'neg'
 					}
-					if (node.expr.kind != 'reference') {
-						console.log(node)
+
+					let varOffset = 0
+					let symbol
+
+					if (node.expr.kind == 'reference') {
+						symbol = node.expr.symbol
 					}
-					assert(node.expr.kind == 'reference')
+					else {
+						assert(node.expr.kind == 'readProp')
+						// TODO: proper unwrapping, only support single property access for now
+						assert(node.expr.left.kind == 'reference')
+						assert(node.expr.prop.kind == 'reference')
+						varOffset = node.expr.prop.symbol.offset
+						symbol = node.expr.left.symbol
+					}
 
 					// pointer deref
 					if (node.op == '<~') {
 						const type = node.type
 						for (let i = type.size - 8; i >= 0; i -= 8) {
-							lines.push(`mov rax, ${emitVar(node.expr.symbol)}`)
+							lines.push(`mov rax, ${emitVar(symbol, varOffset)}`)
 							lines.push(`push qword [rax + ${i}]`)
 						}
 						return
@@ -957,7 +969,7 @@ ${[...data.keys()]
 
 					// pointer to address
 					if (node.op == '~>') {
-						lines.push(`lea rax, ${emitVar(node.expr.symbol)}`)
+						lines.push(`lea rax, ${emitVar(symbol, varOffset)}`)
 						lines.push(`push qword rax`)
 						return
 					}
@@ -968,7 +980,7 @@ ${[...data.keys()]
 					if (shouldReturn && node.op.startsWith('pre')) {
 						emitExpr(node.expr)
 					}
-					lines.push(`${op} qword ${emitVar(node.expr.symbol)}`)
+					lines.push(`${op} qword ${emitVar(symbol, varOffset)}`)
 					if (shouldReturn && node.op.startsWith('post')) {
 						emitExpr(node.expr)
 					}
