@@ -6,13 +6,13 @@ const stderr = 2
 
 proc main(args:[]cstring)
 {
-	if args.length <= 1 				{ show help() }
-	if cstr equal(args[1], "-h")   		{ show help() }
-	if cstr equal(args[1], "--help")   	{ show help() }
+	if args.length <= 1 				show help()
+	if cstr equal(args[1], "-h")   		show help()
+	if cstr equal(args[1], "--help")   	show help()
 
 	each arg,i : args {
 		// TODO: allow any declaraction after if statement
-		if i == 0 { continue }
+		if i == 0 continue
 
 		var len = strlen(arg)
 		write(stdout, arg, len)
@@ -45,8 +45,8 @@ proc strlen(c:cstring) -> int {
 proc cstr equal(c:cstring,s:string) -> bool {
 	var i = 0
 	while c[i] != 0 {
-		if i >= s.length { return false }
-		if c[i] != s[i] { return false }
+		if i >= s.length' return false
+		if c[i] != s[i]   return false
 		i++
 	}
 

@@ -644,11 +644,21 @@ function parse(source) {
 			return tags
 		}
 
+		function parseExpressionOrDeclaration() {
+			let it = parseDeclaration()
+			if (!it) {
+				it = parseExpression()
+			}
+			if (!it) throw 'failed to parse declaration or expression'
+			return it
+		}
+
 		function parseDeclaration(takeTerminator = true) {
 			const cur = current().value
 			if (cur != 'import') isTopLevel = false
 
 			switch (cur) {
+				case '{': return parseBlock(null, true, true)
 				case 'import': {
 					assert(isTopLevel, `imports should only be at top level`)
 					const keyword = take('keyword', 'import')
@@ -827,16 +837,17 @@ function parse(source) {
 						}
 						return { kind: 'goto', keyword: gotoKeyword, label, ifKeyword: keyword, condition, terminator }
 					} else {
-						const thenBlock = parseBlock('if', true, true)
+						const thenBlock = parseExpressionOrDeclaration()//('if', true, true)
 						let elseKeyword, elseBlock
 						if (is('keyword', 'else')) {
 							elseKeyword = take('keyword', 'else')
-							if (is('keyword', 'if')) {
-								elseBlock = parseDeclaration()
-							} else {
-								// TODO: don't allow 'real' declarations in if statement block, just control flow stuff
-								elseBlock = parseBlock('if', true, true)
-							}
+							elseBlock = parseExpressionOrDeclaration()
+							// if (is('keyword', 'if')) {
+							//	elseBlock = parseDeclaration()
+							// } else {
+							// 	// TODO: don't allow 'real' declarations in if statement block, just control flow stuff
+							// 	elseBlock = parseBlock('if', true, true)
+							// }
 						}
 
 						return { kind: 'if', keyword, condition, thenBlock, elseKeyword, elseBlock }

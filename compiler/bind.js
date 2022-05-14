@@ -943,7 +943,7 @@ function bind(files) {
 			case 'if': {
 				pushScope()
 				const cond = bindExpression(node.condition)
-				const then = bindDeclaration(node.thenBlock)
+				const then = node.thenBlock ? bindDeclaration(node.thenBlock) : null
 				popScope()
 
 				let els = null
@@ -1120,6 +1120,7 @@ function bind(files) {
 			}
 			default:
 				console.log(node)
+				throw node
 				assert(false, `unhandled kind "${node.kind}"`)
 		}
 	}
@@ -2346,11 +2347,11 @@ function lower(ast) {
 				const gotoThen = goto(thenLabel, node.cond)
 				const gotoEnd = goto(endLabel)
 				// const thenBlock = lowerNodeList(node.then.statements)
-				const thenBlock = node.then.statements
+				let thenBlock = node.then.kind == 'block' ? node.then.statements : [node.then]
 				const elseBlock = !node.els
-					? [] : node.els.kind == 'if'
-						? [node.els]
-						: node.els.statements
+					? [] : node.els.kind == 'block'
+						? node.els.statements
+						: [node.els]
 
 				return lowerNodeList([gotoThen, elseLabel, ...elseBlock, gotoEnd, thenLabel, ...thenBlock, endLabel])
 
