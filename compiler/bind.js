@@ -17,7 +17,6 @@ const tag_function = 10
 
 let any, $typeof, typeInfo, $typeInfoFor
 
-// TODO: actually have different int types
 const typeMap = {
 	'unknown': { tag: tag_void, type: 'unknown', size: 0 },
 	'int': { tag: tag_int, type: 'int', size: 8, signed: true },
@@ -44,7 +43,6 @@ function typeInfoLabel(type) {
 	l.push('$typeinfo')
 
 	if (type.kind == 'struct' || type.kind == 'union') {
-		// TODO: something with the namespace?
 	}
 
 	if (type.type == 'pointer') {
@@ -669,13 +667,10 @@ function bind(files) {
 				addSymbol(it.name, it)
 
 				assert(it.type, 'type must be either provided or inferred from expression')
-				// TODO: better type matching than just comparing the base type
-				// TODO: factor this out into a proper type coersion procedure
-				if (it.expr) {
 
+				if (it.expr) {
 					it.expr = coerceType(it.type, it.expr)
 				}
-
 
 				return it
 			}
@@ -1157,10 +1152,6 @@ function bind(files) {
 				return type
 			}
 			case 'type array': {
-				// HACK: string buffer type; reinterpret as string
-				// assert(node.of.kind == 'type atom' && node.of.name.value == 'char')
-				// const type = typeMap.string
-				// type.span = spanFromRange(node.begin.span, node.of.name.span)
 				const type = cloneType(typeMap.array)
 				type.of = bindType(node.of)
 				if (node.size) {
@@ -1437,9 +1428,7 @@ function bind(files) {
 
 				const isStruct = def.symbol.kind == 'struct'
 				const isEnumCtor = def.symbol.kind == 'enum entry'
-				// TODO: better lambda check
-				// eventually normals procedures will also have a function type
-				const isLambda = def.symbol?.type?.type == 'function'
+				const isLambda = def.symbol.kind != 'function' && def.symbol.type?.type == 'function'
 
 				if (isEnumCtor) {
 					assert(def.symbol.type.backingType.kind == 'struct')
@@ -1471,8 +1460,22 @@ function bind(files) {
 						type: def.symbol.type.returns,
 						span: spanFromRange(node.name.span, node.argumentList.end.span)
 					}
-					// TODO: validate lambda arguments
-					// it.args = validateArguments(it.args, params, node.name.span.file)
+
+					assert(paramTypes.length == it.args.length)
+
+					for (let i = 0; i < paramTypes.length; i++) {
+						let arg = it.args[i]
+						let paramType = paramTypes[i]
+
+						assert(arg.type)
+						assert(paramType)
+
+						arg = coerceType(paramType, arg)
+						it.args[i] = arg
+
+						assert(typeEqual(paramType, arg.type))
+					}
+
 					return it
 				}
 
@@ -2060,15 +2063,21 @@ function lower(ast) {
 				}
 
 				if (node.expr.type.type == 'void') {
-					// HACK: just set the type on the expr and lower that
+					// we allow dereferencing of void pointers when the expected type can be inferrect from context
+					// to make this work we replace the void type with that of the implicit cast before emitting to asm
 					node.expr.type = node.type
 					return lowerNode(node.expr)
 				}
 
 				if (node.type.type == 'pointer' && (node.expr.type.type == 'string' || node.expr.type.type == 'array')) {
-					// TODO: turn this into .buffer property access
-					// currently handled as some hacky edge case in compiler.js
-					return lowerNode(node.expr)
+					const bufferProp = node.expr.type.type == 'string'
+						? typeMap.string.scope.symbols.get('buffer')
+						: typeMap.array.scope.symbols.get('buffer')
+					assert(bufferProp)
+
+					assert(node.expr.kind == 'reference')
+					const bufferAccess = readProp(node.expr, ref(bufferProp))
+					return lowerNode(bufferAccess)
 				}
 
 				if (node.type.size != node.expr.type.size) {
@@ -2599,38 +2608,12 @@ function lower(ast) {
 				assert(tagType)
 				const args = [num(node.entry.value, tagType), ...(node.args ?? [])]
 
-				// let size = params.reduce((acc, cur) => {
-				//     assert(cur.size && cur.size % 8 == 0)
-				//     acc += cur.size
-				// }, 0)
-
 				const c = ctor(backingType, ...args)
 				return lowerNode(c)
 			}
 			case 'ctorcall':
 			case 'syscall':
 			case 'call': {
-				// NOTE: now we immediately lower typeof calls into type info, eventually we might want to bring this back...
-				// if (node.kind == 'call' && node.def.symbol.name == 'typeof') {
-				//     // const nodeToGetTypeOf = node.args[0]
-				//     // const type = nodeToGetTypeOf.type
-				//     // const typeinfo = node.type
-				//     // const typeAccess = unary('&', ref(node.info), node.type)
-
-				//     const typeAccess = ref(node.info)
-				//     // HACK: labels ALREADY act as pointers, so just make the type a pointer for now
-				//     // we should fix this eventually...
-				//     typeAccess.type = node.type
-
-				//     // assert(type)
-				//     // console.log(node)
-				//     // const typeAccess = ctor(typeinfo,/*kind*/ num(0),/*name*/str(type.type, typeMap.string))
-				//     // console.log(typeAccess)
-
-				//     // NOTE: we don't lower any further because otherwise it turns into a struct literal
-				//     // TODO: fix the lowerer instead of not calling lower here??
-				//     return [typeAccess]
-				// }
 				return [{
 					...node, args: (node.args ?? []).map(a => {
 						const result = lowerNode(a)
@@ -2711,48 +2694,6 @@ function lower(ast) {
 							assert(false, `unhandled kind ${symbol.kind}`)
 					}
 				}
-				// if (node.left.kind == 'reference') {
-				//     const symbol = node.left.symbol
-				//     switch (symbol.kind) {
-				//         case 'enum alias': {
-				//             assert(symbol.of)
-				//             const r = ref(symbol.of)
-				//             const prop = readProp(r, node.prop)
-				//             return lowerNode(prop)
-				//         }
-				//         case 'module': return lowerNode(node.prop)
-				//         case 'enum': {
-				//             if (node.prop.kind == 'enumctorcall') return lowerNode(node.prop)
-
-				//             assert(node.prop.kind == 'reference')
-				//             assert(node.prop.symbol.kind == 'enum entry')
-
-				//             const tagType = symbol.backingType.type == 'int'
-				//                 ? symbol.backingType
-				//                 : symbol.backingType.fields[0].type
-
-				//             const tag = num(node.prop.symbol.value, tagType)
-				//             const c = ctor(symbol.backingType, tag)
-				//             return lowerNode(c)
-				//         }
-
-				//         case 'parameter': return [node]
-				//         case 'declareVar': {
-				//             if (node.prop.kind == 'assignVar') {
-				//                 const left = node.left
-				//                 const right = node.prop.varDec
-				//                 const expr = node.prop.expr
-				//                 const it = { kind: 'assignProp', left, right, expr, span: node.span }
-				//                 return lowerNode(it)
-				//             }
-
-				//             return [node]
-				//         }
-				//         default:
-				//             assert(false, `unhandled kind ${symbol.kind}`)
-				//     }
-				// }
-
 				return [node]
 			}
 			default:

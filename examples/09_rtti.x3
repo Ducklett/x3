@@ -53,14 +53,12 @@ proc write type(t:~>type info) {
 
 // TODO: get this working in proc scope
 // TODO: property access in use statement (use foo.bar.baz)
-// use tui' use color
 use tui
 use format
 
 proc main {
 	printf("% % % %\n", magenta("var"), red("x"), cyan("="), yellow(10))
 	printf("some nums: %, %\n", yellow(10), yellow(20))
-	// TODO: fix lowerer so I can do tui.color.cyan
 	printf("its % (%age %)\n", bgGreen(black("ivy")), color.cyan, bold(23))
 
 	printf("hex: %\n", format.hex(0xABC99F00BAB00))
