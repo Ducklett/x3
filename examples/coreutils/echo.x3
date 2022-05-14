@@ -11,7 +11,6 @@ proc main(args:[]cstring)
 	if cstr equal(args[1], "--help")   	show help()
 
 	each arg,i : args {
-		// TODO: allow any declaraction after if statement
 		if i == 0 continue
 
 		var len = strlen(arg)

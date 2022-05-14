@@ -960,9 +960,17 @@ ${[...data.keys()]
 					// pointer deref
 					if (node.op == '<~') {
 						const type = node.type
-						for (let i = type.size - 8; i >= 0; i -= 8) {
+						if (node.type.size % 8 != 0) {
+							assert(node.type.size == 1)
+							// only support bools for now
+							// they are stored in 8 bytes xd
 							lines.push(`mov rax, ${emitVar(symbol, varOffset)}`)
-							lines.push(`push qword [rax + ${i}]`)
+							lines.push(`push qword [rax]`)
+						} else {
+							for (let i = type.size - 8; i >= 0; i -= 8) {
+								lines.push(`mov rax, ${emitVar(symbol, varOffset)}`)
+								lines.push(`push qword [rax + ${i}]`)
+							}
 						}
 						return
 					}
@@ -1138,7 +1146,12 @@ ${[...data.keys()]
 					lines.push(`; ${varDec.name} = expr`)
 					let size = varDec.type.size
 					// TODO: properly handle size 1
-					if (size == 1) size = 8
+					if (size == 1) {
+						if (varDec.name == 'standard__print__res') {
+							console.log(node)
+						}
+						size = 8
+					}
 
 					assert(size % 8 == 0)
 

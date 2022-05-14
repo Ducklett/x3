@@ -177,30 +177,26 @@ enum type tag #bitfield {
 }
 
 proc print(it:any) {
-	var d = it.data
 	// TODO: fix pointer following for nested property access
 	var t = it.type
 
 	if t.kind == type tag.bool {
-		// TODO: fix this not working with res:bool
-		var res:int = <~d
-		if res > 0 {
+		var res:bool = <~it.data
+		if res {
 			write("true")
 		} else {
 			write("false")
 		}
 	} else if t.kind == type tag.int {
-		write number(<~d)
+		write number(<~it.data)
 	} else if t.kind == type tag.string {
-		// write("\"")
-		write(<~d)
-		// write("\"")
+		write(<~it.data)
 	} else if t.kind == type tag.pointer {
 		write("~>")
-		print(any(<~d, t.data.pointerData.to))
+		print(any(<~it.data, t.data.pointerData.to))
 	} else if t.kind == type tag.array {
 		write("[")
-		var entries:[]void = <~d
+		var entries:[]void = <~it.data
 		var entryType = t.data.arrayData.of
 		var entrySize = entryType.size
 
@@ -215,11 +211,11 @@ proc print(it:any) {
 	} else if t.kind == type tag.struct {
 		var name = t.name
 		if strequal(name,"any") {
-			var it:any = <~d
+			var it:any = <~it.data
 			print(it)
 			return
 		}
-		var basePtr = d
+		var basePtr = it.data
 		var fields = t.data.structData.fields
 
 		write(t.name)
@@ -238,7 +234,7 @@ proc print(it:any) {
 	} else if t.kind == type tag.enum {
 		write(t.name)
 		write(".")
-		var index:int = <~d
+		var index:int = <~it.data
 		var entries = t.data.enumData.entries
 		assert(index<entries.length)
 		// TODO: allow expressions like 'entries[index].name'
@@ -247,7 +243,7 @@ proc print(it:any) {
 		write(entry.name)
 		if fields.length > 0 {
 			write("[")
-			var basePtr=d
+			var basePtr=it.data
 			each field,i : fields {
 				if (i != 0) {
 					write(", ")
@@ -280,12 +276,10 @@ proc printf(fmt:string,...xs:[]any) {
 	each c,i : fmt {
 		if c == "%" {
 			var it = xs[j]
-			// TODO: allow <~it.data
-			var d = it.data
 			// TODO: allow it.type.name
 			var t = it.type
 			if strequal(t.name, "formatter") {
-				var fmt:formatter = <~d
+				var fmt:formatter = <~it.data
 				fmt.run(fmt.args)
 			} else {
 				print(it)
@@ -340,13 +334,12 @@ module format {
 				pad(padding)
 			}
 
-			var d = it.data
 			// TODO: fix pointer following for nested property access
 			var t = it.type
 
 			if t.kind == type tag.bool {
 				// TODO: fix this not working with res:bool
-				var res:int = <~d
+				var res:int = <~it.data
 				if res > 0 {
 					write("true")
 				} else {
@@ -354,22 +347,21 @@ module format {
 				}
 			}
 			else if t.kind == type tag.int {
-				write number(<~d)
+				write number(<~it.data)
 			} else if t.kind == type tag.string {
 				write("\"")
-				write(<~d)
+				write(<~it.data)
 				write("\"")
 			} else if t.kind == type tag.pointer {
 				panic("pointers cannot be serialized")
 			} else if t.kind == type tag.array {
-				var entries:[]void = <~d
+				var entries:[]void = <~it.data
 				var entryType = t.data.arrayData.of
 				var entrySize = entryType.size
 				var is complex = (entries.length > 12) || ((entryType.kind != type tag.int) && (entries.length > 1))
 
-				// TODO: fix if and else statement having the same scope?
-				var i = 0
 				if is complex {
+					var i = 0
 					write("[\n")
 
 					while(i<entries.length) {
@@ -383,6 +375,7 @@ module format {
 					}
 					write("]")
 				} else {
+					var i = 0
 					write("[")
 
 					while(i<entries.length) {
@@ -398,11 +391,11 @@ module format {
 
 			} else if t.kind == type tag.struct {
 				if strequal(t.name, "any") {
-					var asAny:any = <~d
+					var asAny:any = <~it.data
 					to json internal(asAny,padding-4,true)
 					return
 				}
-				var basePtr = d
+				var basePtr = it.data
 				var fields = t.data.structData.fields
 				// TODO: 'fix is complex = field.length>4' not working for some reason
 				var is complex = false
@@ -459,7 +452,7 @@ module format {
 				}
 			} else if t.kind == type tag.enum {
 				// TODO: add cast so we can just cast(int, <~d)
-				var index:int = <~d
+				var index:int = <~it.data
 				write number(index)
 			} else {
 				write number(t.kind)

@@ -653,7 +653,6 @@ function bind(files) {
 				const isConst = node.keyword.value == 'const'
 				if (isConst) it.notes.set('const', [])
 
-				addSymbol(it.name, it)
 
 				if (node.type) {
 					it.type = bindType(node.type)
@@ -664,6 +663,10 @@ function bind(files) {
 					assert(it.expr.type, `expressions must have a type`)
 					if (!it.type) it.type = it.expr.type
 				}
+
+				// NOTE: add symbol *after* binding the expression since we don't want the expression to refer to this symbol
+				// this allows us to refer to variables of the same name that were declared earlier in the program
+				addSymbol(it.name, it)
 
 				assert(it.type, 'type must be either provided or inferred from expression')
 				// TODO: better type matching than just comparing the base type

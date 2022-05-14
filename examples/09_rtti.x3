@@ -64,7 +64,7 @@ proc main {
 	printf("its % (%age %)\n", bgGreen(black("ivy")), color.cyan, bold(23))
 
 	printf("hex: %\n", format.hex(0xABC99F00BAB00))
-	struct vec3[x:int,y:int,z:int]
+	struct vec3(x:int,y:int,z:int)
 	var mixed array = ["hey gamers", 10, true, false, vec3(1,2,3)]
 	trace(mixed array)
 	println("---")
