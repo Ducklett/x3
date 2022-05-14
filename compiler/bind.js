@@ -2233,6 +2233,7 @@ function lower(ast) {
 				let i = node.index ?? declareVar('i', indexInitializer)
 				let begin = label('begin')
 				let endLabel = label('end')
+				let cont = label('continue')
 				const lengthProp = typeMap.string.scope.symbols.get('length')
 				let condition = goto(endLabel, binary('>=', ref(i), readProp(ref(node.list), ref(lengthProp))))
 				let item = node.item
@@ -2244,8 +2245,8 @@ function lower(ast) {
 				let prevBreak = breakLabel
 				let prevContinue = continueLabel
 				breakLabel = endLabel
-				continueLabel = begin
-				const result = lowerNodeList([i, begin, item, condition, setItem, body, inc, loop, endLabel])
+				continueLabel = cont
+				const result = lowerNodeList([i, item, begin, condition, setItem, body, cont, inc, loop, endLabel])
 				breakLabel = prevBreak
 				continueLabel = prevContinue
 				return result
