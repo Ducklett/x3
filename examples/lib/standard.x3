@@ -338,9 +338,8 @@ module format {
 			var t = it.type
 
 			if t.kind == type tag.bool {
-				// TODO: fix this not working with res:bool
-				var res:int = <~it.data
-				if res > 0 {
+				var res:bool = <~it.data
+				if res {
 					write("true")
 				} else {
 					write("false")
@@ -398,10 +397,8 @@ module format {
 				var basePtr = it.data
 				var fields = t.data.structData.fields
 				// TODO: 'fix is complex = field.length>4' not working for some reason
-				var is complex = false
-				if fields.length > 4 {
-					is complex = true
-				} else {
+				var is complex = fields.length > 4 //false
+				if !is complex {
 					each field : fields {
 						var fieldType = field.type
 						if (field.name.length > 12) {

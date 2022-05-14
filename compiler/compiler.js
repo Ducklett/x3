@@ -988,7 +988,23 @@ ${[...data.keys()]
 					if (shouldReturn && node.op.startsWith('pre')) {
 						emitExpr(node.expr)
 					}
-					lines.push(`${op} qword ${emitVar(symbol, varOffset)}`)
+
+					if (op == 'not') {
+						// doing this because !x should return true when x is any non-zero number
+						lines.push(`cmp qword ${emitVar(symbol, varOffset)}, 0`)
+						lines.push(`sete al`)
+						lines.push(`movzx rax, al`)
+						lines.push(`movzx rax, al`)
+						lines.push(`push qword rax`)
+					} else {
+						lines.push(`${op} qword ${emitVar(symbol, varOffset)}`)
+						// NOTE: pre and post conditions are emitted before and after
+						// if we add more unary operators we should also push their return value onto the stack here
+						if (op == 'neg') {
+							lines.push(`push qword rax`)
+						}
+					}
+
 					if (shouldReturn && node.op.startsWith('post')) {
 						emitExpr(node.expr)
 					}
@@ -1147,9 +1163,6 @@ ${[...data.keys()]
 					let size = varDec.type.size
 					// TODO: properly handle size 1
 					if (size == 1) {
-						if (varDec.name == 'standard__print__res') {
-							console.log(node)
-						}
 						size = 8
 					}
 

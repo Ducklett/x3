@@ -75,6 +75,11 @@ proc main {
 	printf("%\n", format.json(mixed array))
 	printf("%\n", format.json(vec3(2,3,4)))
 
+	struct complex1(x:int,y:int,z:int,w:int,v:int)
+	struct complex2(name:string,age:int)
+	printf("%\n", format.json(complex1(1,2,3,4,5)))
+	printf("%\n", format.json(complex2(name="Ivy", age=23)))
+
 	// var str = "hello rtti"
 	// var num = -42
 	// var unum:u64 = 20
