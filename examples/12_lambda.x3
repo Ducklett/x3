@@ -17,15 +17,15 @@ proc main {
 
     println("---")
 
-    f = [] {
+    f = () {
         println("mutated f invoked!")
     }
     f()
     indirect(f)
 
-    proc fancy[it:any] -> formatter {
+    proc fancy(it:any) -> formatter {
         return formatter(
-            [it:any] { printf("✩｡:*•.─  ❁ % ❁  ─.•*:｡✩", it) },
+            (it:any) { printf("✩｡:*•.─  ❁ % ❁  ─.•*:｡✩", it) },
             it
         )
     }
