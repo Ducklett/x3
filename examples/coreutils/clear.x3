@@ -1,10 +1,10 @@
-proc write[fd:int,msg:~>void,msg length:int] #syscall(0x001)
-proc exit[code:int]                          #syscall(0x03c)
+proc write(fd:int,msg:~>void,msg length:int) #syscall(0x001)
+proc exit(code:int)                          #syscall(0x03c)
 
 const stdout = 1
 const stderr = 2
 
-proc main[args:[]cstring]
+proc main(args:[]cstring)
 {
 	if args.length > 1 { show help() }
 
@@ -14,7 +14,7 @@ proc main[args:[]cstring]
     write(stdout, msg, msg.length)
 }
 
-proc show help[] {
+proc show help() {
 	const msg = "
 Usage: clear [options]
 

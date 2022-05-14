@@ -466,7 +466,7 @@ function parse(source) {
 					if (is('operator', '(')) {
 
 						if (lhs.value == 'sizeof') {
-							const argumentList = parseList(parseType, "()")
+							const argumentList = parseList(parseType)
 							const span = spanFromRange(lhs.span, argumentList.span)
 							lhs = { kind: 'call', name: lhs, argumentList, span }
 							break
@@ -475,7 +475,7 @@ function parse(source) {
 						// function call
 						{
 
-							const argumentList = parseList(parseExpression, "()")
+							const argumentList = parseList(parseExpression)
 							const span = spanFromRange(lhs.span, argumentList.span)
 							lhs = { kind: 'call', name: lhs, argumentList, span }
 							continue
@@ -513,32 +513,42 @@ function parse(source) {
 				return lhs
 			}
 
-			function parseArrayLiteralOrLambda() {
+			function parseParenthesizedExpressionOrLambda() {
 				// we can figure out which it is in several cases:
-				//     v  colon means it's a lambda
-				// - [x:int] {}
-				//      v  arrow means it's a lambda
-				// - [] -> int { 10 }
-				//      v  block means its a lambda; NOTE: this means you can't have an array literal followed by a block literal.
-				// - [] { 10 }
-				//      v  tag means its a lambda
-				// - [] #foo { 10 }
+				//    v no arg; lambda
+				// - () {}
+				//           NOTE: this means you can't have a parenthesized binding expression followed by a block literal
+				//           TODO: special case in condition statements so if '(x:int) {}' parses correctly
+				//           v block; lambda
+				// - (x:int) {}
+				//           v arrow,lambda
+				// - (x:int) -> void {}
+				//         v comma,lambda
+				// - (x:int,) {}
+				//           v tag,lambda
+				// - (x:int) #foo {}
 
 				let isLambda = false
 				const snapshot = save()
 
-				take('operator', '[')
+				take('operator', '(')
 
-				if (is('operator', ']')) {
-					take('operator', ']')
-					if (is('tag'), is('operator', '->') || is('operator', '{')) {
-						isLambda = true
-					}
+				if (is('operator', ')')) {
+					isLambda = true
 				} else {
 					if (is('symbol') || is('keyword')) {
 						parseSymbol()
 						if (is('operator', ':')) {
-							isLambda = true
+							take('operator', ':')
+							parseType()
+							if (is('operator', ',')) {
+								isLambda = true
+							} else if (is('operator', ')')) {
+								take('operator', ')')
+								if (is('tag') || is('operator', '->') || is('operator', '{')) {
+									isLambda = true
+								}
+							}
 						}
 					}
 				}
@@ -559,9 +569,11 @@ function parse(source) {
 					const span = spanFromRange(parameters.span, body.span)
 					return { kind: 'lambda', parameters, arrow, returnType, body, tags, span }
 				} else {
-					const list = parseList(parsePrimaryExpression)
-					list.kind = 'array literal'
-					return list
+					const open = take('operator', '(')
+					const expr = parseExpression()
+					const close = take('operator', ')')
+					const span = spanFromRange(open.span, close.span)
+					return { kind: 'parenthesized expression', open, expr, close, span }
 				}
 			}
 
@@ -573,13 +585,13 @@ function parse(source) {
 						if (v == ';') return null
 						if (v == '}') return null
 						if (v == '(') {
-							const open = take('operator', '(')
-							const expr = parseExpression()
-							const close = take('operator', ')')
-							const span = spanFromRange(open.span, close.span)
-							return { kind: 'parenthesized expression', open, expr, close, span }
+							return parseParenthesizedExpressionOrLambda()
 						}
-						if (v == '[') return parseArrayLiteralOrLambda()
+						if (v == '[') {
+							const list = parseList(parsePrimaryExpression, '[]')
+							list.kind = 'array literal'
+							return list
+						}
 
 						console.log(current())
 						assert(false, `unexpected operator`)
@@ -625,7 +637,7 @@ function parse(source) {
 				const tag = take('tag')
 				// TODO: maybe make this less gross
 				let list
-				if (is('operator', '(')) list = parseList(parseExpression, '()')
+				if (is('operator', '(')) list = parseList(parseExpression)
 				tag.list = list
 				tags.push(tag)
 			}
@@ -673,7 +685,7 @@ function parse(source) {
 					const keyword = take('keyword', 'proc')
 					const name = take('symbol')
 					let parameters
-					if (is('operator', '[')) {
+					if (is('operator', '(')) {
 						parameters = parseList(parseTypedSymbol)
 					}
 					let arrow, returnType
@@ -694,7 +706,7 @@ function parse(source) {
 					const keyword = take('keyword', 'scope')
 					const name = take('symbol')
 					let parameters
-					if (is('operator', '[')) {
+					if (is('operator', '(')) {
 						parameters = parseList(parseTypedSymbol)
 					}
 					const tags = parseTags()
@@ -710,7 +722,7 @@ function parse(source) {
 						const name = parseSymbol()
 						let params = null
 						let equals, value = null
-						if (is('operator', '[')) {
+						if (is('operator', '(')) {
 							params = parseList(parseTypedSymbol)
 						} else if (is('operator', '=')) {
 							equals = take('operator', '=')
@@ -721,7 +733,7 @@ function parse(source) {
 					const keyword = take('keyword')
 					const name = parseSymbol()
 					let params
-					if (is('operator', '[')) {
+					if (is('operator', '(')) {
 						params = parseList(parseTypedSymbol)
 					}
 					const tags = parseTags()
@@ -965,7 +977,7 @@ function parse(source) {
 			return { kind: 'typed symbol', spread, name, colon, type, tags }
 		}
 
-		function parseList(itemParser, bookend = '[]') {
+		function parseList(itemParser, bookend = '()') {
 			assert(bookend && bookend.length == 2, 'the list bookend consists of an opening an closing character')
 
 			const items = []
@@ -1058,7 +1070,7 @@ function parse(source) {
 				return { kind: 'type mutable', mutable, it }
 			} else if (is('operator', '(')) {
 				// always a function for now, might be a tuple eventually
-				const params = parseList(parseType, '()')
+				const params = parseList(parseType)
 				const arrow = take('operator', '->')
 				const returnType = parseType()
 				return { kind: 'type function', params, arrow, returnType }

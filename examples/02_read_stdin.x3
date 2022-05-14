@@ -12,11 +12,11 @@ proc main {
 
     // TODO: maybe indicate that len is mutated
     // that way we know it should be passed by reference when refactored into a proc
-    scope read name[name:string,len:int] {
+    scope read name(name:string,len:int) {
         len = read(stdin, name, name.length) - 1
     }
 
-    scope greet user[name:string,len:int] {
+    scope greet user(name:string,len:int) {
         const greet = "hello "
         const end = "!\n"
         write(stdout, greet, greet.length)

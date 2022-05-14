@@ -25,7 +25,7 @@ proc main {
     write numbers([10,20,30,40,66])
 }
 
-proc write names[names:[]string] {
+proc write names(names:[]string) {
     each name,idx : names {
         write number(idx)
         write char(":")
@@ -34,7 +34,7 @@ proc write names[names:[]string] {
     }
 }
 
-proc write numbers[nums:[]int] {
+proc write numbers(nums:[]int) {
     each num,i:nums {
         write number(i);
         write char(":");

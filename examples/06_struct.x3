@@ -1,8 +1,8 @@
 import "./lib/standard" use standard
 
-struct vec3[x:int,y:int,z:int] #arithmetic
+struct vec3(x:int,y:int,z:int) #arithmetic
 
-proc write vec3[v:vec3]
+proc write vec3(v:vec3)
 {
     write("{ ")
     write number(v.x)

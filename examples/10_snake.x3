@@ -1,13 +1,13 @@
 import "./lib/standard" use standard
 
-proc main[] {
+proc main {
     play snake()
 }
 
-proc play snake[] {
+proc play snake {
 
     // TODO: read board size constant from outer scope
-    proc random position[] -> int { return random range(0,100+1) }
+    proc random position() -> int { return random range(0,100+1) }
 
     // TODO: constants in array size (arr:[10][10]char)
     // TODO: multi dimensional arrays
@@ -25,7 +25,7 @@ proc play snake[] {
     goto render
 
     label game loop:
-    scope update[player pos:int,apple pos:int,score:int, key err:!bool] {
+    scope update(player pos:int,apple pos:int,score:int, key err:!bool) {
         key err = false
         var key:[2]char // NOTE: it's 2 characters because otherwise it will buffer and return the buffered character
         read(key)
@@ -52,7 +52,7 @@ proc play snake[] {
     }
 
     label render:
-    scope render[board:[]char, apple pos:int,player pos:int,score:int, key err:bool] {
+    scope render(board:[]char, apple pos:int,player pos:int,score:int, key err:bool) {
         tui.clear()
         tui.cursor to(0,5)
         // tui.clear()

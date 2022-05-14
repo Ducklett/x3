@@ -1,14 +1,14 @@
 import "./lib/standard" use standard
 
-proc main[] {
-    var f = [] {
+proc main {
+    var f = () {
         println( "f invoked!")
     }
-    var g = [x:int] {
+    var g = (x:int) {
         printf( "g invoked with %\n", x) 
     }
 
-    proc indirect[f:()->void] { f() }
+    proc indirect(f:()->void) { f() }
 
     println("Lambdas:")
     f()

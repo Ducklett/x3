@@ -2,16 +2,16 @@ import "./lib/standard" use standard
 
 enum action {
     idle,
-    move[x:int,y:int],
-    heal[amount:int],
+    move(x:int,y:int),
+    heal(amount:int),
 }
 
-enum type[name:string,size:int] {
-	number[signed:bool],
-	pointer[to:~>type],
+enum type(name:string,size:int) {
+	number(signed:bool),
+	pointer(to:~>type),
 }
 
-proc print action[action:action] {
+proc print action(action:action) {
     match action {
         idle {
             write line("idle")
@@ -31,7 +31,7 @@ proc print action[action:action] {
     }
 }
 
-proc main[] {
+proc main {
     // var a = action.idle
     // var b = action.move(10,20)
     // var c = action.heal(48)

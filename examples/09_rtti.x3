@@ -4,7 +4,7 @@ import "./lib/standard" use standard
 // struct person[name:string,age:int,gender:string]
 // struct complex[entity:person,pos:point]
 
-proc write type[t:~>type info] {
+proc write type(t:~>type info) {
 	if t.kind == type tag.struct {
 		write ("struct ")
 	}

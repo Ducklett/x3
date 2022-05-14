@@ -1,6 +1,6 @@
 import "./lib/standard" use standard
 
-proc main[args:[]cstring]
+proc main(args:[]cstring)
 {
     write("argc: ")
     write number(args.length)

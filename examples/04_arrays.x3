@@ -1,13 +1,13 @@
 import "./lib/standard" use standard
 
-proc print list[list:[]string]  {
+proc print list(list:[]string)  {
     each item : list {
         write line(item)
     }
 }
 
 proc main {
-    ((TODO: enforce constant))
+    // TODO: enforce constant
     const names = ["foo", "bar", "baz", "quux"]
     names[1] = "billy"
     names[3] = "a longer string"
@@ -20,14 +20,14 @@ proc main {
 
     write line("while loop")
     var i = 0
-    while(i<msg.length) {
+    while i < msg.length {
         write char(msg[i])
         write line("")
         i++
     }
 
     write line("for loop")
-    for (var i = 0;i<msg.length;i++) {
+    for var i = 0;i<msg.length;i++ {
         write char(msg[i])
         write line("")
     }
