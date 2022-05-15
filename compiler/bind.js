@@ -538,6 +538,15 @@ function bind(files) {
 			return cast
 		}
 
+		if (type.kind == 'enum' && it.kind == 'reference' && it.symbol.kind == 'enum alias') {
+			assert(it.symbol.originalType)
+			if (typeEqual(type, it.symbol.originalType)) {
+				// downcast back to the base type
+				const cast = { kind: 'implicit cast', type: type, expr: it, span: it.span }
+				return cast
+			}
+		}
+
 		const equal = typeEqual(type, it.type)
 
 		if (!equal) {
@@ -585,7 +594,8 @@ function bind(files) {
 			kind: 'enum alias',
 			name: name?.value ?? 'it',
 			type: s,
-			span: name?.span ?? compilerSpan()
+			span: name?.span ?? compilerSpan(),
+			originalType: entry.type
 		}
 
 		addSymbol(alias.name, alias)
@@ -1554,7 +1564,7 @@ function bind(files) {
 			case 'binary': {
 				const op = node.op.value
 
-				// foo == bar:b
+				// fooEnum == bar:b
 				if (node.rhs.kind == 'alias') {
 					const a = bindExpression(node.lhs)
 					assert(op == '==', `alias can only be bound with operator == (got ${op})`)
@@ -1575,8 +1585,30 @@ function bind(files) {
 					return it
 				}
 
+
 				const a = bindExpression(node.lhs)
-				const b = bindExpression(node.rhs)
+				let b
+
+				// fooEnum == bar
+				if (a.type.kind == 'enum' && node.rhs.kind == 'symbol') {
+					b = bindExpression(node.rhs, a.type.scope)
+
+					// from this point on the lhs should be treated as entry on the rhs
+					// so we create an alias
+					assert(b.kind == 'reference' && b.symbol.kind == 'enum entry')
+					let alias
+					if (node.lhs.kind == 'symbol') {
+						alias = createEnumAlias(b.symbol, node.lhs) // use name of lhs
+					} else {
+						alias = createEnumAlias(b.symbol) // use default name
+					}
+					addSymbol(alias.name, alias)
+
+					b.alias = alias
+				} else {
+					b = bindExpression(node.rhs)
+				}
+
 				assert(a.type)
 
 				// x => f => g
@@ -2562,6 +2594,11 @@ function lower(ast) {
 					case 'enum entry':
 						assert(node.alias)
 						return lowerNode(node.symbol, { asTag: true })
+					case 'enum alias': {
+						// TODO: check if this case should exist or is the result of a compiler bug
+						assert(node.symbol.of)
+						return lowerNode(ref(node.symbol.of))
+					}
 					case 'declareVar': {
 						if (node.symbol.notes.has('const') && node.symbol.expr) {
 							// HACK: typeinfo is stored as pointer and should not be inlined
