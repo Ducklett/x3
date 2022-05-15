@@ -804,13 +804,7 @@ function parse(source) {
 						function parsePattern() {
 							// only support enum equality for now
 							const symbol = parseSymbol()
-							let colon, alias
-							if (is('operator', ':')) {
-								colon = take('operator', ':')
-								alias = parseSymbol()
-							}
-
-							return { kind: 'pattern equal', symbol, colon, alias }
+							return { kind: 'pattern equal', symbol }
 						}
 						const pattern = parsePattern()
 						const block = parseBlock('arm', true, true, true)

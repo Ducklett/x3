@@ -13,54 +13,42 @@ enum type(name:string,size:int) {
 
 proc print action(action:action) {
     match action {
-        idle {
-            write line("idle")
-        }
-        move: m {
-            write("move(")
-            write number(m.x)
-            write(", ")
-            write number(m.y)
-            write(")\n")
-        }
-        heal: h {
-            write("heal(")
-            write number(h.amount)
-            write line(")")
-        }
+        idle { printf("%\n","idle") }
+        move { printf("move(%, %)\n",it.x,it.y) }
+        heal { printf("heal(%)\n",it.amount) }
     }
 }
 
 proc main {
-    // var a = action.idle
-    // var b = action.move(10,20)
-    // var c = action.heal(48)
+    var a = action.idle
+    var b = action.move(10,20)
+    var c = action.heal(48)
 
-    // println(a)
-    // println(b)
-    // println(c)
+    println(a)
+    println(b)
+    println(c)
 
-    // if c == heal:h {
-    //     write("heal ")
-    //     write number(h.amount)
-    //     write("!\n")
-    // } else {
-    //     write line("It's not heal")
-    // }
+    if c == heal:h {
+        write("heal ")
+        write number(h.amount)
+        write("!\n")
+    } else {
+        write line("It's not heal")
+    }
 
-    // assert(b==move:m, "b is a move")
+    assert(b==move:m, "b is a move")
 
-    // write number(m.x)
-    // write(", ")
-    // write number(m.y)
-    // write("\n")
+    write number(m.x)
+    write(", ")
+    write number(m.y)
+    write("\n")
 
-    // m.x=45
-    // m.y=68
+    m.x=45
+    m.y=68
 
-    // print action(a)
-    // print action(b)
-    // print action(c)
+    print action(a)
+    print action(b)
+    print action(c)
 
 	var i  = type.number (name="int",     size=8, signed=true)
 	var u  = type.number (name="uint",    size=8, signed=false)

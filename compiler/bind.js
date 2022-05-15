@@ -583,9 +583,9 @@ function bind(files) {
 		aliasType = s
 		const alias = {
 			kind: 'enum alias',
-			name: name.value,
+			name: name?.value ?? 'it',
 			type: s,
-			span: name.span
+			span: name?.span ?? compilerSpan()
 		}
 
 		addSymbol(alias.name, alias)
@@ -904,11 +904,8 @@ function bind(files) {
 
 					const scope = pushScope()
 					let alias
-					if (arm.pattern.alias) {
-						if (!value.params.length) {
-							assert(false, `alias can only be bound for entries with parameters`)
-						}
-						alias = createEnumAlias(value, arm.pattern.alias)
+					if (value.params.length) {
+						alias = createEnumAlias(value)
 					}
 					const body = bindBlock(arm.block)
 					const span = spanFromRange(arm.pattern.symbol.span, body.span)

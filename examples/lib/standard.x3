@@ -242,7 +242,7 @@ proc print(it:any) {
 		var fields = entry.fields
 		write(entry.name)
 		if fields.length > 0 {
-			write("[")
+			write("(")
 			var basePtr=it.data
 			each field,i : fields {
 				if (i != 0) {
@@ -254,7 +254,7 @@ proc print(it:any) {
 				write("=")
 				print(any(fieldPtr, fieldType))
 			}
-			write("]")
+			write(")")
 		}
 	} else {
 		write number(t.kind)
