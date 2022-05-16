@@ -1105,13 +1105,17 @@ function bind(files) {
 				const list = findSymbol(node.list.value)
 				assert(list)
 
-				assert(list.type.type == 'array' || list.type.type == 'string' || list.kind == 'enum')
+				const isInt = list.type.type == 'int'
+				assert(isInt || list.type.type == 'array' || list.type.type == 'string' || list.kind == 'enum')
 				if (list.kind == 'enum') {
 					item.type = list
 				} else if (list.type.type == 'array') {
 					item.type = list.type.of
-				} else {
+				} else if (list.type.type == 'string') {
 					item.type = typeMap.char
+				} else {
+					assert(isInt)
+					item.type = typeMap.int
 				}
 
 				const block = bindBlock(node.block)
@@ -2306,16 +2310,29 @@ function lower(ast) {
 				return result
 			}
 			case 'each': {
+				const isInt = node.list.type.type == 'int'
+
 				let indexInitializer = num(0, cloneType(typeMap.int))
-				if (node.index) node.index.expr = indexInitializer
-				let i = node.index ?? declareVar('i', indexInitializer)
+				if (isInt) {
+					node.item.expr = indexInitializer
+				} else {
+					if (node.index) node.index.expr = indexInitializer
+				}
+				let i = isInt ? node.item : node.index ?? declareVar('i', indexInitializer)
 				let begin = label('begin')
 				let endLabel = label('end')
 				let cont = label('continue')
 				const lengthProp = typeMap.string.scope.symbols.get('length')
-				let condition = goto(endLabel, binary('>=', ref(i), readProp(ref(node.list), ref(lengthProp))))
-				let item = node.item
-				let setItem = assignVar(ref(item), indexedAccess(ref(node.list), ref(i)))
+				const readLength = readProp(ref(node.list), ref(lengthProp))
+				let condition = goto(endLabel, binary('>=', ref(i), isInt
+					? ref(node.list)
+					: readLength
+				))
+				let item, setItem
+				if (!isInt) {
+					item = node.item
+					setItem = assignVar(ref(item), indexedAccess(ref(node.list), ref(i)))
+				}
 				let body = node.block
 				let inc = unary('post++', ref(i))
 				let loop = goto(begin)
@@ -2324,7 +2341,9 @@ function lower(ast) {
 				let prevContinue = continueLabel
 				breakLabel = endLabel
 				continueLabel = cont
-				const result = lowerNodeList([i, item, begin, condition, setItem, body, cont, inc, loop, endLabel])
+				const result = isInt
+					? lowerNodeList([i, begin, condition, body, cont, inc, loop, endLabel])
+					: lowerNodeList([i, item, begin, condition, setItem, body, cont, inc, loop, endLabel])
 				breakLabel = prevBreak
 				continueLabel = prevContinue
 				return result
