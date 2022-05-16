@@ -817,12 +817,14 @@ function parse(source) {
 
 					function parseArm() {
 						function parsePattern() {
-							// only support enum equality for now
-							const symbol = parseSymbol()
-							return { kind: 'pattern equal', symbol }
+							const expr = parseExpression()
+							if (expr.kind == 'symbol') {
+								return { kind: 'pattern equal', symbol: expr }
+							}
+							return { kind: 'pattern expression', expr }
 						}
 						const pattern = parsePattern()
-						const block = parseBlock('arm', true, true, true)
+						const block = parseExpressionOrDeclaration()
 						return { kind: 'arm', pattern, block }
 					}
 

@@ -2,11 +2,12 @@ import "./lib/standard" use standard
 
 proc main {
     for var n = 1; n <= 100; n++ {
-        if n % 15 == 0 { write("FizzBuzz") }
-        else if n % 3 == 0 { write("Fizz") }
-        else if n % 5 == 0 { write("Buzz") }
-        else { write number(n) }
-        write char("\n")
+		match n {
+        	n % 15 == 0		printf("%\n","FizzBuzz")
+        	n % 3  == 0		printf("%\n","Fizz")
+        	n % 5  == 0		printf("%\n","Buzz")
+        	else			printf("%\n", n)
+		}
     }
 
     const names = ["foo", "bar", "baz", "qux"]
@@ -27,18 +28,12 @@ proc main {
 
 proc write names(names:[]string) {
     each name,idx : names {
-        write number(idx)
-        write char(":")
-        write(name)
-        write char("\n")
+		printf("%:%\n",idx,name)
     }
 }
 
 proc write numbers(nums:[]int) {
     each num,i:nums {
-        write number(i);
-        write char(":");
-        write number(num);
-        write char("\n");
+		printf("%:%\n",i,num)
     }
 }

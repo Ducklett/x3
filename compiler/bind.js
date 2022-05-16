@@ -899,43 +899,79 @@ function bind(files) {
 			}
 			case 'match': {
 				const operand = bindExpression(node.operand)
-				assert(operand.type.kind == 'enum')
+				const isEnum = operand.type.kind == 'enum'
 
 				const arms = []
 				const checkedValues = new Set()
 				for (let arm of node.arms) {
-					assert(arm.pattern.kind == 'pattern equal')
-					const value = findSymbol(arm.pattern.symbol.value, operand.type.scope, false)
-					assert(value)
-					if (checkedValues.has(value)) {
-						assert(false, `duplicate entry ${arm.pattern.symbol.value}, ${JSON.stringify(arm.pattern.symbol.span)}`)
-					}
-					checkedValues.add(value)
+					if (isEnum) assert(arm.pattern.kind == 'pattern equal')
 
-					const scope = pushScope()
-					let alias
-					if (value.params.length) {
-						alias = createEnumAlias(value)
+					let pattern
+
+					switch (arm.pattern.kind) {
+						case 'pattern equal': {
+							if (arm.pattern.symbol.value == 'else') {
+								const isLast = node.arms[node.arms.length - 1] == arm
+								assert(isLast, `else pattern is only used at the end of a match block`)
+								pattern = { kind: 'pattern else' }
+							} else {
+								const value = findSymbol(arm.pattern.symbol.value, operand.type.scope, false)
+								const scope = pushScope()
+								if (!value) console.log(arm.pattern)
+								assert(value)
+								if (checkedValues.has(value)) {
+									assert(false, `duplicate entry ${arm.pattern.symbol.value}, ${JSON.stringify(arm.pattern.symbol.span)}`)
+								}
+								checkedValues.add(value)
+
+								let alias
+								if (value.params.length) {
+									alias = createEnumAlias(value)
+								}
+								popScope()
+								pattern = {
+									kind: 'pattern equal',
+									value,
+									alias,
+									scope,
+									span: arm.pattern.span
+								}
+							}
+						} break
+						case 'pattern expression': {
+							const expr = bindExpression(arm.pattern.expr)
+							assert(expr.type.type == 'bool')
+							pattern = {
+								kind: 'pattern expression',
+								expr,
+								span: expr.span
+							}
+						} break
+						default:
+							throw `unknown arm pattern ${arm.pattern.kind}`
+							break;
 					}
-					const body = bindBlock(arm.block)
-					const span = spanFromRange(arm.pattern.symbol.span, body.span)
-					popScope()
+
+					const body = bindDeclaration(arm.block)
+					let span = spanFromRange(arm.pattern.span, body.span)
 
 					const it = {
 						kind: 'arm',
-						pattern: value,
-						alias,
+						pattern,
 						body,
-						scope,
 						span,
 					}
 					arms.push(it)
 				}
-				for (let entry of operand.type.entries) {
-					if (!checkedValues.has(entry)) {
-						assert(false, `unhandled enum entry ${entry.name} at ${JSON.stringify(node.keyword.span)}`)
+
+				if (isEnum) {
+					for (let entry of operand.type.entries) {
+						if (!checkedValues.has(entry)) {
+							assert(false, `unhandled enum entry ${entry.name} at ${JSON.stringify(node.keyword.span)}`)
+						}
 					}
 				}
+
 				const span = spanFromRange(node.keyword.span, node.end.span)
 				const it = {
 					kind: 'match',
@@ -2334,34 +2370,53 @@ function lower(ast) {
 				const gotoEnd = goto(endLabel)
 				const conditions = []
 				const blocks = []
+
+				let matchExpr
+
 				for (let arm of node.arms) {
 					const blockLabel = label('block')
 
-					assert(arm.pattern.kind == 'enum entry')
+					switch (arm.pattern.kind) {
+						case 'pattern else': {
+							// match unconditionally 
+							matchExpr = null
+						} break
+						case 'pattern expression': {
+							matchExpr = arm.pattern.expr
+						} break
+						case 'pattern equal': {
+							assert(arm.pattern.value.kind == 'enum entry')
 
-					if (arm.alias) {
-						arm.alias.of = operand
+							if (arm.pattern.alias) {
+								arm.pattern.alias.of = operand
+							}
+
+							let tagRef
+
+							if (!operand.type.backingType.fields) {
+								// basic enum
+								tagRef = ref(operand)
+							} else {
+								// tagged union
+								const tag = operand.type.backingType.fields[0]
+								tagRef = readProp(ref(operand), ref(tag))
+							}
+
+							const matchexpression = binary('==', tagRef, arm.pattern, typeMap.bool)
+
+							matchExpr = matchexpression
+						} break
+						default: throw `unhandled pattern ${arm.pattern.kind}`
 					}
 
-					let tagRef
-
-					if (!operand.type.backingType.fields) {
-						// basic enum
-						tagRef = ref(operand)
-					} else {
-						// tagged union
-						const tag = operand.type.backingType.fields[0]
-						tagRef = readProp(ref(operand), ref(tag))
-					}
-
-					const matchexpression = binary('==', tagRef, arm.pattern, typeMap.bool)
-					const blockGoto = goto(blockLabel, matchexpression)
+					const blockGoto = goto(blockLabel, matchExpr)
 					const block = arm.body
 
 					conditions.push(blockGoto)
 					blocks.push(blockLabel)
 					blocks.push(block)
 					blocks.push(gotoEnd)
+
 				}
 
 				conditions.push(gotoEnd)
