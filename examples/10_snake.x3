@@ -6,6 +6,16 @@ proc main {
 
 proc play snake {
 	const board size = 16
+	var apple = 0
+	var snake = 0
+
+	proc random position() -> int { return random range(0,board size * board size) }
+	proc place(at:int,it:any) {
+		tui.cursor to(at%board size, at/board size)
+		printf("%",it)
+	}
+
+	tui.clear()
 
 	each y <- board size {
 		each x <- board size {
@@ -13,6 +23,14 @@ proc play snake {
 		}
 		write("\n")
 	}
+
+	apple = random position()
+	place(apple, format.red("*"))
+
+	snake = random position()
+	place(snake, format.cyan("#"))
+
+	tui.cursor to(0, board size+1)
 
 	// // TODO: read board size constant from outer scope
 	// proc random position() -> int { return random range(0,100+1) }
