@@ -906,7 +906,7 @@ function bind(files) {
 				for (let arm of node.arms) {
 					if (isEnum) assert(arm.pattern.kind == 'pattern equal')
 
-					let pattern
+					let pattern, scope
 
 					switch (arm.pattern.kind) {
 						case 'pattern equal': {
@@ -916,7 +916,7 @@ function bind(files) {
 								pattern = { kind: 'pattern else' }
 							} else {
 								const value = findSymbol(arm.pattern.symbol.value, operand.type.scope, false)
-								const scope = pushScope()
+								scope = pushScope()
 								if (!value) console.log(arm.pattern)
 								assert(value)
 								if (checkedValues.has(value)) {
@@ -928,7 +928,6 @@ function bind(files) {
 								if (value.params.length) {
 									alias = createEnumAlias(value)
 								}
-								popScope()
 								pattern = {
 									kind: 'pattern equal',
 									value,
@@ -954,6 +953,8 @@ function bind(files) {
 
 					const body = bindDeclaration(arm.block)
 					let span = spanFromRange(arm.pattern.span, body.span)
+
+					if (scope) popScope()
 
 					const it = {
 						kind: 'arm',
@@ -2402,7 +2403,7 @@ function lower(ast) {
 								tagRef = readProp(ref(operand), ref(tag))
 							}
 
-							const matchexpression = binary('==', tagRef, arm.pattern, typeMap.bool)
+							const matchexpression = binary('==', tagRef, arm.pattern.value, typeMap.bool)
 
 							matchExpr = matchexpression
 						} break

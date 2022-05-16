@@ -4,7 +4,7 @@ const { inspect } = require('util')
 const { emitAsm, read } = require('./compiler')
 const { outputHtml } = require('./tool/outputHtml')
 
-compile('examples/05_print.x3')
+compile('examples/11_enum.x3')
 // compile('examples/coreutils/echo.x3')
 
 function compile(filename) {
