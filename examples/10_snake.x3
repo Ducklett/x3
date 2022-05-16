@@ -7,8 +7,8 @@ proc main {
 proc play snake {
 	const board size = 16
 
-	each y : board size {
-		each x : board size {
+	each y <- board size {
+		each x <- board size {
 			write("_")
 		}
 		write("\n")
@@ -69,13 +69,13 @@ proc play snake {
 	// 	const floor:char = "_"
 
 	// 	// TODO: make this more efficient; keep track of last player position and only update the characters that changed
-	// 	each _,i : board { board[i] = floor }
+	// 	each _,i <- board { board[i] = floor }
 	// 	board[player pos] = body
 	// 	board[apple pos] = apple
 
 	// 	printf("Score: %\n", format.green(score))
 
-	// 	each cell,i : board {
+	// 	each cell,i <- board {
 	// 		var color = tui.color.white
 	// 		if cell == apple {
 	// 			color = tui.color.red

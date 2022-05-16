@@ -14,7 +14,7 @@ function parse(source) {
 	const code = source.code
 
 	const keywords = new Set(["module", "import", "use", "type", "struct", "union", "proc", "return", "break", "continue", "goto", "label", "var", "const", "for", "do", "while", "each", "enum", "if", "else", "match", "true", "false"])
-	const operators = new Set(["...", "<<=", ">>=", "&&=", "||=", "==", "!=", ">=", "<=", "<<", ">>", "<~", "~>", "->", "=>", "&&", "||", "++", "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "~=", "=", "!", ">", "<", "+", "-", "/", "*", "%", "^", "~", "&", "|", "(", ")", "[", "]", "{", "}", "?", ":", ";", ".", ","])
+	const operators = new Set(["...", "<<=", ">>=", "&&=", "||=", "==", "!=", ">=", "<=", "<<", ">>", "<~", "~>", "<-", "->", "=>", "&&", "||", "++", "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "~=", "=", "!", ">", "<", "+", "-", "/", "*", "%", "^", "~", "&", "|", "(", ")", "[", "]", "{", "}", "?", ":", ";", ".", ","])
 	const binaryOperators = new Set(["==", "!=", ">=", "<=", "<<", ">>", "&&", "||", "=>", ">", "<", "+", "-", "/", "*", "%", "^", "&", "|"])
 	const preUnaryOperators = new Set(["++", "--", "!", "-", "~>", "<~"])
 	const postUnaryOperators = new Set(["++", "--"])
@@ -922,14 +922,14 @@ function parse(source) {
 						comma = take('operator', ',')
 						index = take('symbol')
 					}
-					const colon = take('operator', ':')
+					const from = take('operator', '<-')
 					const list = take('symbol')
 					if (hasParens) {
 						end = take('operator', ')')
 					}
 					const block = parseBlock('each', true, true)
 
-					return { kind: 'each', keyword, begin, item, comma, index, colon, list, end, block }
+					return { kind: 'each', keyword, begin, item, comma, index, from, list, end, block }
 				}
 				case 'return': {
 					const keyword = take('keyword', 'return')

@@ -10,7 +10,7 @@ proc main(args:[]cstring)
 	if cstr equal(args[1], "-h")   		show help()
 	if cstr equal(args[1], "--help")   	show help()
 
-	each arg,i : args {
+	each arg,i <- args {
 		if i == 0 continue
 
 		var len = strlen(arg)

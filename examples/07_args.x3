@@ -6,7 +6,7 @@ proc main(args:[]cstring)
 	write number(args.length)
 	write("\n")
 
-	each arg,i : args {
+	each arg,i <- args {
 		write("arg ")
 		write number(i)
 		write(": ")

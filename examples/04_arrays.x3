@@ -1,7 +1,7 @@
 import "./lib/standard" use standard
 
 proc print list(list:[]string)  {
-	each item : list {
+	each item <- list {
 		write line(item)
 	}
 }
@@ -33,7 +33,7 @@ proc main {
 	}
 
 	write line("each loop")
-	each (char : msg) {
+	each (char <- msg) {
 		write char(char)
 		write line("")
 	}

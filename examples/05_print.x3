@@ -27,13 +27,13 @@ proc main {
 }
 
 proc write names(names:[]string) {
-	each name,idx : names {
+	each name,idx <- names {
 		printf("%:%\n",idx,name)
 	}
 }
 
 proc write numbers(nums:[]int) {
-	each num,i:nums {
+	each num,i <- nums {
 		printf("%:%\n",i,num)
 	}
 }

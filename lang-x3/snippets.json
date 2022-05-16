@@ -4,7 +4,7 @@
 		"body": [
 			"import \"./lib/standard\" use standard",
 			"",
-			"proc main[] {",
+			"proc main() {",
 			"\t${0:write(\"hello world\\n\")}",
 			"}"
 		],
@@ -30,7 +30,7 @@
 	"create procedure": {
 		"prefix": "proc",
 		"body": [
-			"proc ${1:foo}[$2] {",
+			"proc ${1:foo}($2) {",
 			"\t$0",
 			"}"
 		],
@@ -39,14 +39,14 @@
 	"create struct": {
 		"prefix": "struct",
 		"body": [
-			"struct ${1:foo}[${0:x:int}]"
+			"struct ${1:foo}(${0:x:int})"
 		],
 		"description": "Create a new struct"
 	},
 	"create do": {
 		"prefix": "do",
 		"body": [
-			"do ${1:foo}[$2] {",
+			"do ${1:foo}($2) {",
 			"\t$0",
 			"}"
 		],
@@ -55,7 +55,7 @@
 	"create each loop": {
 		"prefix": "each",
 		"body": [
-			"each ${1:x} : ${2:xs} {",
+			"each ${1:x} <- ${2:xs} {",
 			"\t${0:print($1)}",
 			"}"
 		],

@@ -154,7 +154,7 @@ proc strequal(a:string,b:string) {
 	if a.length != b.length {
 		return false
 	}
-	each c,i : a {
+	each c,i <- a {
 		if c != b[i] {
 			return false
 		}
@@ -220,7 +220,7 @@ proc print(it:any) {
 
 		write(t.name)
 		write("{")
-		each field,i : fields {
+		each field,i <- fields {
 			if (i != 0) {
 				write(", ")
 			}
@@ -244,7 +244,7 @@ proc print(it:any) {
 		if fields.length > 0 {
 			write("(")
 			var basePtr=it.data
-			each field,i : fields {
+			each field,i <- fields {
 				if (i != 0) {
 					write(", ")
 				}
@@ -273,7 +273,7 @@ struct formatter(run:(any)->void, args:any)
 
 proc printf(fmt:string,...xs:[]any) {
 	var j = 0
-	each c,i : fmt {
+	each c,i <- fmt {
 		if c == "%" {
 			var it = xs[j]
 			// TODO: allow it.type.name
@@ -399,7 +399,7 @@ module format {
 				// TODO: 'fix is complex = field.length>4' not working for some reason
 				var is complex = fields.length > 4 //false
 				if !is complex {
-					each field : fields {
+					each field <- fields {
 						var fieldType = field.type
 						if (field.name.length > 12) {
 							is complex = true
@@ -414,7 +414,7 @@ module format {
 
 				if is complex {
 					write("{\n")
-					each field,i : fields {
+					each field,i <- fields {
 						var fieldPtr = basePtr + field.offset
 						var fieldType = field.type
 						pad(padding+4)
@@ -433,7 +433,7 @@ module format {
 					write("}")
 				} else {
 					write("{")
-					each field,i : fields {
+					each field,i <- fields {
 						var fieldPtr = basePtr + field.offset
 						var fieldType = field.type
 						write("\"")
@@ -501,7 +501,7 @@ module format {
 
 proc parse int(s:string) -> int {
 	var num = 0
-	each c : s {
+	each c <- s {
 		// TODO: get precedence working
 		if (c < "0") || (c > "9") { break }
 		num = (num * 10) + (c - "0")
