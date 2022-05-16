@@ -9,9 +9,9 @@ proc exit(code:int)                          #syscall(0x03c)
 // function with the #entrypoint and #explicit exit' tags respectively
 proc custom entrypoint #entrypoint
 {
-    const stdout = 1
-    const msg = "Hello world!\n"
+	const stdout = 1
+	const msg = "Hello world!\n"
 
-    write(stdout, msg, msg.length)
-    exit(42)
+	write(stdout, msg, msg.length)
+	exit(42)
 }

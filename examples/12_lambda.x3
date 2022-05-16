@@ -1,35 +1,35 @@
 import "./lib/standard" use standard
 
 proc main {
-    var f = () {
-        println( "f invoked!")
-    }
-    var g = (x:int) {
-        printf( "g invoked with %\n", x) 
-    }
+	var f = () {
+		println( "f invoked!")
+	}
+	var g = (x:int) {
+		printf( "g invoked with %\n", x) 
+	}
 
-    proc indirect(f:()->void) { f() }
+	proc indirect(f:()->void) { f() }
 
-    println("Lambdas:")
-    f()
-    g(13)
-    indirect(f)
+	println("Lambdas:")
+	f()
+	g(13)
+	indirect(f)
 
-    println("---")
+	println("---")
 
-    f = () {
-        println("mutated f invoked!")
-    }
-    f()
-    indirect(f)
+	f = () {
+		println("mutated f invoked!")
+	}
+	f()
+	indirect(f)
 
-    proc fancy(it:any) -> formatter {
-        return formatter(
-            (it:any) { printf("✩｡:*•.─  ❁ % ❁  ─.•*:｡✩", it) },
-            it
-        )
-    }
+	proc fancy(it:any) -> formatter {
+		return formatter(
+			(it:any) { printf("✩｡:*•.─  ❁ % ❁  ─.•*:｡✩", it) },
+			it
+		)
+	}
 
-    printf("%\n",fancy(10))
-    printf("%\n",fancy("ivy dingeman"))
+	printf("%\n",fancy(10))
+	printf("%\n",fancy("ivy dingeman"))
 }

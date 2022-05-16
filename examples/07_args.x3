@@ -2,15 +2,15 @@ import "./lib/standard" use standard
 
 proc main(args:[]cstring)
 {
-    write("argc: ")
-    write number(args.length)
-    write("\n")
+	write("argc: ")
+	write number(args.length)
+	write("\n")
 
-    each arg,i : args {
-        write("arg ")
-        write number(i)
-        write(": ")
-        write cstring(arg)
-        write("\n")
-    }
+	each arg,i : args {
+		write("arg ")
+		write number(i)
+		write(": ")
+		write cstring(arg)
+		write("\n")
+	}
 }

@@ -9,9 +9,9 @@ proc main(args:[]cstring)
 	if args.length > 1 show help()
 
 	// goto 0,0; clear
-    const msg = "\x1B[H\x1B[J"
+	const msg = "\x1B[H\x1B[J"
 
-    write(stdout, msg, msg.length)
+	write(stdout, msg, msg.length)
 }
 
 proc show help() {

@@ -1,9 +1,9 @@
 import "./lib/standard" use standard
 
 enum action {
-    idle,
-    move(x:int,y:int),
-    heal(amount:int),
+	idle,
+	move(x:int,y:int),
+	heal(amount:int),
 }
 
 enum type(name:string,size:int) {
@@ -12,66 +12,66 @@ enum type(name:string,size:int) {
 }
 
 proc print action(action:action) {
-    match action {
-        idle { printf("%\n","idle") }
-        move { printf("move(%, %)\n",it.x,it.y) }
-        heal { printf("heal(%)\n",it.amount) }
-    }
+	match action {
+		idle { printf("%\n","idle") }
+		move { printf("move(%, %)\n",it.x,it.y) }
+		heal { printf("heal(%)\n",it.amount) }
+	}
 }
 
 proc main {
-    var a = action.idle
-    var b = action.move(10,20)
-    var c = action.heal(48)
+	var a = action.idle
+	var b = action.move(10,20)
+	var c = action.heal(48)
 
-    println(a)
-    println(b)
-    println(c)
+	println(a)
+	println(b)
+	println(c)
 
-    if c == heal {
+	if c == heal {
 		printf("heal %!\n",c.amount)
-    } else {
-        write line("It's not heal")
-    }
+	} else {
+		write line("It's not heal")
+	}
 
-    assert(b==move, "b is a move")
+	assert(b==move, "b is a move")
 
-    write number(b.x)
-    write(", ")
-    write number(b.y)
-    write("\n")
+	write number(b.x)
+	write(", ")
+	write number(b.y)
+	write("\n")
 
-    b.x=45
-    b.y=68
+	b.x=45
+	b.y=68
 
-    print action(a)
-    print action(b)
-    print action(c)
+	print action(a)
+	print action(b)
+	print action(c)
 
 	var i  = type.number (name="int",     size=8, signed=true)
 	var u  = type.number (name="uint",    size=8, signed=false)
 	var pi = type.pointer(name="pointer", size=8, to=~>i)
 	var pu = type.pointer(name="pointer", size=8, to=~>u)
 
-    printf("%: %\n", i.name, i.size)
-    printf("%: %\n", u.name, u.size)
-    printf("%: %\n", pi.name, pi.size)
-    printf("%: %\n", pu.name, pu.size)
+	printf("%: %\n", i.name, i.size)
+	printf("%: %\n", u.name, u.size)
+	printf("%: %\n", pi.name, pi.size)
+	printf("%: %\n", pu.name, pu.size)
 
-    // write line("match:")
-    // match c {
-    //     red     { write line("red") }
-    //     green   { write line("green") }
-    //     blue    { write line("blue") }
-    // }
-    // write line("-----")
+	// write line("match:")
+	// match c {
+	//     red     { write line("red") }
+	//     green   { write line("green") }
+	//     blue    { write line("blue") }
+	// }
+	// write line("-----")
 }
 
-    // TODO: fix foo(color.red,"bob",7) not working unless enum already emitted type info
+	// TODO: fix foo(color.red,"bob",7) not working unless enum already emitted type info
 
-    // // TODO: make print work with string literals
-    // write line("--------")
-    // println(839)
-    // println(183)
-    // println(1)
-    // println(0)
+	// // TODO: make print work with string literals
+	// write line("--------")
+	// println(839)
+	// println(183)
+	// println(1)
+	// println(0)

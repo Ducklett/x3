@@ -1,98 +1,98 @@
 import "./lib/standard" use standard
 
 proc main {
-    play snake()
+	play snake()
 }
 
 proc play snake {
 
-    // TODO: read board size constant from outer scope
-    proc random position() -> int { return random range(0,100+1) }
+	// TODO: read board size constant from outer scope
+	proc random position() -> int { return random range(0,100+1) }
 
-    // TODO: constants in array size (arr:[10][10]char)
-    // TODO: multi dimensional arrays
-    // TODO: constant arrays
-    // TODO: initializer syntax; board:[100]char = ["a","b",..."c"] // a then b then fill the rest with c (otherwise it would be filled with 0)
-    var board: [100]char
+	// TODO: constants in array size (arr:[10][10]char)
+	// TODO: multi dimensional arrays
+	// TODO: constant arrays
+	// TODO: initializer syntax; board:[100]char = ["a","b",..."c"] // a then b then fill the rest with c (otherwise it would be filled with 0)
+	var board: [100]char
 
-    var score = 0
-    var apple pos = random position()
-    var player pos = random position()
-    var key err = false 
+	var score = 0
+	var apple pos = random position()
+	var player pos = random position()
+	var key err = false 
 
-    // TODO: make goto work when the label is in another block (don't jump into scope blocks though)
-    // we always want to render once before taking user input
-    goto render
+	// TODO: make goto work when the label is in another block (don't jump into scope blocks though)
+	// we always want to render once before taking user input
+	goto render
 
-    label game loop:
-    do update(player pos:int,apple pos:int,score:int, key err:!bool) {
-        key err = false
-        var key:[2]char // NOTE: it's 2 characters because otherwise it will buffer and return the buffered character
-        read(key)
-        // TODO: handle wrapping
-        if (key[0] == "w") {
-            player pos -= 10
-        } else if key[0] == "a" {
-            player pos -= 1
-        } else if key[0] == "s" {
-            player pos += 10
-        } else if key[0] == "d" {
-            player pos += 1
-        } else {
-            key err = true
-            // TODO: find lab
-            // goto game loop
-        }
+	label game loop:
+	do update(player pos:int,apple pos:int,score:int, key err:!bool) {
+		key err = false
+		var key:[2]char // NOTE: it's 2 characters because otherwise it will buffer and return the buffered character
+		read(key)
+		// TODO: handle wrapping
+		if (key[0] == "w") {
+			player pos -= 10
+		} else if key[0] == "a" {
+			player pos -= 1
+		} else if key[0] == "s" {
+			player pos += 10
+		} else if key[0] == "d" {
+			player pos += 1
+		} else {
+			key err = true
+			// TODO: find lab
+			// goto game loop
+		}
 
-        if apple pos == player pos {
-            score++
-            // TODO: allow scopes to access FUNCTIONS from the outer scope, but not variables
-            apple pos = random range(0,101) //random position()
-        }
-    }
+		if apple pos == player pos {
+			score++
+			// TODO: allow scopes to access FUNCTIONS from the outer scope, but not variables
+			apple pos = random range(0,101) //random position()
+		}
+	}
 
-    label render:
-    do render(board:[]char, apple pos:int,player pos:int,score:int, key err:bool) {
-        tui.clear()
-        tui.cursor to(0,5)
-        // tui.clear()
-        const apple:char = "*"
-        const body:char = "#"
-        const floor:char = "_"
+	label render:
+	do render(board:[]char, apple pos:int,player pos:int,score:int, key err:bool) {
+		tui.clear()
+		tui.cursor to(0,5)
+		// tui.clear()
+		const apple:char = "*"
+		const body:char = "#"
+		const floor:char = "_"
 
-        // TODO: make this more efficient; keep track of last player position and only update the characters that changed
-        each _,i : board { board[i] = floor }
-        board[player pos] = body
-        board[apple pos] = apple
+		// TODO: make this more efficient; keep track of last player position and only update the characters that changed
+		each _,i : board { board[i] = floor }
+		board[player pos] = body
+		board[apple pos] = apple
 
-        printf("Score: %\n", format.green(score))
+		printf("Score: %\n", format.green(score))
 
-        each cell,i : board {
-            var color = tui.color.white
-            if cell == apple {
-                color = tui.color.red
-            } else if cell == body {
-                color = tui.color.cyan
-            }
+		each cell,i : board {
+			var color = tui.color.white
+			if cell == apple {
+				color = tui.color.red
+			} else if cell == body {
+				color = tui.color.cyan
+			}
 
-            write(color)
-            write char(cell)
+			write(color)
+			write char(cell)
 
-            if (i+1) % 10 == 0 {
-                write("\n")
-            }
-        }
-        write(tui.color.reset)
+			if (i+1) % 10 == 0 {
+				write("\n")
+			}
+		}
+		write(tui.color.reset)
 
-        if key err {
-            printf("%\n", format.yellow("unkown key; use wasd to move"))
-        }
-    }
+		if key err {
+			printf("%\n", format.yellow("unkown key; use wasd to move"))
+		}
+	}
 
-    if score < 10 goto game loop
+	if score < 10 goto game loop
 
-    tui.cursor to(0,13)
-    write("*********************************\n")
-    write("*            You win!           *\n")
-    write("*********************************\n")
+	tui.cursor to(0,13)
+	write("*********************************\n")
+	write("*            You win!           *\n")
+	write("*********************************\n")
 }
