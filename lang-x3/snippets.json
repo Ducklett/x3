@@ -1,109 +1,109 @@
 {
-    "hello world": {
-        "prefix": "hello",
-        "body": [
-            "import \"./lib/standard\" use standard",
-            "",
-            "proc main[] {",
-            "\t${0:write(\"hello world\\n\")}",
-            "}"
-        ],
-        "description": "Create hello world boilerplate"
-    },
-    "create import": {
-        "prefix": "import",
-        "body": [
-            "import \"./lib/${1:standard}\" use ${1:standard}",
-            "$0"
-        ],
-        "description": "Create a new module"
-    },
-    "create module": {
-        "prefix": "module",
-        "body": [
-            "module ${1:module name} {",
-            "\t$0",
-            "}"
-        ],
-        "description": "Create a new module"
-    },
-    "create procedure": {
-        "prefix": "proc",
-        "body": [
-            "proc ${1:foo}[$2] {",
-            "\t$0",
-            "}"
-        ],
-        "description": "Create a new procedure"
-    },
-    "create struct": {
-        "prefix": "struct",
-        "body": [
-            "struct ${1:foo}[${0:x:int}]"
-        ],
-        "description": "Create a new struct"
-    },
-    "create scope": {
-        "prefix": "scope",
-        "body": [
-            "scope ${1:foo}[$2] {",
-            "\t$0",
-            "}"
-        ],
-        "description": "Create a new scope"
-    },
-    "create each loop": {
-        "prefix": "each",
-        "body": [
-            "each ${1:x} : ${2:xs} {",
-            "\t${0:print($1)}",
-            "}"
-        ],
-        "description": "Create a new for loop"
-    },
-    "create for loop": {
-        "prefix": "for",
-        "body": [
-            "for ${1:var i = 0}; ${2:i < 10}; ${3:i++} {",
-            "\t$0",
-            "}"
-        ],
-        "description": "Create a new for loop"
-    },
-    "create while loop": {
-        "prefix": "while",
-        "body": [
-            "while ${1:true} {",
-            "\t$0",
-            "}"
-        ],
-        "description": "Create a new while loop"
-    },
-    "create if statement": {
-        "prefix": "if",
-        "body": [
-            "if ${1:true} {",
-            "\t$0",
-            "}"
-        ],
-        "description": "Create a new if statement"
-    },
-    "create else if statement": {
-        "prefix": "elseif",
-        "body": [
-            "else if ${1:true} {",
-            "\t$0",
-            "}"
-        ],
-        "description": "Create a new else if statement"
-    },
-    "create else statement": {
-        "prefix": "else",
-        "body": [
-            "else {",
-            "\t$0",
-            "}"
-        ],
-        "description": "Create a new else if statement"
-    }
+	"hello world": {
+		"prefix": "hello",
+		"body": [
+			"import \"./lib/standard\" use standard",
+			"",
+			"proc main[] {",
+			"\t${0:write(\"hello world\\n\")}",
+			"}"
+		],
+		"description": "Create hello world boilerplate"
+	},
+	"create import": {
+		"prefix": "import",
+		"body": [
+			"import \"./lib/${1:standard}\" use ${1:standard}",
+			"$0"
+		],
+		"description": "Create a new module"
+	},
+	"create module": {
+		"prefix": "module",
+		"body": [
+			"module ${1:module name} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Create a new module"
+	},
+	"create procedure": {
+		"prefix": "proc",
+		"body": [
+			"proc ${1:foo}[$2] {",
+			"\t$0",
+			"}"
+		],
+		"description": "Create a new procedure"
+	},
+	"create struct": {
+		"prefix": "struct",
+		"body": [
+			"struct ${1:foo}[${0:x:int}]"
+		],
+		"description": "Create a new struct"
+	},
+	"create do": {
+		"prefix": "do",
+		"body": [
+			"do ${1:foo}[$2] {",
+			"\t$0",
+			"}"
+		],
+		"description": "Create a new do"
+	},
+	"create each loop": {
+		"prefix": "each",
+		"body": [
+			"each ${1:x} : ${2:xs} {",
+			"\t${0:print($1)}",
+			"}"
+		],
+		"description": "Create a new for loop"
+	},
+	"create for loop": {
+		"prefix": "for",
+		"body": [
+			"for ${1:var i = 0}; ${2:i < 10}; ${3:i++} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Create a new for loop"
+	},
+	"create while loop": {
+		"prefix": "while",
+		"body": [
+			"while ${1:true} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Create a new while loop"
+	},
+	"create if statement": {
+		"prefix": "if",
+		"body": [
+			"if ${1:true} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Create a new if statement"
+	},
+	"create else if statement": {
+		"prefix": "elseif",
+		"body": [
+			"else if ${1:true} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Create a new else if statement"
+	},
+	"create else statement": {
+		"prefix": "else",
+		"body": [
+			"else {",
+			"\t$0",
+			"}"
+		],
+		"description": "Create a new else if statement"
+	}
 }

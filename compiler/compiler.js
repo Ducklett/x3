@@ -130,7 +130,10 @@ const api = {
 	label: (name) => B({ kind: 'label', name }),
 
 	bool: (v, type) => B({ kind: 'booleanLiteral', v, type }),
-	num: (n, type) => B({ kind: 'numberLiteral', n, type }),
+	num: (n, type) => {
+		if (!type) throw 'num needs type'
+		return B({ kind: 'numberLiteral', n, type })
+	},
 	str: (value, type) => {
 		const v = new TextEncoder().encode(value)
 		return B({ kind: 'stringLiteral', value, len: v.length, type })

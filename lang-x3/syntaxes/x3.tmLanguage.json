@@ -81,7 +81,7 @@
 					}
 				},
 				{
-					"match": "\\b(scope)\\b([a-zA-Z0-9_\\s]+)\\b",
+					"match": "\\b(do)\\b([a-zA-Z0-9_\\s]+)\\b",
 					"captures": {
 						"1": {
 							"name": "storage.type.function.x3"
@@ -185,7 +185,7 @@
 			"patterns": [
 				{
 					"name": "keyword.control.x3",
-					"match": "\\b(module|import|struct|union|proc|scope|return|break|continue|goto|label|var|const|for|do|while|each|enum|if|else|match)\\b"
+					"match": "\\b(module|import|struct|union|proc|do|return|break|continue|goto|label|var|const|for|while|each|enum|if|else|match)\\b"
 				},
 				{
 					"name": "constant.language.boolean.x3",

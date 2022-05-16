@@ -13,7 +13,7 @@ function parse(source) {
 
 	const code = source.code
 
-	const keywords = new Set(["module", "import", "use", "type", "struct", "union", "proc", "scope", "return", "break", "continue", "goto", "label", "var", "const", "for", "do", "while", "each", "enum", "if", "else", "match", "true", "false"])
+	const keywords = new Set(["module", "import", "use", "type", "struct", "union", "proc", "return", "break", "continue", "goto", "label", "var", "const", "for", "do", "while", "each", "enum", "if", "else", "match", "true", "false"])
 	const operators = new Set(["...", "<<=", ">>=", "&&=", "||=", "==", "!=", ">=", "<=", "<<", ">>", "<~", "~>", "->", "=>", "&&", "||", "++", "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "~=", "=", "!", ">", "<", "+", "-", "/", "*", "%", "^", "~", "&", "|", "(", ")", "[", "]", "{", "}", "?", ":", ";", ".", ","])
 	const binaryOperators = new Set(["==", "!=", ">=", "<=", "<<", ">>", "&&", "||", "=>", ">", "<", "+", "-", "/", "*", "%", "^", "&", "|"])
 	const preUnaryOperators = new Set(["++", "--", "!", "-", "~>", "<~"])
@@ -52,21 +52,20 @@ function parse(source) {
 		}
 
 		function isLegalNumber(c) {
-			return (c >= 0 && c <= 9)
+			return (c >= '0' && c <= '9')
 		}
 
 		function isLegalHexNumber(c) {
-			return (c >= 0 && c <= 9) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+			return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
 		}
 
 		function isLegalOctalNumber(c) {
-			return (c >= 0 && c <= 7)
+			return (c >= '0' && c <= '7')
 		}
 
 		function isLegalBinaryNumber(c) {
-			return (c == 0 || c == 1)
+			return (c == '0' || c == '1')
 		}
-
 
 		const maxTokenLength = 3;
 		let lexerIndex = 0;
@@ -213,7 +212,7 @@ function parse(source) {
 
 					const slice = code.slice(from, lexerIndex)
 					let num = parseInt(slice, 2)
-					tokens.push({ kind: 'number', value: num, span: takeSpan() })
+					tokens.push({ kind: 'number', value: num, radix: 2, span: takeSpan() })
 					continue
 				}
 				else if (current() == '0' && peek(1) == 'x') {
@@ -224,7 +223,7 @@ function parse(source) {
 
 					const slice = code.slice(from, lexerIndex)
 					let num = parseInt(slice, 16)
-					tokens.push({ kind: 'number', value: num, span: takeSpan() })
+					tokens.push({ kind: 'number', value: num, radix: 16, span: takeSpan() })
 					continue
 				}
 				else if (current() == '0' && peek(1) == 'o') {
@@ -235,10 +234,16 @@ function parse(source) {
 
 					const slice = code.slice(from, lexerIndex)
 					let num = parseInt(slice, 8)
-					tokens.push({ kind: 'number', value: num, span: takeSpan() })
+					tokens.push({ kind: 'number', value: num, radix: 8, span: takeSpan() })
 					continue
 
 				} else {
+					if (current() == '0' && isLegalNumber(peek(1))) {
+						console.log(isLegalNumber(peek(1)))
+						console.log(peek(1).charCodeAt(0))
+						console.log(takeSpan())
+						assert(false)
+					}
 					// decimal
 					while (isLegalNumber(current())) lexerIndex++
 					// float
@@ -247,7 +252,7 @@ function parse(source) {
 						while (isLegalNumber(current())) lexerIndex++
 					}
 					let num = parseFloat(code.slice(from, lexerIndex))
-					tokens.push({ kind: 'number', value: num, span: takeSpan() })
+					tokens.push({ kind: 'number', value: num, radix: 10, span: takeSpan() })
 					continue
 				}
 			}
@@ -712,16 +717,26 @@ function parse(source) {
 					}
 					return { kind: 'proc', keyword, name, parameters, arrow, returnType, body, tags }
 				}
-				case 'scope': {
-					const keyword = take('keyword', 'scope')
-					const name = take('symbol')
-					let parameters
-					if (is('operator', '(')) {
-						parameters = parseList(parseTypedSymbol)
+				case 'do': {
+					const keyword = take('keyword', 'do')
+					if (is('operator', '{')) {
+						// do-while
+						// TODO: don't allow 'real' declarations in do while statement block, just control flow stuff
+						const block = parseBlock('do while', true, true)
+						const whileKeyword = take('keyword', 'while')
+						const condition = parseExpression()
+						return { kind: 'do while', keyword, block, whileKeyword, condition }
+					} else {
+						// do block
+						const name = take('symbol')
+						let parameters
+						if (is('operator', '(')) {
+							parameters = parseList(parseTypedSymbol)
+						}
+						const tags = parseTags()
+						let body = parseBlock('proc', true, true)
+						return { kind: 'do', keyword, name, parameters, body, tags }
 					}
-					const tags = parseTags()
-					let body = parseBlock('proc', true, true)
-					return { kind: 'scope', keyword, name, parameters, body, tags }
 				}
 				case 'enum': {
 					function parseEnumEntry() {
@@ -854,14 +869,6 @@ function parse(source) {
 					// TODO: don't allow 'real' declarations in while statement block, just control flow stuff
 					const block = parseBlock('while', true, true)
 					return { kind: 'while', keyword, condition, block }
-				}
-				case 'do': {
-					const keyword = take('keyword', 'do')
-					// TODO: don't allow 'real' declarations in do while statement block, just control flow stuff
-					const block = parseBlock('do while', true, true)
-					const whileKeyword = take('keyword', 'while')
-					const condition = parseExpression()
-					return { kind: 'do while', keyword, block, whileKeyword, condition }
 				}
 				case 'for': {
 					const keyword = take('keyword', 'for')

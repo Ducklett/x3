@@ -397,8 +397,8 @@ function bind(files) {
 		if (!recurse) return false
 
 		while (scope.parent && scope.kind != 'file') {
-			// skip symbols in the scope above 'scope' blocks
-			if (scope.kind == 'scope') {
+			// skip symbols in the scope above 'do' blocks
+			if (scope.kind == 'do') {
 				scope = scope.parent
 				continue
 			}
@@ -846,9 +846,9 @@ function bind(files) {
 
 				return it
 			}
-			case 'scope': {
+			case 'do': {
 				const it = {
-					kind: 'scope',
+					kind: 'do',
 					name: node.name.value,
 					instructions: undefined,
 					notes: new Map()
@@ -857,7 +857,7 @@ function bind(files) {
 					it.notes.set(...bindTag(n))
 				}
 
-				it.scope = pushScope(null, it.name, 'scope')
+				it.scope = pushScope(null, it.name, 'do')
 				it.params = bindScopeParameters(node.parameters)
 				it.instructions = bindBlock(node.body)
 				popScope()
@@ -1239,12 +1239,11 @@ function bind(files) {
 			case 'boolean literal':
 				return { kind: 'booleanLiteral', value: node.value, span: node.span, type: typeMap.bool }
 			case 'number':
-				// TODO: only emit large numbers and number in hex,oct,bin notation as unsigned
-				// emit all positive literals as unsigned for now
-				if (node.value < 0) {
-					return { kind: 'numberLiteral', n: node.value, type: cloneType(typeMap.int), span: node.span }
-				} else {
+				const isUnsigned = node.radix != 10 || node.value > 0xFF_FF_FF_FF
+				if (isUnsigned) {
 					return { kind: 'numberLiteral', n: node.value, type: cloneType(typeMap.uint), span: node.span }
+				} else {
+					return { kind: 'numberLiteral', n: node.value, type: cloneType(typeMap.int), span: node.span }
 				}
 			case 'string':
 				const v = new TextEncoder().encode(node.value)
@@ -1859,7 +1858,7 @@ function bind(files) {
 	function bindScopeParameters(params) {
 		if (!params) return []
 		return params.items.filter((_, i) => i % 2 == 0).map(p => {
-			const it = { kind: 'scope parameter' }
+			const it = { kind: 'do parameter' }
 			const name = p.name.value
 			assert(name)
 			const type = bindType(p.type)
@@ -2317,7 +2316,7 @@ function lower(ast) {
 
 			case 'module': return lowerNodeList(node.declarations.statements)
 
-			case 'scope': return lowerNodeList(node.instructions.statements)
+			case 'do': return lowerNodeList(node.instructions.statements)
 			case 'match': {
 				// op = <expr>
 				// goto block1 if <match>
@@ -2423,9 +2422,12 @@ function lower(ast) {
 					}
 					const count = getByteCount(node.type)
 					assert(count > 0)
+
+					// zero initialize
+					// TODO: maybe just handle this in the assembly emitter
 					node.expr = {
 						kind: 'arrayLiteral',
-						entries: new Array(count).fill(null).map(_ => num(0)),
+						entries: new Array(count).fill(null).map(_ => num(0, typeMap.int)),
 						type: node.type
 					}
 				}
