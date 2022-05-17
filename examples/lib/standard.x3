@@ -7,6 +7,20 @@ proc exit(code:int)
 	sys.exit(code)
 }
 
+proc sleep(seconds:f64) {
+	assert(seconds >= 0)
+	// HACK: ad hoc flooring
+	var s = seconds:int
+
+	printf("seconds: %\n", seconds)
+	printf("s: %\n", s)
+
+	const nanoseconds in second:f64 = 10_0000_0000
+	// var t = sys.timespec(s, nanoseconds in second * (seconds - s:f64))
+	var t = sys.timespec(s, 0)
+	sys.nanosleep(~>t, null)
+}
+
 proc write(msg:string)
 {
 	sys.write(sys.stdout, msg, msg.length)
@@ -174,6 +188,7 @@ enum type tag #bitfield {
 	struct  = 7,
 	type    = 8,
 	enum    = 9,
+	float    = 11,
 }
 
 proc print(it:any) {
@@ -187,7 +202,7 @@ proc print(it:any) {
 		} else {
 			write("false")
 		}
-	} else if t.kind == type tag.int {
+	} else if (t.kind == type tag.int) || (t.kind == type tag.float) {
 		write number(<~it.data)
 	} else if t.kind == type tag.string {
 		write(<~it.data)

@@ -13,7 +13,7 @@ function parse(source) {
 
 	const code = source.code
 
-	const keywords = new Set(["module", "import", "use", "type", "struct", "union", "proc", "return", "break", "continue", "goto", "label", "var", "const", "for", "do", "while", "each", "enum", "if", "else", "match", "true", "false"])
+	const keywords = new Set(["module", "import", "use", "type", "struct", "union", "proc", "return", "break", "continue", "goto", "label", "var", "const", "for", "do", "while", "each", "enum", "if", "else", "match", "true", "false", "null"])
 	const operators = new Set(["...", "<<=", ">>=", "&&=", "||=", "==", "!=", ">=", "<=", "<<", ">>", "<~", "~>", "<-", "->", "=>", "&&", "||", "++", "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "~=", "=", "!", ">", "<", "+", "-", "/", "*", "%", "^", "~", "&", "|", "(", ")", "[", "]", "{", "}", "?", ":", ";", ".", ","])
 	const binaryOperators = new Set(["==", "!=", ">=", "<=", "<<", ">>", "&&", "||", "=>", ">", "<", "+", "-", "/", "*", "%", "^", "&", "|"])
 	const preUnaryOperators = new Set(["++", "--", "!", "-", "~>", "<~"])
@@ -203,15 +203,30 @@ function parse(source) {
 
 			// number
 			if (isLegalNumber(current())) {
+
+				function lexNumbers(f) {
+					// don't allow underscore at the start
+					let allowUnderscore = false
+					while (f(current()) || (allowUnderscore && current() == '_')) {
+						// don't allow multiple underscores in a row
+						allowUnderscore = current() != '_'
+						lexerIndex++
+					}
+				}
+
+				function parseNumber(from, to, radix) {
+					const slice = code.slice(from, to).replace(/_/g, '')
+					return radix ? parseInt(slice, radix) : parseFloat(slice)
+				}
+
 				let from = lexerIndex
 				if (current() == '0' && peek(1) == 'b') {
 					// binary
 					lexerIndex += 2
 					let from = lexerIndex
-					while (isLegalBinaryNumber(current())) lexerIndex++
+					lexNumbers(isLegalBinaryNumber)
 
-					const slice = code.slice(from, lexerIndex)
-					let num = parseInt(slice, 2)
+					let num = parseNumber(from, lexerIndex, 2)
 					tokens.push({ kind: 'number', value: num, radix: 2, span: takeSpan() })
 					continue
 				}
@@ -219,10 +234,9 @@ function parse(source) {
 					// hex
 					lexerIndex += 2
 					let from = lexerIndex
-					while (isLegalHexNumber(current())) lexerIndex++
+					lexNumbers(isLegalHexNumber)
 
-					const slice = code.slice(from, lexerIndex)
-					let num = parseInt(slice, 16)
+					let num = parseNumber(from, lexerIndex, 16)
 					tokens.push({ kind: 'number', value: num, radix: 16, span: takeSpan() })
 					continue
 				}
@@ -230,29 +244,30 @@ function parse(source) {
 					// octal
 					lexerIndex += 2
 					let from = lexerIndex
-					while (isLegalOctalNumber(current())) lexerIndex++
+					lexNumbers(isLegalOctalNumber)
 
-					const slice = code.slice(from, lexerIndex)
-					let num = parseInt(slice, 8)
+					let num = parseNumber(from, lexerIndex, 8)
 					tokens.push({ kind: 'number', value: num, radix: 8, span: takeSpan() })
 					continue
 
 				} else {
 					if (current() == '0' && isLegalNumber(peek(1))) {
-						console.log(isLegalNumber(peek(1)))
-						console.log(peek(1).charCodeAt(0))
 						console.log(takeSpan())
 						assert(false)
 					}
+					let floating = false
 					// decimal
-					while (isLegalNumber(current())) lexerIndex++
+					lexNumbers(isLegalNumber)
 					// float
 					if (current() == '.') {
+						floating = true
 						lexerIndex++
-						while (isLegalNumber(current())) lexerIndex++
+						lexNumbers(isLegalNumber)
 					}
-					let num = parseFloat(code.slice(from, lexerIndex))
-					tokens.push({ kind: 'number', value: num, radix: 10, span: takeSpan() })
+
+					//										null is treated as parseFloat
+					let num = parseNumber(from, lexerIndex, floating ? null : 10)
+					tokens.push({ kind: 'number', value: num, radix: 10, floating, span: takeSpan() })
 					continue
 				}
 			}
@@ -423,7 +438,7 @@ function parse(source) {
 			return { kind: 'file', declarations }
 		}
 
-		function parseExpression() {
+		function parseExpression(noBinary = false) {
 			let lhs
 			if (currentIsPreUnaryOperator()) {
 				const op = take('operator')
@@ -441,11 +456,20 @@ function parse(source) {
 				}
 			}
 
+			if (is('operator', ':')) {
+				const colon = take('operator', ':')
+				const type = parseType()
+				lhs = { kind: 'cast', expr: lhs, colon, type, span: spanFromRange(lhs, type) }
+			}
+
+			// HACK: this is needed to make casts and unary work on rhs until we implement precedence
+			if (noBinary) return lhs
+
 			while (currentIsBinaryOperator()) {
 				const op = take('operator')
 				// TODO: precedence climbing
 				// NOTE: only the first part of parseExpression can currently have unary operator
-				const rhs = parsePrimaryExpression()
+				const rhs = parseExpression(true)
 				assert(rhs)
 				const span = spanFromRange(lhs.span, rhs.span)
 				lhs = { kind: 'binary', lhs, op, rhs, span }
@@ -502,14 +526,6 @@ function parse(source) {
 						const span = spanFromRange(lhs.span, expr.span)
 						lhs = { kind: 'assignment', name: lhs, operator, expr, span }
 						continue
-					}
-
-					if (is('operator', ':')) {
-						const colon = take('operator', ':')
-						const alias = parseSymbol()
-						const span = spanFromRange(lhs.span, alias.span)
-						lhs = { kind: 'alias', name: lhs, colon, alias, span }
-						break
 					}
 
 					break
@@ -608,6 +624,9 @@ function parse(source) {
 					case 'keyword': {
 						const keyword = current()
 						switch (keyword.value) {
+							case 'null':
+								take('keyword')
+								return { kind: 'null literal', span: keyword.span }
 							case 'true':
 								take('keyword')
 								return { kind: 'boolean literal', value: true, span: keyword.span }
@@ -839,6 +858,7 @@ function parse(source) {
 				case 'if': {
 					const keyword = take('keyword', 'if')
 					const condition = parseExpression()
+
 					if (is('keyword', 'goto')) {
 						const gotoKeyword = take('keyword', 'goto')
 						const label = take('symbol')
@@ -1068,8 +1088,9 @@ function parse(source) {
 				let size
 				let begin = take('operator', '[')
 
-				if (is('number')) size = take('number')
-				else if (is('symbol') || is('keyword')) size = parseSymbol()
+				if (!is('operator', ']')) {
+					size = parseExpression()
+				}
 
 				let end = take('operator', ']')
 				let of = parseType()
@@ -1078,6 +1099,10 @@ function parse(source) {
 				let pointer = take('operator', '~>')
 				let to = parseType()
 				return { kind: 'type pointer', pointer, to }
+			} else if (is('operator', '?')) {
+				let optional = take('operator', '?')
+				let it = parseType()
+				return { kind: 'type optional', optional, it }
 			} else if (is('operator', '!')) {
 				let mutable = take('operator', '!')
 				let it = parseType()

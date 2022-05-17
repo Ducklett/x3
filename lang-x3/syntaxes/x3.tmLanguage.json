@@ -188,6 +188,10 @@
 					"match": "\\b(module|import|struct|union|proc|do|return|break|continue|goto|label|var|const|for|while|each|enum|if|else|match)\\b"
 				},
 				{
+					"name": "constant.language.builtin.x3",
+					"match": "\\b(null)\\b"
+				},
+				{
 					"name": "constant.language.boolean.x3",
 					"match": "\\b(true|false)\\b"
 				}

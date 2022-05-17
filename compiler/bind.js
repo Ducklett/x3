@@ -14,15 +14,19 @@ const tag_struct = 7
 const tag_type = 8
 const tag_enum = 9
 const tag_function = 10
+const tag_float = 11
 
 let any, $typeof, typeInfo, $typeInfoFor
 
 const typeMap = {
 	'unknown': { tag: tag_void, type: 'unknown', size: 0 },
+	'null': { tag: tag_pointer, type: 'null', size: 0 },
 	'int': { tag: tag_int, type: 'int', size: 8, signed: true },
 	'uint': { tag: tag_int, type: 'uint', size: 8, signed: false },
 	'u64': { tag: tag_int, type: 'u64', size: 8, signed: false },
 	'i64': { tag: tag_int, type: 'i64', size: 8, signed: true },
+	'f64': { tag: tag_float, type: 'f64', size: 8, signed: true },
+	'f32': { tag: tag_float, type: 'f32', size: 4, signed: true },
 	'void': { tag: tag_void, type: 'void', size: 0 },
 	'string': { tag: tag_string, type: 'string', size: 16 },  // *char, length
 	'cstring': { tag: tag_pointer, type: 'cstring', size: 8 }, // *char
@@ -459,6 +463,12 @@ function bind(files) {
 	function coerceType(type, it) {
 		if (typeEqual(type, it.type)) return it
 
+		if (it.kind == 'numberLiteral') {
+			if (type.tag == tag_float || type.tag == tag_int) {
+				it.type = type
+			}
+		}
+
 		// string literal -> char literal
 		if (it.kind == 'stringLiteral') {
 			if (type.type == 'char' && it.type.type == 'string') {
@@ -545,6 +555,10 @@ function bind(files) {
 				const cast = { kind: 'implicit cast', type: type, expr: it, span: it.span }
 				return cast
 			}
+		}
+
+		if (type.tag == tag_pointer && it.kind == 'nullLiteral') {
+			it.type = type
 		}
 
 		const equal = typeEqual(type, it.type)
@@ -1228,6 +1242,13 @@ function bind(files) {
 				it.span = spanFromRange(node.pointer.span, it.to.span)
 				return it
 			}
+			case 'type optional': {
+				// as of right now there isn't much value in having a "optional" type wrapper
+				// so just return the type with a flag set instead
+				const it = bindType(node.it)
+				it.optional = true
+				return it
+			}
 			case 'type mutable': {
 				// as of right now there isn't much value in having a "mutable" type wrapper
 				// so just return the type with a flag set instead
@@ -1277,6 +1298,7 @@ function bind(files) {
 
 	function bindExpression(node, inScope) {
 		switch (node.kind) {
+			case 'null literal': return { kind: 'nullLiteral', span: node.span, type: typeMap.null }
 			case 'boolean literal':
 				return { kind: 'booleanLiteral', value: node.value, span: node.span, type: typeMap.bool }
 			case 'number':
@@ -1385,6 +1407,18 @@ function bind(files) {
 				}
 
 
+				return it
+			}
+			case 'cast': {
+				const expr = bindExpression(node.expr)
+				const type = bindType(node.type)
+				const span = node.span
+				const it = {
+					kind: 'cast',
+					expr,
+					type,
+					span,
+				}
 				return it
 			}
 			case 'offset access': {
@@ -1604,26 +1638,26 @@ function bind(files) {
 			case 'binary': {
 				const op = node.op.value
 
-				// fooEnum == bar:b
-				if (node.rhs.kind == 'alias') {
-					const a = bindExpression(node.lhs)
-					assert(op == '==', `alias can only be bound with operator == (got ${op})`)
-					assert(a.kind == 'reference', `left hand side of type check shound reference a symbol`)
-					assert(a.type.kind == 'enum', `left hand symbol should be an enum`)
+				// // fooEnum == bar:b
+				// if (node.rhs.kind == 'alias') {
+				// 	const a = bindExpression(node.lhs)
+				// 	assert(op == '==', `alias can only be bound with operator == (got ${op})`)
+				// 	assert(a.kind == 'reference', `left hand side of type check shound reference a symbol`)
+				// 	assert(a.type.kind == 'enum', `left hand symbol should be an enum`)
 
-					const b = ((node) => {
-						const property = findSymbol(node.name.value, a.type.scope)
-						assert(property)
-						const alias = createEnumAlias(property, node.alias)
-						const r = ref(property)
-						r.alias = alias
-						return r
-					})(node.rhs)
+				// 	const b = ((node) => {
+				// 		const property = findSymbol(node.name.value, a.type.scope)
+				// 		assert(property)
+				// 		const alias = createEnumAlias(property, node.alias)
+				// 		const r = ref(property)
+				// 		r.alias = alias
+				// 		return r
+				// 	})(node.rhs)
 
-					const type = typeMap.bool
-					const it = { kind: 'binary', a, op, b, type, span: spanFromRange(a.span, b.span) }
-					return it
-				}
+				// 	const type = typeMap.bool
+				// 	const it = { kind: 'binary', a, op, b, type, span: spanFromRange(a.span, b.span) }
+				// 	return it
+				// }
 
 
 				const a = bindExpression(node.lhs)
@@ -1672,54 +1706,73 @@ function bind(files) {
 
 				assert(b.type)
 
-				let type = null
-
-				const tagNumber = 1
-
-				if (a.kind == 'stringLiteral' && (b.type.type == 'int' || b.type.type == 'char')) {
-					a.type = typeMap.char
-				}
-				if (b.kind == 'stringLiteral' && (a.type.type == 'int' || a.type.type == 'char')) {
-					b.type = typeMap.char
-				}
-
-				if (a.kind == 'numberLiteral' && (b.type.tag == tagNumber)) {
-					a.type = b.type
-				}
-				if (b.kind == 'numberLiteral' && (a.type.tag == tagNumber)) {
-					b.type = a.type
-				}
-
-				if (a.type.kind == 'enum' && b.type.type == 'int') {
-					type = b.type
-
-					assert(a.kind == 'reference')
-					assert((a.kind == 'readProp' && a.prop.kind == 'reference') || a.kind == 'reference')
-					assert(a.symbol.type.notes.has('bitfield'), 'enum arithmetic is only executed on enums marked as #bitfield')
-					// allow it
-				}
-				else if (b.type.kind == 'enum' && a.type.type == 'int') {
-					type = a.type
-
-					assert((b.kind == 'readProp' && b.prop.kind == 'reference') || b.kind == 'reference')
-					assert(b.symbol.type.notes.has('bitfield'), 'enum arithmetic is only executed on enums marked as #bitfield')
-					// allow it
-				}
-				else if (a.type.type == 'pointer' && b.type.tag == tagNumber || b.type.type == 'pointer' && a.type.tag == tagNumber) {
-					// HACK: allow pointer arithmetic
-				}
-				else if (a.type.type == 'char' && b.type.tag == 1 || b.type.type == 'char' && a.type.tag == tagNumber) {
-					// allow it
-				}
-				else if (a.type.tag == tagNumber && b.type.tag == tagNumber) {
-					// both numbers, allow it
-				} else {
-					if (a.type.type != b.type.type) {
-						console.log(a)
-						console.log(b)
+				// attempt to match up type a with b, inserting implicit casts where needed
+				// returns the dominant type if there is one
+				function resolveTypeDispute(a, b) {
+					if (a.kind == 'stringLiteral' && (b.type.type == 'int' || b.type.type == 'char')) {
+						assert(a.len === 1)
+						a.type = typeMap.char
 					}
-					assert(a.type.type == b.type.type)
+
+					if (b.kind == 'stringLiteral' && (a.type.type == 'int' || a.type.type == 'char')) {
+						assert(b.len === 1)
+						b.type = typeMap.char
+					}
+
+					if (a.kind == 'numberLiteral' && (b.type.tag == tag_int)) {
+						a.type = b.type
+					}
+					if (b.kind == 'numberLiteral' && (a.type.tag == tag_int)) {
+						b.type = a.type
+					}
+
+					if (a.kind == 'numberLiteral' && (b.type.tag == tag_float)) {
+						a.type = b.type
+					}
+					if (b.kind == 'numberLiteral' && (a.type.tag == tag_float)) {
+						b.type = a.type
+					}
+
+					if (a.type.kind == 'enum' && b.type.type == 'int') {
+
+						assert(a.kind == 'reference')
+						assert((a.kind == 'readProp' && a.prop.kind == 'reference') || a.kind == 'reference')
+						assert(a.symbol.type.notes.has('bitfield'), 'enum arithmetic is only executed on enums marked as #bitfield')
+						// allow it
+
+						return b.type
+					}
+
+					if (b.type.kind == 'enum' && a.type.type == 'int') {
+
+						assert((b.kind == 'readProp' && b.prop.kind == 'reference') || b.kind == 'reference')
+						assert(b.symbol.type.notes.has('bitfield'), 'enum arithmetic is only executed on enums marked as #bitfield')
+						// allow it
+
+						return a.type
+					}
+
+					if (a.type.type == 'pointer' && b.type.tag == tag_int || b.type.type == 'pointer' && a.type.tag == tag_int) {
+						// HACK: allow pointer arithmetic
+					}
+					else if (a.type.type == 'char' && b.type.tag == 1 || b.type.type == 'char' && a.type.tag == tag_int) {
+						// allow it
+					}
+					else if (a.type.tag == tag_int && b.type.tag == tag_int) {
+						// both numbers, allow it
+						// TODO: proper number resolution
+					} else {
+						const equal = typeEqual(a.type, b.type)
+						if (!equal) {
+							console.log(a)
+							console.log(b)
+						}
+						assert(equal)
+					}
 				}
+
+				let type = resolveTypeDispute(a, b)
+
 
 				const logicalOperators = new Set(['>', '>=', '<', '<=', '==', '!='])
 				const isLogical = logicalOperators.has(op)
@@ -2063,6 +2116,12 @@ function lower(ast) {
 
 				return lowerNode(arr)
 			}
+			case 'cast': {
+				const expr = lowerNode(node.expr)
+				assert(expr.length == 1)
+				node.expr = expr[0]
+				return [node]
+			}
 			case 'implicit cast': {
 
 				if (node.type.type == 'array' && node.expr.type.type == 'array') {
@@ -2213,6 +2272,7 @@ function lower(ast) {
 				return [node]
 			}
 
+			case 'nullLiteral': { return lowerNode(num(0, typeMap.u64)) }
 			case 'stringLiteral': {
 
 				if (makeBuffer) {

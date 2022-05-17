@@ -1,6 +1,35 @@
 const path = require('path')
 const fs = require('fs')
 
+const tag_void = 0
+const tag_int = 1
+const tag_bool = 2
+const tag_string = 3
+const tag_char = 4
+const tag_pointer = 5
+const tag_array = 6
+const tag_struct = 7
+const tag_type = 8
+const tag_enum = 9
+const tag_function = 10
+const tag_float = 11
+
+// return double as array of two u32 values
+function f64ToBytes(f) {
+	const buf = new Float64Array(1)
+	const a = new Uint32Array(buf.buffer)
+	buf[0] = f
+	return [a[0], a[1]]
+}
+
+// return float as u32
+function f32ToBytes(f) {
+	const buf = new Float32Array(1)
+	const a = new Uint32Array(buf.buffer)
+	buf[0] = f
+	return a[0]
+}
+
 function escapeCharSequence(c) {
 	return c.replace(/\n/g, '\\n')
 		.replace(/\0/g, '\\0')
@@ -308,6 +337,7 @@ ${[...data.keys()]
 					data.push(node.len)
 				} break
 				case 'numberLiteral': {
+					assert(node.type.tag == tag_int)
 					data.push(node.n)
 				} break
 				case 'booleanLiteral': {
@@ -447,6 +477,7 @@ ${[...data.keys()]
 							const node = vr.data
 
 							if (node.kind == 'numberLiteral') {
+								assert(node.type.tag == tag_int)
 								const size = node.type.size
 								assert(size % 8 == 0)
 								varOffset -= size
@@ -555,6 +586,7 @@ ${[...data.keys()]
 				}
 				case 'syscall': {
 					assert(node.code.kind == 'numberLiteral')
+					assert(node.code.type.tag == tag_int)
 					const nr = node.code.n
 					assert(nr !== undefined, 'must be a linux syscall')
 					// TODO: code->name mapping for bebug info
@@ -1015,13 +1047,24 @@ ${[...data.keys()]
 				}
 				case 'numberLiteral': {
 					assert(shouldReturn, 'number should not be called at top level')
-					if (node.type.signed) {
-						lines.push(`push ${node.n}`)
-					} else {
+					if (node.type.tag == tag_float) {
+						const [a, b] = f64ToBytes(node.n)
+						const fullNumber = '0x' + (b.toString(16).padStart(8, '0')) + a.toString(16).padStart(8, '0')
+
 						// NOTE: we put it into rax first, because pushing a number into the stack directly causes it to be sign extended
-						lines.push(`mov rax, ${node.n}`)
+						lines.push(`mov rax, ${fullNumber} ; ${node.n}`)
 						lines.push(`push rax`)
+					} else {
+						assert(node.type.tag == tag_int)
+						if (node.type.signed) {
+							lines.push(`push ${node.n}`)
+						} else {
+							// NOTE: we put it into rax first, because pushing a number into the stack directly causes it to be sign extended
+							lines.push(`mov rax, ${node.n}`)
+							lines.push(`push rax`)
+						}
 					}
+
 					return
 				}
 				case 'arrayLiteral': {
@@ -1100,6 +1143,41 @@ ${[...data.keys()]
 
 					return
 				}
+				case 'cast': {
+					emitExpr(node.expr)
+
+					switch (node.type.type) {
+						case 'int': switch (node.expr.type.type) {
+							case 'f64': {
+								// pop into xmm0
+								lines.push(`pop rax`)
+								lines.push(`movq xmm0, rax`)
+								// lines.push(`movsd xmm0, qword [rsp]`)
+								// lines.push(`add rsp, 8`)
+
+								lines.push(`cvttsd2si rax, xmm0 ; cast f64 -> int`)
+								lines.push(`push qword rax`)
+							} break
+							default: throw node.expr.type
+						} break
+						case 'f64': switch (node.expr.type.type) {
+							case 'int': {
+								lines.push(`pop rax`)
+								// TODO: see if this is really needed
+								lines.push(`pxor xmm0, xmm0`)
+								lines.push(`cvtsi2sd xmm0, rax ; cast int -> f64`)
+
+								// push xmm0
+								lines.push(`sub rsp, 8`)
+								lines.push(`movsd [rsp], xmm0`)
+							} break
+							default: throw node.expr.type
+						} break
+						default: throw node.type
+					}
+
+					return
+				}
 				case 'assignVar': {
 					if (node.varDec.kind == 'indexedAccess') {
 						assert(node.varDec.left.kind == 'reference', 'must be reference')
@@ -1110,6 +1188,7 @@ ${[...data.keys()]
 						const index = node.varDec.index
 						let indexValue
 						if (index.kind == 'numberLiteral') {
+							assert(index.type.tag == tag_int)
 							indexValue = index.n
 						} else {
 							emitExpr(index)

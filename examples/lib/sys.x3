@@ -4,6 +4,8 @@ type size_t = u64
 type ssize_t = i64
 type mode_t = i64
 
+struct timespec(seconds:i64,nanoseconds:f64)
+
 // see linux manual for syscall documentation
 proc read(fd:uint,buf:~>!char,count:size_t) -> ssize_t       #syscall(0x000)
 proc write(fd:int,buf:~>void,count:size_t) -> ssize_t        #syscall(0x001)
@@ -23,6 +25,8 @@ proc mprotect(start:u64,len:u64,prot:u64)                    #syscall(0x00A)
 proc munmap(addr:u64,len:u64)                                #syscall(0x00B)
 proc brk(brk:u64)                                            #syscall(0x00C)
 
+proc nanosleep(req:~>timespec,rem:?~>timespec) -> int        #syscall(0x023)
+
 proc exit(code:int)                                          #syscall(0x03c)
 proc unlink(path:cstring)                                    #syscall(0x057)
 proc getrandom(buf:~>!void,buflen:size_t,flags:uint) -> ssize_t  #syscall(0x13e)
@@ -31,6 +35,7 @@ proc getrandom(buf:~>!void,buflen:size_t,flags:uint) -> ssize_t  #syscall(0x13e)
 const stdin:int = 0
 const stdout:int = 1
 const stderr:int = 2
+
 
 // errno codes
 const EPERM:int =        1
