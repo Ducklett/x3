@@ -2,7 +2,7 @@ import "./lib/standard" use standard
 
 proc main {
 	// TODO: parse .9 as float
-	sleep(0.9)
+	sleep(1.9)
 	//play snake()
 }
 

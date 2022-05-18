@@ -904,66 +904,112 @@ ${[...data.keys()]
 					return
 				}
 				case 'binary': {
-					const ops = {
-						'+': 'add',
-						'-': 'sub',
-						'*': 'imul',
-						'/': 'idiv',
-						'%': 'idiv',
-
-						'>': 'setg',
-						'>=': 'setge',
-						'<': 'setl',
-						'<=': 'setle',
-						'==': 'sete',
-						'!=': 'setne',
-						'>>': 'sar', // TODO: research difference between shl/sal
-						'<<': 'sal',
-						'&': 'and',
-						'|': 'or',
-						'||': 'or',  // TODO: short circuit
-						'&&': 'and', // TODO: short circuit
-					}
-					const op = ops[node.op]
-					assert(op, `illegal binary operator ${node.op}`)
-
-					let resultRegister = node.op == '%' ? 'rdx' : 'rax'
 
 					emitExpr(node.a)
 					emitExpr(node.b)
 
-					if (node.op == '>>' || node.op == '<<') {
+
+					if (node.a.type.tag == tag_float) {
+						assert(node.b.type.tag == tag_float)
+						const ops = {
+							'+': 'addsd',
+							'-': 'subsd',
+							'*': 'mulsd',
+							'/': 'divsd',
+
+							'>': 'seta',
+							'>=': 'setnb',
+							'<': 'setb',
+							'<=': 'setna',
+							'==': 'sete',
+							'!=': 'setne',
+						}
+						const op = ops[node.op]
+						assert(op, `illegal binary operator ${node.op}`)
+
+						// pop b
+						lines.push(`pop rax`)
+						lines.push(`movq xmm1, rax`)
+
+						// pop a
+						lines.push(`pop rax`)
+						lines.push(`movq xmm0, rax`)
+
+						if (op.startsWith('set')) {
+							if (op == 'sete') {
+								assert(false, `steal complicated shit from gcc`)
+							} else if (op == 'setne') {
+								assert(false, `steal complicated shit from gcc`)
+							} else {
+								lines.push(`comisd xmm0, xmm1`)
+								lines.push(`${op} al`)
+								lines.push(`movzx rax, al`)
+							}
+						} else {
+							lines.push(`${op} xmm0, xmm1`)
+							lines.push(`movq rax, xmm0`)
+						}
+
+						if (shouldReturn) lines.push(`push rax`)
+					} else {
+						const ops = {
+							'+': 'add',
+							'-': 'sub',
+							'*': 'imul',
+							'/': 'idiv',
+							'%': 'idiv',
+
+							'>': 'setg',
+							'>=': 'setge',
+							'<': 'setl',
+							'<=': 'setle',
+							'==': 'sete',
+							'!=': 'setne',
+							'>>': 'sar', // TODO: research difference between shl/sal
+							'<<': 'sal',
+							'&': 'and',
+							'|': 'or',
+							'||': 'or',  // TODO: short circuit
+							'&&': 'and', // TODO: short circuit
+						}
+						const op = ops[node.op]
+						assert(op, `illegal binary operator ${node.op}`)
+
+						let resultRegister = node.op == '%' ? 'rdx' : 'rax'
+						if (node.op == '>>' || node.op == '<<') {
+							lines.push(`pop rcx`)
+							lines.push(`pop rax`)
+							// variable shift uses cl register https://stackoverflow.com/questions/25644445/
+							lines.push(`${op} rax, cl`)
+							if (shouldReturn) lines.push(`push ${resultRegister}`)
+							return
+						}
+
 						lines.push(`pop rcx`)
 						lines.push(`pop rax`)
-						// variable shift uses cl register https://stackoverflow.com/questions/25644445/
-						lines.push(`${op} rax, cl`)
+						if (op.startsWith('set')) {
+							lines.push(`cmp rax, rcx`)
+							// TODO: figure out if this is safe?
+							// we save the result in al but push rax
+							// so we're possibly saving garbage data from the upper bytes
+							lines.push(`mov rax, 0`)
+							lines.push(`${op} al`)
+						} else if (op == 'idiv') {
+							// as seen in C -> asm view on godbolt
+							// cqo sign-extends rax:rdx
+							// not really sure what this means, but it's needed to make *signed* division work
+							// for unsigned division we'd use 'mul' over 'imul' and ditch 'cqo'
+							// https://en.wikipedia.org/wiki/Sign_extension
+							// https://stackoverflow.com/questions/36464879/when-and-why-do-we-sign-extend-and-use-cdq-with-mul-div
+							// https://stackoverflow.com/questions/51717317/dividing-with-a-negative-number-gives-me-an-overflow-in-nasm/51717463#51717463
+							lines.push(`cqo`)
+							lines.push(`${op} rcx`)
+						} else {
+							lines.push(`${op} rax, rcx`)
+						}
 						if (shouldReturn) lines.push(`push ${resultRegister}`)
-						return
 					}
 
-					lines.push(`pop rcx`)
-					lines.push(`pop rax`)
-					if (op.startsWith('set')) {
-						lines.push(`cmp rax, rcx`)
-						// TODO: figure out if this is safe?
-						// we save the result in al but push rax
-						// so we're possibly saving garbage data from the upper bytes
-						lines.push(`mov rax, 0`)
-						lines.push(`${op} al`)
-					} else if (op == 'idiv') {
-						// as seen in C -> asm view on godbolt
-						// cqo sign-extends rax:rdx
-						// not really sure what this means, but it's needed to make *signed* division work
-						// for unsigned division we'd use 'mul' over 'imul' and ditch 'cqo'
-						// https://en.wikipedia.org/wiki/Sign_extension
-						// https://stackoverflow.com/questions/36464879/when-and-why-do-we-sign-extend-and-use-cdq-with-mul-div
-						// https://stackoverflow.com/questions/51717317/dividing-with-a-negative-number-gives-me-an-overflow-in-nasm/51717463#51717463
-						lines.push(`cqo`)
-						lines.push(`${op} rcx`)
-					} else {
-						lines.push(`${op} rax, rcx`)
-					}
-					if (shouldReturn) lines.push(`push ${resultRegister}`)
 
 					return
 				}

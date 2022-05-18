@@ -12,11 +12,16 @@ proc sleep(seconds:f64) {
 	// HACK: ad hoc flooring
 	var s = seconds:int
 
-	printf("seconds: %\n", seconds)
-	printf("s: %\n", s)
 
 	const nanoseconds in second:f64 = 10_0000_0000
-	var t = sys.timespec(s, nanoseconds in second * (seconds - s:f64))
+	var nanos = nanoseconds in second * (seconds - s:f64)
+
+	printf("seconds: %\n", format.hex(seconds))
+	printf("s: %\n", s)
+	printf("nanos: %\n", format.hex(nanos))
+
+	// TODO: figure out why it doesn't work when nanos is set to non-zero
+	var t = sys.timespec(s, nanos)
 	sys.nanosleep(~>t, null)
 }
 
@@ -311,7 +316,7 @@ module format {
 		return formatter((it:any) {
 			var d = it.data
 			var t = it.type
-			assert(t.kind == 1)
+			assert((t.kind == 1) || (t.kind == 11)) // int or float
 			write hex(<~d)
 		}, it)
 	}

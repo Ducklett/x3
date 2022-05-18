@@ -2707,7 +2707,13 @@ function lower(ast) {
 				if (node.a.kind == 'numberLiteral' && node.b.kind == 'numberLiteral') {
 					// NOTE: tight coupling between x3 and js operators
 					const newValue = eval(`node.a.n ${node.op} node.b.n`)
-					const it = { ...node.a, n: Number(newValue), type: node.type }
+
+					let it
+					if (node.type.tag == tag_bool) {
+						it = bool(newValue, typeMap.bool)
+					} else {
+						it = { ...node.a, n: Number(newValue), type: node.type }
+					}
 					return [it]
 
 				}
