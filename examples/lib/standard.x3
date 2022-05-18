@@ -540,9 +540,9 @@ module tui {
 
 	proc cursor to(x:int,y:int) {
 		write("\x1B[")
-		write number(y)
+		write number(y+1)
 		write(";")
-		write number(x)
+		write number(x+1)
 		write("H")
 	}
 

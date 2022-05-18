@@ -28,6 +28,7 @@ proc brk(brk:u64)                                            #syscall(0x00C)
 proc nanosleep(req:~>timespec,rem:?~>timespec) -> int        #syscall(0x023)
 
 proc exit(code:int)                                          #syscall(0x03c)
+proc fcntl(fd:int,cmd:int, arg:u64) -> int                   #syscall(0x048)
 proc unlink(path:cstring)                                    #syscall(0x057)
 proc getrandom(buf:~>!void,buflen:size_t,flags:uint) -> ssize_t  #syscall(0x13e)
 
@@ -36,6 +37,9 @@ const stdin:int = 0
 const stdout:int = 1
 const stderr:int = 2
 
+// fcntl options
+const F_GETFL = 3
+const F_SETFL = 4
 
 // errno codes
 const EPERM:int =        1
