@@ -9,19 +9,11 @@ proc exit(code:int)
 
 proc sleep(seconds:f64) {
 	assert(seconds >= 0)
-	// HACK: ad hoc flooring
-	var s = seconds:int
-
-
 	const nanoseconds in second:f64 = 10_0000_0000
-	var nanos = nanoseconds in second * (seconds - s:f64)
+	var full seconds = seconds:int
+	var full nanos = (nanoseconds in second * (seconds - full seconds:f64)):i64
 
-	printf("seconds: %\n", format.hex(seconds))
-	printf("s: %\n", s)
-	printf("nanos: %\n", format.hex(nanos))
-
-	// TODO: figure out why it doesn't work when nanos is set to non-zero
-	var t = sys.timespec(s, nanos)
+	var t = sys.timespec(full seconds, full nanos)
 	sys.nanosleep(~>t, null)
 }
 
