@@ -1303,7 +1303,9 @@ function bind(files) {
 				return { kind: 'booleanLiteral', value: node.value, span: node.span, type: typeMap.bool }
 			case 'number':
 				const isUnsigned = node.radix != 10 || node.value > 0xFF_FF_FF_FF
-				if (isUnsigned) {
+				if (node.floating) {
+					return { kind: 'numberLiteral', n: node.value, type: cloneType(typeMap.f64), span: node.span }
+				} else if (isUnsigned) {
 					return { kind: 'numberLiteral', n: node.value, type: cloneType(typeMap.uint), span: node.span }
 				} else {
 					return { kind: 'numberLiteral', n: node.value, type: cloneType(typeMap.int), span: node.span }
@@ -1415,6 +1417,19 @@ function bind(files) {
 				const span = node.span
 				const it = {
 					kind: 'cast',
+					expr,
+					type,
+					span,
+				}
+				return it
+			}
+			case 'reinterpret': {
+				const expr = bindExpression(node.expr)
+				const type = bindType(node.type)
+				assert(expr.type.size == type.size, `reinterpet is only valid for types of the same size ${expr.type.size}, ${type.size}`)
+				const span = node.span
+				const it = {
+					kind: 'reinterpret',
 					expr,
 					type,
 					span,
@@ -2122,8 +2137,8 @@ function lower(ast) {
 				node.expr = expr[0]
 				return [node]
 			}
+			case 'reinterpret': return lowerNode(node.expr)
 			case 'implicit cast': {
-
 				if (node.type.type == 'array' && node.expr.type.type == 'array') {
 					assert(node.type.of.type == 'any')
 					const count = node.expr.type.count

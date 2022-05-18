@@ -16,8 +16,7 @@ proc sleep(seconds:f64) {
 	printf("s: %\n", s)
 
 	const nanoseconds in second:f64 = 10_0000_0000
-	// var t = sys.timespec(s, nanoseconds in second * (seconds - s:f64))
-	var t = sys.timespec(s, 0)
+	var t = sys.timespec(s, nanoseconds in second * (seconds - s:f64))
 	sys.nanosleep(~>t, null)
 }
 

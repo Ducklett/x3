@@ -462,6 +462,12 @@ function parse(source) {
 				lhs = { kind: 'cast', expr: lhs, colon, type, span: spanFromRange(lhs, type) }
 			}
 
+			if (is('operator', '~')) {
+				const colon = take('operator', '~')
+				const type = parseType()
+				lhs = { kind: 'reinterpret', expr: lhs, colon, type, span: spanFromRange(lhs, type) }
+			}
+
 			// HACK: this is needed to make casts and unary work on rhs until we implement precedence
 			if (noBinary) return lhs
 
