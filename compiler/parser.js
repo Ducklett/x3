@@ -202,7 +202,7 @@ function parse(source) {
 			}
 
 			// number
-			if (isLegalNumber(current())) {
+			if (isLegalNumber(current()) || (current() == '.' && isLegalNumber(peek(1)))) {
 
 				function lexNumbers(f) {
 					// don't allow underscore at the start
