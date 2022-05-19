@@ -4,6 +4,10 @@ proc main {
 	play snake()
 }
 
+// a basic snake game
+// works best with unbuffered inputs but-
+// we can't control that yet.
+// for now the `make snake` is used to start the game
 proc play snake {
 	var termState = sys.fcntl(sys.stdin, sys.F_GETFL,0)
 	sys.fcntl(sys.stdin, sys.F_SETFL, termState | sys.O_NONBLOCK)
@@ -12,42 +16,26 @@ proc play snake {
 	const board area = board size * board size
 
 	var apple = 0
-	var snake = 0
 	// TODO: constant folding for array size (board size * board size)
-	var snake2:[64]int
+	var snake:[256]int
+	var board:[256]char
 
-	// var snake:[board area]int
-	// var score = 0
-	// var index = 0
+	each _,i <- board { board[i] = "_" }
+
+	var score = 0
+	var index = 0
 
 	var key:[2]char // NOTE: it's 2 characters because otherwise it will buffer and return the buffered character
-	// var snake:[board size * board size]int
 
 	proc random position() -> int { return random range(0,board area) }
-	proc place(at:int,it:any) {
-		var x = at%board size
-		var y = at/board size
-		tui.cursor to(x,y)
-		printf("%",it)
-		// printf("%%,%:%",it,x,y,at)
-	}
 
 	tui.clear()
 
-	each y <- board size {
-		each x <- board size {
-			write("_")
-		}
-		write("\n")
-	}
+	snake[index] = board area / 2 + (board size / 2)
+	apple = 40 //random position()
 
-	// snake[0] = board area / 2 + (board size / 2)
-	snake = board area / 2 + (board size / 2)
-	apple = random position()
-
-	place(apple, format.red("*"))
-	// place(snake[index], format.cyan("#"))
-	place(snake, format.cyan("#"))
+	board[apple] = "*"
+	board[snake[index]] = "#"
 
 	enum direction { up, down, left, right }
 	var dir = direction.up
@@ -57,8 +45,6 @@ proc play snake {
 		sleep(.2)
 		read(key)
 
-		//place(snake, "_")
-
 		match key[0] {
 			"w"    dir = direction.up
 			"a"    dir = direction.left
@@ -66,131 +52,67 @@ proc play snake {
 			"d"    dir = direction.right
 		}
 
-		// TODO: wrap
-		// var prev = snake[index]
-		var prev = snake
-		// index++
+		var prev = snake[index]
+		index = (index + 1) % board area
 
 		match dir {
 			up {
 				if prev < board size'  break
-				// snake[index] = prev - board size
-				snake = prev - board size
+				snake[index] = prev - board size
 			}
 			left {
 				if prev % board size == 0  break
-				// snake[index] = prev - 1
-				snake = prev - 1
+				snake[index] = prev - 1
 			}
 			down {
 				if prev + board size >= board area'  break
-				// snake[index] = prev + board size
-				snake = prev + board size
+				snake[index] = prev + board size
 			}
 			right {
 				if (prev+1) % board size == 0  break
-				// snake[index] = prev + 1
-				snake = prev + 1
+				snake[index] = prev + 1
 			}
 		}
 
-		place(prev, "_")
-		// place(snake[index], format.cyan("#"))
-		place(snake, format.cyan("#"))
+		// self collision
+		if board[snake[index]] == "#" break
+
+		if snake[index] == apple {
+			score++
+			// TODO: fix random giving us broken numbers
+			// TODO: fix number printer suppoedly printing them wrong
+			// TODO: fix array access for these broken numbers?
+
+			// prng for now
+			apple = apple + 37 * 45839 % board area //random position()
+		}
+
+		var toRemove = index - (score + 1) + board area % board area
+		board[snake[toRemove]] = "_"
+		board[snake[index]] = "#"
+
+		board[apple] = "*"
+
+		tui.cursor to(0,0)
+		each y <- board size {
+			each x <- board size {
+				write char(board[x+(y*board size)])
+			}
+			tui.cursor to(0,y+1)
+		}
+
+		tui.cursor to(0, board size+1)
+		print(apple)
 	}
 
 	tui.cursor to(0, board size+1)
 	write("Game over!\n")
 
+	// grab input for a little bit longer so-
+	// we don't spam random keys into the console on game over
+	sleep(1)
+	read(key)
+
 	sys.fcntl(sys.stdin, sys.F_SETFL, termState)
 
-	// // TODO: read board size constant from outer scope
-	// proc random position() -> int { return random range(0,100+1) }
-
-	// // TODO: constants in array size (arr:[10][10]char)
-	// // TODO: multi dimensional arrays
-	// // TODO: constant arrays
-	// // TODO: initializer syntax; board:[100]char = ["a","b",..."c"] // a then b then fill the rest with c (otherwise it would be filled with 0)
-	// var board: [100]char
-
-	// var score = 0
-	// var apple pos = random position()
-	// var player pos = random position()
-	// var key err = false
-
-	// // TODO: make goto work when the label is in another block (don't jump into scope blocks though)
-	// // we always want to render once before taking user input
-	// goto render
-
-	// label game loop:
-	// do update(player pos:int,apple pos:int,score:int, key err:!bool) {
-	// 	key err = false
-	// 	var key:[2]char // NOTE: it's 2 characters because otherwise it will buffer and return the buffered character
-	// 	read(key)
-	// 	// TODO: handle wrapping
-	// 	if (key[0] == "w") {
-	// 		player pos -= 10
-	// 	} else if key[0] == "a" {
-	// 		player pos -= 1
-	// 	} else if key[0] == "s" {
-	// 		player pos += 10
-	// 	} else if key[0] == "d" {
-	// 		player pos += 1
-	// 	} else {
-	// 		key err = true
-	// 		// TODO: find lab
-	// 		// goto game loop
-	// 	}
-
-	// 	if apple pos == player pos {
-	// 		score++
-	// 		// TODO: allow scopes to access FUNCTIONS from the outer scope, but not variables
-	// 		apple pos = random range(0,101) //random position()
-	// 	}
-	// }
-
-	// label render:
-	// do render(board:[]char, apple pos:int,player pos:int,score:int, key err:bool) {
-	// 	tui.clear()
-	// 	tui.cursor to(0,5)
-	// 	// tui.clear()
-	// 	const apple:char = "*"
-	// 	const body:char = "#"
-	// 	const floor:char = "_"
-
-	// 	// TODO: make this more efficient; keep track of last player position and only update the characters that changed
-	// 	each _,i <- board { board[i] = floor }
-	// 	board[player pos] = body
-	// 	board[apple pos] = apple
-
-	// 	printf("Score: %\n", format.green(score))
-
-	// 	each cell,i <- board {
-	// 		var color = tui.color.white
-	// 		if cell == apple {
-	// 			color = tui.color.red
-	// 		} else if cell == body {
-	// 			color = tui.color.cyan
-	// 		}
-
-	// 		write(color)
-	// 		write char(cell)
-
-	// 		if (i+1) % 10 == 0 {
-	// 			write("\n")
-	// 		}
-	// 	}
-	// 	write(tui.color.reset)
-
-	// 	if key err {
-	// 		printf("%\n", format.yellow("unkown key; use wasd to move"))
-	// 	}
-	// }
-
-	// if score < 10 goto game loop
-
-	// tui.cursor to(0,13)
-	// write("*********************************\n")
-	// write("*            You win!           *\n")
-	// write("*********************************\n")
 }

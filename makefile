@@ -30,5 +30,16 @@ run:
 	ld out/out.o -o out/out
 	./out/out these are some args
 
+snake:
+	rm -f ./out/out
+	rm -f ./out/out.asm
+	node --trace-uncaught compiler
+	mkdir -p out
+	nasm -f elf64 out/out.asm -o out/out.o
+	ld out/out.o -o out/out
+	stty raw -echo
+	./out/out these are some args
+	stty -raw echo
+
 clean:
 	rm -r out

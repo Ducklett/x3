@@ -500,6 +500,12 @@ function bind(files) {
 			return cast
 		}
 
+		// implicit []char -> string cast
+		if (type.type == 'string', it.type.type == 'array' && it.type.of.type == 'char') {
+			const cast = { kind: 'implicit cast', type: type, expr: it, span: it.span }
+			return cast
+		}
+
 		// implicit cstring -> ~>char AND string -> ~>void cast
 		// implicit string -> ~>char AND string -> ~>void cast
 		if (type.type == 'pointer' && (it.type.type == 'cstring' || it.type.type == 'string')) {
