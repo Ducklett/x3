@@ -9,12 +9,18 @@ proc play snake {
 	sys.fcntl(sys.stdin, sys.F_SETFL, termState | sys.O_NONBLOCK)
 
 	const board size = 16
+	const board area = board size * board size
+
 	var apple = 0
 	var snake = 0
+	// var snake:[board area]int
+	// var score = 0
+	// var index = 0
+
 	var key:[2]char // NOTE: it's 2 characters because otherwise it will buffer and return the buffered character
 	// var snake:[board size * board size]int
 
-	proc random position() -> int { return random range(0,board size * board size) }
+	proc random position() -> int { return random range(0,board area) }
 	proc place(at:int,it:any) {
 		var x = at%board size
 		var y = at/board size
@@ -32,10 +38,13 @@ proc play snake {
 		write("\n")
 	}
 
-	snake = board size * board size / 2
+	// snake[0] = board area / 2 + (board size / 2)
+	snake = board area / 2 + (board size / 2)
 	apple = random position()
 
 	place(apple, format.red("*"))
+	// place(snake[index], format.cyan("#"))
+	place(snake, format.cyan("#"))
 
 	enum direction { up, down, left, right }
 	var dir = direction.up
@@ -47,35 +56,43 @@ proc play snake {
 
 		//place(snake, "_")
 
-		if (key[0] == "w") {
-			dir=direction.up
-		} else if key[0] == "a" {
-			dir=direction.left
-		} else if key[0] == "s" {
-			dir=direction.down
-		} else if key[0] == "d" {
-			dir=direction.right
+		match key[0] {
+			"w"    dir = direction.up
+			"a"    dir = direction.left
+			"s"    dir = direction.down
+			"d"    dir = direction.right
 		}
+
+		// TODO: wrap
+		// var prev = snake[index]
+		var prev = snake
+		// index++
 
 		match dir {
 			up {
-				if snake < board size'  break
-				snake -= board size
+				if prev < board size'  break
+				// snake[index] = prev - board size
+				snake = prev - board size
 			}
 			left {
-				if snake % board size == 0  break
-				snake -= 1
+				if prev % board size == 0  break
+				// snake[index] = prev - 1
+				snake = prev - 1
 			}
 			down {
-				if snake + board size >= (board size * board size)  break
-				snake += board size
+				if prev + board size >= board area'  break
+				// snake[index] = prev + board size
+				snake = prev + board size
 			}
 			right {
-				if (snake+1) % board size == 0  break
-				snake += 1
+				if (prev+1) % board size == 0  break
+				// snake[index] = prev + 1
+				snake = prev + 1
 			}
 		}
 
+		place(prev, "_")
+		// place(snake[index], format.cyan("#"))
 		place(snake, format.cyan("#"))
 	}
 

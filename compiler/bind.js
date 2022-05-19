@@ -952,12 +952,22 @@ function bind(files) {
 							}
 						} break
 						case 'pattern expression': {
-							const expr = bindExpression(arm.pattern.expr)
-							assert(expr.type.type == 'bool')
-							pattern = {
-								kind: 'pattern expression',
-								expr,
-								span: expr.span
+							let expr = bindExpression(arm.pattern.expr)
+							if (expr.kind == 'stringLiteral') {
+								expr = coerceType(operand.type, expr)
+								assert(expr.type.type == 'char', `match only supports char literals`)
+								pattern = {
+									kind: 'pattern value',
+									value: expr,
+									span: expr.span
+								}
+							} else {
+								assert(expr.type.type == 'bool')
+								pattern = {
+									kind: 'pattern expression',
+									expr,
+									span: expr.span
+								}
 							}
 						} break
 						default:
@@ -1218,7 +1228,7 @@ function bind(files) {
 				type.of = bindType(node.of)
 				if (node.size) {
 					if (node.size.kind == 'symbol') {
-						const s = findSymbol(node.size)
+						const s = findSymbol(node.size.value)
 						assert(s)
 					} else {
 						assert(node.size.kind == 'number')
@@ -2478,6 +2488,11 @@ function lower(ast) {
 						} break
 						case 'pattern expression': {
 							matchExpr = arm.pattern.expr
+						} break
+						case 'pattern value': {
+							const matchexpression = binary('==', arm.pattern.value, ref(operand), typeMap.bool)
+
+							matchExpr = matchexpression
 						} break
 						case 'pattern equal': {
 							assert(arm.pattern.value.kind == 'enum entry')
