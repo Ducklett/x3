@@ -2483,7 +2483,7 @@ function lower(ast) {
 
 					switch (arm.pattern.kind) {
 						case 'pattern else': {
-							// match unconditionally 
+							// match unconditionally
 							matchExpr = null
 						} break
 						case 'pattern expression': {
@@ -2589,10 +2589,10 @@ function lower(ast) {
 					assert(count > 0)
 
 					// zero initialize
-					// TODO: maybe just handle this in the assembly emitter
 					node.expr = {
 						kind: 'arrayLiteral',
-						entries: new Array(count).fill(null).map(_ => num(0, typeMap.int)),
+						// when entries are null the x64 backend will zero initialize the memory block
+						entries: null,
 						type: node.type
 					}
 				}

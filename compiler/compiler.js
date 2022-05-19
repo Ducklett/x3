@@ -429,10 +429,9 @@ ${[...data.keys()]
 							if (cur.data.kind == 'arrayLiteral') {
 								assert(cur.data.type.count !== undefined)
 
-								// TODO: also check if this one is correct? I think it should be cur.data.type.of.size
-								const size = cur.data.type.count * cur.data.type.size
+								let size = cur.data.type.count * cur.data.type.of.size
 								if (size % 8 != 0) {
-									console.log(cur)
+									size = Math.ceil(size / 8) * 8
 								}
 								assert(size % 8 == 0)
 								return acc + size
@@ -517,9 +516,11 @@ ${[...data.keys()]
 							} else {
 								assert(node.kind == 'arrayLiteral')
 
-								// TODO: check if this size calculation is correct? looks like i'm using type.size instead of type.of.size
 								// NOTE: we will only initialize the members once we emit the array literal
-								const size = node.type.count * node.type.size
+								let size = node.type.count * node.type.of.size
+								if (size * 8 != 0) {
+									size = Math.ceil(size / 8) * 8
+								}
 								assert(size % 8 == 0)
 								varOffset -= size
 								locals.set(node, varOffset)
@@ -1126,24 +1127,47 @@ ${[...data.keys()]
 					lines.push(`; initializing array literal`)
 					const isAligned = node.type.of.size % 8 == 0
 
+					const count = node.entries?.length ?? node.type?.count ?? null
+					assert(count !== null)
+
 					if (isAligned) {
-						for (let i = 0; i < node.entries.length; i++) {
-							emitExpr(node.entries[i])
-							for (let j = 0; j < node.type.of.size; j += 8) {
-								const offset = i * node.type.of.size + j
-								lines.push(`pop rax`)
-								lines.push(`mov ${emitVar(node, offset)}, rax`)
+
+						if (node.entries) {
+							for (let i = 0; i < count; i++) {
+								emitExpr(node.entries[i])
+								for (let j = 0; j < node.type.of.size; j += 8) {
+									const offset = i * node.type.of.size + j
+									lines.push(`pop rax`)
+									lines.push(`mov ${emitVar(node, offset)}, rax`)
+								}
+							}
+						} else {
+							for (let i = 0; i < count; i++) {
+								for (let j = 0; j < node.type.of.size; j += 8) {
+									const offset = i * node.type.of.size + j
+									lines.push(`mov qword ${emitVar(node, offset)}, 0`)
+								}
 							}
 						}
 					} else {
 						assert(node.type.of.size == 1)
-						// TODO: make this faster??
-						for (let i = 0; i < node.entries.length; i++) {
-							emitExpr(node.entries[i])
-							lines.push(`pop rax`)
-							// NOTE: using al since we're working with 1 byte
-							// TODO: work with other sizes
-							lines.push(`mov ${emitVar(node, i)}, al`)
+
+						if (node.entries) {
+							// TODO: make this faster??
+							for (let i = 0; i < count; i++) {
+								emitExpr(node.entries[i])
+								lines.push(`pop rax`)
+								// NOTE: using al since we're working with 1 byte
+								// TODO: work with other sizes
+								lines.push(`mov ${emitVar(node, i)}, al`)
+							}
+						} else {
+							// TODO: make this faster??
+							for (let i = 0; i < count; i++) {
+								// NOTE: using al since we're working with 1 byte
+								// TODO: work with other sizes
+								lines.push(`mov byte ${emitVar(node, i)}, 0`)
+							}
 						}
 					}
 
@@ -1269,7 +1293,7 @@ ${[...data.keys()]
 						if (typeof indexValue == 'number') {
 							lines.push(`add r15, ${indexValue * size}`)
 						} else {
-							lines.push(`mul ${indexValue}, ${size}`)
+							lines.push(`imul ${indexValue}, ${size}`)
 							lines.push(`add r15, ${indexValue}`)
 						}
 

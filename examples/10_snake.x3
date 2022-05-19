@@ -13,6 +13,9 @@ proc play snake {
 
 	var apple = 0
 	var snake = 0
+	// TODO: constant folding for array size (board size * board size)
+	var snake2:[64]int
+
 	// var snake:[board area]int
 	// var score = 0
 	// var index = 0
@@ -113,7 +116,7 @@ proc play snake {
 	// var score = 0
 	// var apple pos = random position()
 	// var player pos = random position()
-	// var key err = false 
+	// var key err = false
 
 	// // TODO: make goto work when the label is in another block (don't jump into scope blocks though)
 	// // we always want to render once before taking user input
