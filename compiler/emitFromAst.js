@@ -6,7 +6,7 @@ and then feeds that to the emitter to output assembly
 this will be obselete once we have a parser,
 but the AST creation API might still be used for unit tests, user-facing compiler plugins, etc.
 */
-const { assert, MARK, emitAsm, syscall, fn, If, param, call, num, binary, readVar, readProp, declareVar, assignVar, fd, unary, ret, str } = require('./compiler')
+const { assert, MARK, emitAsm, syscall, fn, If, param, call, num, binary, readVar, readProp, declareVar, assignVar, fd, unary, ret, str } = require('./ast')
 
 let message
 let message2 = 'hello ';

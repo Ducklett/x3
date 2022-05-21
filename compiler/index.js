@@ -1,11 +1,13 @@
-const { parse } = require('./parser')
-const { bind, lower } = require('./bind')
 const { inspect } = require('util')
-const { emitAsm, read } = require('./compiler')
+const { read } = require('./util')
+const { parse } = require('./parser')
+const { bind } = require('./binder')
+const { lower } = require('./lowerer')
+const { emitAsm } = require('./emitter')
 const { outputHtml } = require('./tool/outputHtml')
 
-// compile('examples/10_snake.x3')
-compile('examples/coreutils/test.x3')
+compile('examples/10_snake.x3')
+// compile('examples/coreutils/test.x3')
 
 function compile(filename) {
 	const file = ({ path: filename, code: read(filename) })

@@ -1,4 +1,4 @@
-const { assert } = require("../compiler")
+const { assert } = require("../emitter")
 
 module.exports = {
 	format(syntaxtree, marker) {
