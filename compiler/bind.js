@@ -1876,36 +1876,37 @@ function bind(files) {
 		for (let i = 0; i < params.length; i++) {
 			const param = params[i]
 
-			if (param.notes.size > 0) {
-				// TODO: handle notes in switch and throw on unhandled note
-				if (param.notes.has('callee span')) {
-					const context = param.notes.get('callee span')
-					assert(context.length == 1)
-					const targetParam = context[0]
-					assert(targetParam.kind == 'reference' && targetParam.symbol.kind == 'parameter')
-					const index = params.indexOf(targetParam.symbol)
-					assert(index > -1)
-					if (!args[index]) {
-						// inject callee span ;)
-						const expr = args[i]
-						assert(args[i])
-						const sourcecode = fileMap.get(expr.span.file)
-						assert(sourcecode)
-						const exprText = sourcecode.slice(expr.span.from, expr.span.to)
-						assert(exprText)
-						args[index] = bindExpression({ kind: 'string', value: exprText })
-					}
-				} else if (param.notes.has('call site')) {
-					assert(param.notes.get('call site').length == 0)
-					if (!args[i]) {
-						// inject call site ;3
-						args[i] = bindExpression({ kind: 'string', value: callsite })
-					}
-
-				} else {
-					console.log('unhandled notes?')
-					console.log(param.notes)
-					assert(false)
+			for (let [note, context] of param.notes.entries()) {
+				switch (note) {
+					case 'callee span': {
+						assert(context.length == 1)
+						const targetParam = context[0]
+						assert(targetParam.kind == 'reference' && targetParam.symbol.kind == 'parameter')
+						const index = params.indexOf(targetParam.symbol)
+						assert(index > -1)
+						if (!args[index]) {
+							// inject callee span
+							const expr = args[i]
+							assert(args[i])
+							const sourcecode = fileMap.get(expr.span.file)
+							assert(sourcecode)
+							const exprText = sourcecode.slice(expr.span.from, expr.span.to)
+							assert(exprText)
+							args[index] = bindExpression({ kind: 'string', value: exprText })
+						}
+					} break
+					case 'call site': {
+						assert(context.length == 0)
+						if (!args[i]) {
+							// inject call site
+							args[i] = bindExpression({ kind: 'string', value: callsite })
+						}
+					} break
+					default: {
+						console.log('unhandled notes?')
+						console.log(param.notes)
+						assert(false)
+					} break
 				}
 			}
 

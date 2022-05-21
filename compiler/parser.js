@@ -349,8 +349,9 @@ function parse(source) {
 		let contents = parseFile()
 		const files = [contents]
 		for (let filePath of filesToImport) {
-			assert(filePath.value.startsWith('./'), `import file path always starts with ./`)
-			let p = filePath.value.slice(2)
+			const goesBack = filePath.value.startsWith('../')
+			assert(filePath.value.startsWith('./') || goesBack, `import file path always starts with ./ or ../`)
+			let p = goesBack ? filePath.value : filePath.value.slice(2)
 			if (!p.endsWith('.x3')) p += '.x3'
 
 			const sourcePath = path.join(path.parse(source.path).dir, p)
