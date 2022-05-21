@@ -69,6 +69,18 @@ function bind(files) {
 		return { ...from, to: to.to }
 	}
 
+	/*
+	our compiler binds declarations in passes:
+	- pass 0 binds types, structs, globals, function signatures etc.
+	- pass 1 binds using statements, function bodies etc.
+
+	we do this because if we try to bind a using statement in pass 0 the module may not exist yet
+	this isn't perfect since functions may still refer to custom types in their signature;
+	in this case the struct should be declared *before* the function
+
+	eventually we should rewrite the pass system to be truly order-independent but it works for now
+	*/
+	let pass = 0
 	const bodies = new Map()
 	const usings = []
 	const ast = []
@@ -213,6 +225,10 @@ function bind(files) {
 
 	function currentScope() { return scopeStack[scopeStack.length - 1]; }
 
+	/*********************************
+	 *            pass 0             *
+	 *********************************/
+
 	// TODO: proper order-independent lookups
 	// pretty sure reverse is still a good idea for performance (becaue imports don't rely on main, but main relies on imports)
 	for (let root of [...files].reverse()) {
@@ -220,6 +236,11 @@ function bind(files) {
 		// bind declarations in file
 		bindFile(root)
 	}
+
+	/*********************************
+	 *            pass 1             *
+	 *********************************/
+	pass = 1
 
 	for (let [scope, node, it] of usings) {
 		pushScope(scope)
@@ -643,8 +664,21 @@ function bind(files) {
 			}
 			case 'use': {
 				assert(node.path.kind == 'symbol')
+
+				if (pass == 0) {
+					// modules may not yet be bound, delay binding
+					const it = { kind: 'use' }
+					usings.push([currentScope(), node, it])
+					return it
+				}
+
 				const it = { kind: 'use' }
-				usings.push([currentScope(), node, it])
+
+				const usedScope = findSymbol(node.path.value)
+				assert(usedScope, `scope is defined '${node.path.value}'`)
+				currentScope().used.add(usedScope)
+				it.usedScope = usedScope
+
 				return it
 			}
 			case 'module': {
