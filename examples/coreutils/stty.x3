@@ -1,0 +1,251 @@
+import "../lib/standard" use standard
+
+proc write(fd:int,msg:~>void,msg length:int) #syscall(0x001)
+proc exit(code:int)                          #syscall(0x03c)
+proc ioctl(fd:int,cmd:u64,arg:u64) -> int    #syscall(0x010)
+
+const NCCS = 32
+struct termios(
+	c_iflag:u32,      /* input modes */
+	c_oflag:u32,      /* output modes */
+	c_cflag:u32,      /* control modes */
+	c_lflag:u32,      /* local modes */
+	c_cc:[NCCS]u8,    /* special characters */
+	// __c_ispeed:u32,
+	// __c_ospeed:u32,
+)
+
+const stdin = 0
+const stdout = 1
+const stderr = 2
+
+proc main(args:[]cstring) {
+	use input
+	use output
+	use local
+	use characters
+
+	var term = termios()
+
+	if ioctl(stdin, TCGETS, ~>term) > 0 {
+		const err = "could not get terminal settings"
+		write(stderr,err,err.length)
+		exit(1)
+	}
+
+	each arg,i <- args {
+		if i == 0 continue
+
+		var len = strlen(arg)
+		// write(stdout, arg, len)
+		// TODO: fix this for normal string literals
+		// write(stdout, c"\n", 1)
+
+		var negate = false
+		if arg[0] == "-" {
+			negate = true
+			arg = (arg~~>void + 1)~cstring
+			write(stdout, c"negate\n", 7)
+		}
+
+		// TODO: parse flags first
+		// TODO: implement matching of c srings so we don't have to spam cstr equal(arg, "foo")
+		match arg {
+			// input settings
+			cstr equal(arg, "brkint")     { write(stdout, c"brkint\n", 7) }
+			cstr equal(arg, "icrnl")      { write(stdout, c"icrnl\n", 6) }
+			cstr equal(arg, "ignbrk")     { write(stdout, c"ignbrk\n", 7) }
+			cstr equal(arg, "igncr")      { write(stdout, c"igncr\n", 6) }
+			cstr equal(arg, "ignpar")     { write(stdout, c"ignpar\n", 7) }
+			cstr equal(arg, "imaxbel")    { write(stdout, c"imaxbel\n", 8) }
+			cstr equal(arg, "inlcr")      { write(stdout, c"inlcr\n", 6) }
+			cstr equal(arg, "inpck")      { write(stdout, c"inpck\n", 6) }
+			cstr equal(arg, "istrip")     { write(stdout, c"istrip\n", 7) }
+			cstr equal(arg, "iutf8")      { write(stdout, c"iutf8\n", 6) }
+			cstr equal(arg, "iuclc")      { write(stdout, c"iuclc\n", 6) }
+			cstr equal(arg, "ixany")      { write(stdout, c"ixany\n", 6) }
+			cstr equal(arg, "ixoff")      { write(stdout, c"ixoff\n", 6) }
+			cstr equal(arg, "ixon")       { write(stdout, c"ixon\n", 5) }
+			cstr equal(arg, "parmrk")     { write(stdout, c"parmrk\n", 7) }
+			cstr equal(arg, "tandem")     { write(stdout, c"tandem\n", 7) }
+
+			// output settings
+			// ...
+
+			// local settings
+			cstr equal(arg, "crterase")   { write(stdout, c"crterase\n", 9) }
+			cstr equal(arg, "crtkill")    { write(stdout, c"crtkill\n", 8) }
+			cstr equal(arg, "ctlecho")    { write(stdout, c"ctlecho\n", 8) }
+			cstr equal(arg, "echo")       {
+				if negate {
+					term=>disable local(ECHO)
+				} else {
+					term=>enable local(ECHO)
+				}
+			}
+			cstr equal(arg, "echoctl")    { write(stdout, c"echoctl\n", 8) }
+			cstr equal(arg, "echoe")      { write(stdout, c"echoe\n", 6) }
+			cstr equal(arg, "echok")      { write(stdout, c"echok\n", 6) }
+			cstr equal(arg, "echoke")     { write(stdout, c"echoke\n", 7) }
+			cstr equal(arg, "echonl")     { write(stdout, c"echonl\n", 7) }
+			cstr equal(arg, "echoprt")    { write(stdout, c"echoprt\n", 8) }
+			cstr equal(arg, "extproc")    { write(stdout, c"extproc\n", 8) }
+			cstr equal(arg, "flushno")    { write(stdout, c"flushno\n", 8) }
+			cstr equal(arg, "icanon")     { write(stdout, c"icanon\n", 7) }
+			cstr equal(arg, "iexten")     { write(stdout, c"iexten\n", 7) }
+			cstr equal(arg, "isig")       { write(stdout, c"isig\n", 5) }
+			cstr equal(arg, "noflsh")     { write(stdout, c"noflsh\n", 7) }
+			cstr equal(arg, "prterase")   { write(stdout, c"prterase\n", 9) }
+			cstr equal(arg, "tostop")     { write(stdout, c"tostop\n", 7) }
+			cstr equal(arg, "xcase")      { write(stdout, c"xcase\n", 6) }
+
+			// combination settings
+			cstr equal(arg, "raw") {
+				if negate {
+					term=>enable input(BRKINT | IGNPAR | ISTRIP | ICRNL | IXON)
+					term=>enable local(OPOST | ISIG | ICANON)
+					// TODO: figure out the default value for these
+					// term=>set special(VEOF, ?)
+					// term=>set special(VEOL, ?)
+				} else {
+					term=>disable input(IGNBRK | BRKINT | IGNPAR | PARMRK | INPCK | ISTRIP | INLCR | IGNCR | ICRNL | IXON | IXOFF)
+					term=>disable local(ICANON | OPOST | ISIG | IUCLC | IXANY | IMAXBEL | XCASE)
+					term=>set special(VMIN, 1)
+					term=>set special(VTIME, 0)
+				}
+			}
+
+			else {
+				const err = "unsupported option "
+				write(stdout, err,err.length)
+				write(stdout,arg,len)
+				write(stdout, c"\n", 1)
+				exit(1)
+			}
+		}
+	}
+
+	// TODO: apply settings here 
+	printf("input %\n", format.hex(term.c_iflag))
+	printf("output %\n", format.hex(term.c_oflag))
+	printf("local %\n", format.hex(term.c_lflag))
+	printf("chars %\n", term.c_cc)
+}
+
+proc strlen(c:cstring) -> int {
+	var i = 0
+	while c[i] != 0 { i++ }
+	return i
+}
+
+proc cstr equal(c:cstring,s:string) -> bool {
+	var i = 0
+	while c[i] != 0 {
+		if i >= s.length' return false
+		if c[i] != s[i]   return false
+		i++
+	}
+
+	return i == s.length
+}
+
+proc disable input(term:~>termios, mask:u32) { term.c_iflag &= !mask }
+proc enable input  (term:~>termios, mask:u32) { term.c_iflag |= mask }
+
+proc disable output(term:~>termios, mask:u32) { term.c_oflag &= !mask }
+proc enable output (term:~>termios, mask:u32) { term.c_oflag |= mask }
+
+proc disable local(term:~>termios, mask:u32) { term.c_lflag &= !mask }
+proc enable local (term:~>termios, mask:u32) { term.c_lflag |= mask }
+
+proc set special (term:~>termios, index:int, value:u8) { term.c_cc[index] = value }
+
+const TCGETS = 0x00005401
+
+enum input:u32 #bitfield {
+	IGNBRK  = 0o0000001,
+	BRKINT  = 0o0000002,
+	IGNPAR  = 0o0000004,
+	PARMRK  = 0o0000010,
+	INPCK   = 0o0000020,
+	ISTRIP  = 0o0000040,
+	INLCR   = 0o0000100,
+	IGNCR   = 0o0000200,
+	ICRNL   = 0o0000400,
+	IUCLC   = 0o0001000,
+	IXON    = 0o0002000,
+	IXANY   = 0o0004000,
+	IXOFF   = 0o0010000,
+	IMAXBEL = 0o0020000,
+	IUTF8   = 0o0040000,
+}
+
+enum output:u32 #bitfield {
+	OPOST  = 0o0000001,
+	OLCUC  = 0o0000002,
+	ONLCR  = 0o0000004,
+	OCRNL  = 0o0000010,
+	ONOCR  = 0o0000020,
+	ONLRET = 0o0000040,
+	OFILL  = 0o0000100,
+	OFDEL  = 0o0000200,
+	NLDLY  = 0o0000400,
+	NL0    = 0o0000000,
+	NL1    = 0o0000400,
+	CRDLY  = 0o0003000,
+	CR0    = 0o0000000,
+	CR1    = 0o0001000,
+	CR2    = 0o0002000,
+	CR3    = 0o0003000,
+	TABDLY = 0o0014000,
+	TAB0   = 0o0000000,
+	TAB1   = 0o0004000,
+	TAB2   = 0o0010000,
+	TAB3   = 0o0014000,
+	BSDLY  = 0o0020000,
+	BS0    = 0o0000000,
+	BS1    = 0o0020000,
+	FFDLY  = 0o0100000,
+	FF0    = 0o0000000,
+	FF1    = 0o0100000,
+}
+
+enum local:u32 #bitfield {
+	ISIG   = 0o0000001,
+	ICANON = 0o0000002,
+	ECHO   = 0o0000010,
+	ECHOE  = 0o0000020,
+	ECHOK  = 0o0000040,
+	ECHONL = 0o0000100,
+	NOFLSH = 0o0000200,
+	TOSTOP = 0o0000400,
+	IEXTEN = 0o0100000,
+
+	XCASE   = 0o0000004,
+	ECHOCTL = 0o0001000,
+	ECHOPRT = 0o0002000,
+	ECHOKE  = 0o0004000,
+	FLUSHO  = 0o0010000,
+	PENDIN  = 0o0040000,
+	EXTPROC = 0o0200000,
+}
+
+enum characters:u8 {
+	VINTR    = 0,
+	VQUIT    = 1,
+	VERASE   = 2,
+	VKILL    = 3,
+	VEOF     = 4,
+	VTIME    = 5,
+	VMIN     = 6,
+	VSWTC    = 7,
+	VSTART   = 8,
+	VSTOP    = 9,
+	VSUSP    = 10,
+	VEOL     = 11,
+	VREPRINT = 12,
+	VDISCARD = 13,
+	VWERASE  = 14,
+	VLNEXT   = 15,
+	VEOL2    = 16,
+}

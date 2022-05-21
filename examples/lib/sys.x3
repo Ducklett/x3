@@ -25,6 +25,8 @@ proc mprotect(start:u64,len:u64,prot:u64)                    #syscall(0x00A)
 proc munmap(addr:u64,len:u64)                                #syscall(0x00B)
 proc brk(brk:u64)                                            #syscall(0x00C)
 
+proc ioctl(fd:int,cmd:u64,arg:u64) -> int                    #syscall(0x010)
+
 proc nanosleep(req:~>timespec,rem:?~>timespec) -> int        #syscall(0x023)
 
 proc exit(code:int)                                          #syscall(0x03c)
