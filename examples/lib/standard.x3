@@ -247,26 +247,31 @@ proc print(it:any) {
 		write(".")
 		var index:int = <~it.data
 		var entries = t.data.enumData.entries
-		assert(index<entries.length)
-		// TODO: allow expressions like 'entries[index].name'
-		var entry = entries[index]
-		var fields = entry.fields
-		write(entry.name)
-		if fields.length > 0 {
-			write("(")
-			var basePtr=it.data
-			each field,i <- fields {
-				if (i != 0) {
-					write(", ")
+		each entry <- entries {
+			if entry.tag != index' continue
+
+			var fields = entry.fields
+			write(entry.name)
+			if fields.length > 0 {
+				write("(")
+				var basePtr=it.data
+				each field,i <- fields {
+					if (i != 0) {
+						write(", ")
+					}
+					var fieldPtr = basePtr + field.offset
+					var fieldType = field.type
+					write(field.name)
+					write("=")
+					print(any(fieldPtr, fieldType))
 				}
-				var fieldPtr = basePtr + field.offset
-				var fieldType = field.type
-				write(field.name)
-				write("=")
-				print(any(fieldPtr, fieldType))
+				write(")")
 			}
-			write(")")
+			return
 		}
+
+		printf("entry not found for value %\n", index)
+		exit(1)
 	} else {
 		write number(t.kind)
 		assert(false, "Unsupported type tag")

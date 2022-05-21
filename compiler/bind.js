@@ -2205,6 +2205,8 @@ function lower(ast) {
 					// assert(loweredExpr.length == 1)
 					// loweredExpr = loweredExpr[0]
 
+					const isEnumEntry = node.expr.kind == 'readProp' && node.expr.prop.symbol.kind == 'enum entry'
+
 					// the expression MUST refer to some memory address at the end of the day, because we have to point to it
 					// if we encounter any immediates we will first have to store them in memory and then reference their address
 					if (node.expr.type.type == 'void') {
@@ -2212,7 +2214,7 @@ function lower(ast) {
 						node.expr.type = node.type
 						return lowerNode(node.expr)
 					}
-					else if (node.expr.kind != 'reference' && node.expr.kind != 'readProp') {
+					else if (isEnumEntry || (node.expr.kind != 'reference' && node.expr.kind != 'readProp')) {
 						const v = declareVar('v', node.expr)
 
 						// for debugging purposes
@@ -2237,6 +2239,10 @@ function lower(ast) {
 						return [loweredExpr]
 					}
 
+					if (!(loweredExpr.kind == 'reference' || loweredExpr.kind == 'readProp')) {
+						console.log(node.expr)
+						console.log(loweredExpr)
+					}
 					assert(loweredExpr.kind == 'reference' || loweredExpr.kind == 'readProp')
 					const tPtr = cloneType(typeMap.pointer)
 					tPtr.to = node.expr.type
@@ -2929,13 +2935,20 @@ function lower(ast) {
 							assert(node.prop.kind == 'reference')
 							assert(node.prop.symbol.kind == 'enum entry')
 
-							const tagType = symbol.backingType.type == 'int'
-								? symbol.backingType
-								: symbol.backingType.fields[0].type
+							const hasFields = symbol.backingType.fields?.length > 0
+							const tagType = hasFields
+								? symbol.backingType.fields[0].type
+								: symbol.backingType
 
 							const tag = num(node.prop.symbol.value, tagType)
-							const c = ctor(symbol.backingType, tag)
-							return lowerNode(c)
+							if (hasFields) {
+								// idk what's going on here...
+								assert(false)
+								const c = ctor(symbol.backingType, tag)
+								return lowerNode(c)
+							} else {
+								return lowerNode(tag)
+							}
 						}
 						default:
 							console.log(node)
