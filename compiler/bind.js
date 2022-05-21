@@ -2205,7 +2205,9 @@ function lower(ast) {
 					// assert(loweredExpr.length == 1)
 					// loweredExpr = loweredExpr[0]
 
-					const isEnumEntry = node.expr.kind == 'readProp' && node.expr.prop.symbol.kind == 'enum entry'
+					const isEnumEntry =
+						(node.expr.kind == 'reference' && node.expr.symbol.kind == 'enum entry') ||
+						(node.expr.kind == 'readProp' && node.expr.prop.symbol.kind == 'enum entry')
 
 					// the expression MUST refer to some memory address at the end of the day, because we have to point to it
 					// if we encounter any immediates we will first have to store them in memory and then reference their address
@@ -2812,8 +2814,11 @@ function lower(ast) {
 			case 'reference': {
 				switch (node.symbol.kind) {
 					case 'enum entry':
-						assert(node.alias)
-						return lowerNode(node.symbol, { asTag: true })
+						if (node.alias) {
+							return lowerNode(node.symbol, { asTag: true })
+						} else {
+							return lowerNode(node.symbol)
+						}
 					case 'enum alias': {
 						// TODO: check if this case should exist or is the result of a compiler bug
 						assert(node.symbol.of)
