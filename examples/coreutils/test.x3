@@ -1,0 +1,22 @@
+import "../lib/standard"
+
+proc main() {
+	use standard
+	use nums
+	printf("%\n", one | two)
+	printf("%\n", two | three)
+	printf("%\n", three | one)
+
+	var a = 15
+	var b = 15:u64 //0b00011000
+	// TODO: allow unary on things that arent references
+
+	printf("%\n", format.hex(a))
+	printf("%\n", format.hex(!b))
+}
+
+enum nums #bitfield {
+	three = 0b100,
+	two   = 0b010,
+	one   = 0b001,
+}

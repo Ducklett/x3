@@ -1072,12 +1072,19 @@ ${[...data.keys()]
 					}
 
 					if (op == 'not') {
-						// doing this because !x should return true when x is any non-zero number
-						lines.push(`cmp qword ${emitVar(symbol, varOffset)}, 0`)
-						lines.push(`sete al`)
-						lines.push(`movzx rax, al`)
-						lines.push(`movzx rax, al`)
-						lines.push(`push qword rax`)
+						if (node.expr.type.tag == tag_bool) {
+							// doing this because !x should return true when x is any non-zero number
+							lines.push(`cmp qword ${emitVar(symbol, varOffset)}, 0`)
+							lines.push(`sete al`)
+							lines.push(`movzx rax, al`)
+							lines.push(`push qword rax`)
+						} else {
+							assert(node.expr.type.tag == tag_int)
+							assert(!node.expr.type.signed)
+							lines.push(`mov rax, ${emitVar(symbol, varOffset)}`)
+							lines.push(`not rax`)
+							lines.push(`push qword rax`)
+						}
 					} else {
 						lines.push(`${op} qword ${emitVar(symbol, varOffset)}`)
 						// NOTE: pre and post conditions are emitted before and after

@@ -5,7 +5,7 @@ const { emitAsm, read } = require('./compiler')
 const { outputHtml } = require('./tool/outputHtml')
 
 // compile('examples/10_snake.x3')
-compile('examples/coreutils/stty.x3')
+compile('examples/coreutils/test.x3')
 
 function compile(filename) {
 	const file = ({ path: filename, code: read(filename) })

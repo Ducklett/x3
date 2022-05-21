@@ -1437,6 +1437,18 @@ function bind(files) {
 				} else {
 					it.type = it.expr.type
 				}
+
+				if (it.op == '!') {
+					const isUInt = it.expr.type.tag == tag_int && !it.expr.type.signed
+					const isBool = it.expr.type.tag == tag_bool
+					assert(isBool || isUInt, "operator'!' is only valid for unsigned integers or booleans")
+				}
+
+				if (it.op == '-') {
+					const isSInt = it.expr.type.tag == tag_int && it.expr.type.signed
+					assert(isSInt, "operator'-' is only valid for signed integer types")
+				}
+
 				it.span = spanFromRange(it.expr.span, node.op.span)
 				return it
 			}
@@ -2103,7 +2115,27 @@ function lower(ast) {
 			for (let l of lowered) buffers.push(l)
 		}
 		else if (b.kind == 'declareVar') {
+			/*
+			can't accept variables with expressions here,
+			imagine the following scenario:
+
+			var a = 10
+			print(!a)
+			
+			in order we get:
+			- buffer a
+			- initializer for buffer a
+			- buffer v (holds !a)
+			  - expression for buffer v (in buffers array)
+			- print call
+
+
+			the buffers are emitted first,
+			so we end up running !a before the a initializer
+			*/
+			assert(!b.expr)
 			const lowered = lowerNode(b)
+			assert(lowered.length == 1)
 			for (let l of lowered) buffers.push(l)
 		} else {
 			buffers.push({ kind: 'buffer', data: b })
@@ -2143,13 +2175,50 @@ function lower(ast) {
 		return left
 	}
 
-	function lowerNodeList(nodes) {
+	/*
+	lowers a list of nodes and returns the new list
+	if excessTarget is provided this buffer will be populated with all but the last returned item
+	why we need excessTarget:
+
+	a(b())
+	
+	depending on the type signature of a and b we might have
+	all kind of casting magin going on begin the scenes
+	these casts may need to allocate memory on the stack
+	normally this would look like this
+	- push arg 1
+	- declare tmpvar (!!!)
+	- assign tmpvar (!!!)
+	- push arg 2
+	- call
+
+	with excessTarget we can hoist this mess so it becomes this
+	excess:
+	- declare tmpvar
+	- assign tmpvar
+
+	returned:
+	- push arg1
+	- push arg2
+
+	now the caller of lowerNodeList can decide an appropriate spot to put these instructions
+	*/
+	function lowerNodeList(nodes, excessTarget) {
 		if (!nodes) return null
 		const newList = []
 		for (let n of nodes) {
 			const result = lowerNode(n)
 
-			if (result) {
+			if (excessTarget) {
+				assert(result?.length >= 1)
+				for (let i = 0; i < result.length - 1; i++) {
+					const r = result[i]
+					assert(!Array.isArray(r))
+					excessTarget.push(r)
+				}
+
+				newList.push(result[result.length - 1])
+			} else if (result) {
 				assert(Array.isArray(result))
 				for (let r of result) {
 					assert(!Array.isArray(r))
@@ -2196,6 +2265,12 @@ function lower(ast) {
 				const expr = lowerNode(node.expr)
 				assert(expr.length == 1)
 				node.expr = expr[0]
+
+				if (node.expr.kind == 'numberLiteral' && node.type.tag == tag_int) {
+					node.expr.type = node.type
+					return [node.expr]
+				}
+
 				return [node]
 			}
 			case 'reinterpret': return lowerNode(node.expr)
@@ -2211,6 +2286,8 @@ function lower(ast) {
 				}
 
 				if (node.type.type == 'any') {
+					const toReturn = []
+
 					// let loweredExpr = lowerNode(node.expr)
 					// assert(loweredExpr.length == 1)
 					// loweredExpr = loweredExpr[0]
@@ -2227,13 +2304,13 @@ function lower(ast) {
 						return lowerNode(node.expr)
 					}
 					else if (isEnumEntry || (node.expr.kind != 'reference' && node.expr.kind != 'readProp')) {
-						const v = declareVar('v', node.expr)
+						const v = declareVar(mangleLabel('v'), node.expr)
 
-						// for debugging purposes
-						v.originalExpr = node.expr
+						const stuff = lowerNode(v)
+						assert(stuff.length >= 2)
 
-						// TODO: maybe find some cleaner solution
-						pushBuffer(v)
+						toReturn.push(...stuff)
+
 						node.expr = ref(v)
 					}
 
@@ -2271,7 +2348,8 @@ function lower(ast) {
 
 					const data = ctor(any, expr, exprTypeInfo)
 
-					return [data]
+					toReturn.push(data)
+					return toReturn
 				}
 
 				if (node.expr.type.type == 'void') {
@@ -2374,7 +2452,8 @@ function lower(ast) {
 			}
 
 			case 'arrayLiteral': {
-				node.entries = lowerNodeList(node.entries)
+				const toReturn = []
+				node.entries = lowerNodeList(node.entries, toReturn)
 
 				if (makeBuffer) {
 					if (buffers.includes(node)) {
@@ -2400,7 +2479,9 @@ function lower(ast) {
 
 				// actually this is gonna be a nightmare with the current lowererer; so i'm just gonna do a hack in the x86 part for now
 
-				return [node]
+				toReturn.push(node)
+
+				return toReturn
 			}
 			case 'while': {
 				// goto condition
@@ -2632,6 +2713,8 @@ function lower(ast) {
 			}
 
 			case 'declareVar': {
+				const toReturn = []
+
 				node.name = mangleName(node)
 				let expr
 
@@ -2685,14 +2768,24 @@ function lower(ast) {
 					if (!expr) {
 						expr = node.expr ? lowerNode(node.expr) : null
 					}
-					assert(!expr || expr.length == 1)
-					expr = expr[0]
+
+					if (expr) {
+						assert(expr.length > 0)
+						for (let i = 0; i < expr.length - 1; i++) {
+							toReturn.push(expr[i])
+						}
+						expr = expr[expr.length - 1]
+					}
 					const ref = { kind: 'reference', symbol: varDec, type: varDec.type }
 					const varAssignment = { kind: 'assignVar', varDec: ref, expr }
 					varDec.expr = undefined
-					return [varDec, varAssignment]
+
+					toReturn.push(varDec)
+					toReturn.push(varAssignment)
+					return toReturn
 				} else {
-					return [node]
+					toReturn.push(node)
+					return toReturn
 				}
 			}
 			case 'function': {
@@ -2886,13 +2979,23 @@ function lower(ast) {
 			case 'ctorcall':
 			case 'syscall':
 			case 'call': {
-				return [{
-					...node, args: (node.args ?? []).map(a => {
-						const result = lowerNode(a)
-						assert(result.length == 1)
-						return result[0]
-					})
-				}]
+				const toReturn = []
+
+				const args = (node.args ?? []).map(a => {
+					const result = lowerNode(a)
+					assert(result.length > 0)
+
+					// arg may return several instructions
+					// execute all but the last before we start doing the call
+					for (let i = 0; i < result.length - 1; i++) {
+						toReturn.push(result[i])
+					}
+
+					return result[result.length - 1]
+				})
+
+				toReturn.push({ ...node, args })
+				return toReturn
 			}
 			case 'indexedAccess': {
 				const expr = lowerNode(node.index)
