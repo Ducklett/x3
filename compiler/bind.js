@@ -1774,6 +1774,16 @@ function bind(files) {
 				// attempt to match up type a with b, inserting implicit casts where needed
 				// returns the dominant type if there is one
 				function resolveTypeDispute(a, b) {
+					if (typeEqual(a, b)) {
+						if (a.type.tag == tag_enum) {
+							assert(a.symbol.type.notes.has('bitfield'), 'enum arithmetic is only executed on enums marked as #bitfield')
+							return a.type.backingType
+						}
+
+						// already legal, no need to do other checks
+						return
+					}
+
 					if (a.kind == 'stringLiteral' && (b.type.type == 'int' || b.type.type == 'char')) {
 						assert(a.len === 1)
 						a.type = typeMap.char
@@ -2769,6 +2779,9 @@ function lower(ast) {
 
 				// HACK: bad constant folding
 				if (node.a.kind == 'numberLiteral' && node.b.kind == 'numberLiteral') {
+
+					assert(node.type.tag == tag_int || node.type.tag == tag_float)
+
 					// NOTE: tight coupling between x3 and js operators
 					const newValue = eval(`node.a.n ${node.op} node.b.n`)
 
@@ -2947,8 +2960,8 @@ function lower(ast) {
 
 							const tag = num(node.prop.symbol.value, tagType)
 							if (hasFields) {
-								// idk what's going on here...
-								assert(false)
+								// the source code was 'enum.entry' but the the enum has fields
+								// we must turn it into a constructor call so it has the right size
 								const c = ctor(symbol.backingType, tag)
 								return lowerNode(c)
 							} else {
