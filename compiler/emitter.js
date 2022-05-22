@@ -1,4 +1,4 @@
-const { tag_int, tag_float, tag_bool } = require("./ast")
+const { tag_int, tag_float, tag_bool, roundToIncrement } = require("./ast")
 const { assert, write, escapeString } = require("./util")
 
 const api = {
@@ -563,19 +563,47 @@ ${[...data.keys()]
 
 					const size = node.type.size
 
-					// char hack
-					if (size == 1) {
-						lines.push(`push qword ${emitVar(node.symbol)}`)
-						return
+					function pushVar(varLabel, size) {
+						lines.push(`; push ${varLabel.name}`)
+
+						// NOTE: size is always being rounded up to a factor of 8 bytes
+						size = roundToIncrement(size, 8)
+
+						lines.push(`sub rsp, ${size}`)
+
+						let off = 0
+						while (off < size) {
+							lines.push(`mov rax, ${emitVar(varLabel, off)}`)
+							lines.push(`mov qword [rsp+${off}], rax`)
+							off += 8
+						}
+
+						// let offset = 0
+						// assert(size > 0)
+						// while (offset < size) {
+						// 	if (size - offset >= 8) {
+						// 		lines.push(`mov rax, ${emitVar(varLabel, offset)}`)
+						// 		lines.push(`mov [rsp+${offset}], rax`)
+						// 		offset += 8
+						// 	} else if (size - offset >= 4) {
+						// 		lines.push(`mov eax, ${emitVar(varLabel, offset)}`)
+						// 		lines.push(`mov [rsp+${offset}], eax`)
+						// 		offset += 4
+						// 	} else if (size - offset >= 2) {
+						// 		lines.push(`mov ax, ${emitVar(varLabel, offset)}`)
+						// 		lines.push(`mov [rsp+${offset}], ax`)
+						// 		offset += 2
+						// 	} else {
+						// 		lines.push(`mov al, ${emitVar(varLabel, offset)}`)
+						// 		lines.push(`mov [rsp+${offset}], al`)
+						// 		offset += 1
+						// 	}
+						// }
+						// assert(offset == size)
 					}
 
-					assert(size % 8 == 0)
+					pushVar(node.symbol, size)
 
-					lines.push(`; push ${node.symbol.name}`)
-
-					for (let i = node.type.size - 8; i >= 0; i -= 8) {
-						lines.push(`push qword ${emitVar(node.symbol, i)}`)
-					}
 					return
 				}
 				case 'indexedAccess': {
