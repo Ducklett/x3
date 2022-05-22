@@ -916,6 +916,9 @@ ${[...data.keys()]
 						lines.push(`mov rax, ${fullNumber} ; ${node.n}`)
 						lines.push(`push rax`)
 					} else {
+						if (node.type.tag != tag_int) {
+							console.log(node)
+						}
 						assert(node.type.tag == tag_int)
 						if (node.type.signed) {
 							lines.push(`push ${node.n}`)

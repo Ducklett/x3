@@ -9,7 +9,14 @@ const state = {
 	typeInfo: null,
 	ast: null,
 	globalScope: null,
+	fieldData: null,
+	pointerData: null,
+	structData: null,
+	enumData: null,
+	enumEntryData: null,
 }
+
+function compilerSpan() { return { file: '<compiler>', from: 0, to: 0 } }
 
 function declareBuiltins() {
 	const strr = struct('string', [
@@ -36,10 +43,10 @@ function declareBuiltins() {
 	// set to typeinfo later on..
 	const typePtr = cloneType(typeMap.pointer)
 
-	const pointerData = struct('pointerData', [
+	state.pointerData = struct('pointerData', [
 		param('to', typePtr),
 	])
-	addSymbol('pointerData', pointerData)
+	addSymbol('pointerData', state.pointerData)
 
 	const arrayData = struct('arrayData', [
 		param('of', typePtr),
@@ -48,23 +55,23 @@ function declareBuiltins() {
 	addSymbol('arrayData', arrayData)
 
 	const fieldArray = cloneType(typeMap.array)
-	const structData = struct('structData', [
+	state.structData = struct('structData', [
 		param('fields', fieldArray),
 	])
-	addSymbol('structData', structData)
+	addSymbol('structData', state.structData)
 
 	const entryArray = cloneType(typeMap.array)
-	const enumData = struct('enumData', [
+	state.enumData = struct('enumData', [
 		param('entries', entryArray),
 	])
-	addSymbol('enumData', enumData)
+	addSymbol('enumData', state.enumData)
 
 	const typeInfoData = union('data', [
 		param('intData', intData),
 		param('arrayData', arrayData),
-		param('structData', structData),
-		param('pointerData', pointerData),
-		param('enumData', enumData),
+		param('structData', state.structData),
+		param('pointerData', state.pointerData),
+		param('enumData', state.enumData),
 		param('nothing', typeMap.void),
 	])
 	addSymbol('type info data', typeInfoData)
@@ -77,25 +84,25 @@ function declareBuiltins() {
 	])
 	addSymbol('type info', typeInfo)
 
-	const fieldData = struct('fieldData', [
+	state.fieldData = struct('fieldData', [
 		param('name', typeMap.string),
 		param('offset', typeMap.int),
 		param('type', typePtr),
 	])
-	addSymbol('fieldData', fieldData)
+	addSymbol('fieldData', state.fieldData)
 
-	const enumEntryData = struct('enumEntryData', [
+	state.enumEntryData = struct('enumEntryData', [
 		param('name', typeMap.string),
 		param('tag', typeMap.int),
 		// holds data for this specific enum entry
 		// only used for tagged unions; fields.length is 0 for primitive enums
 		param('fields', fieldArray),
 	])
-	addSymbol('enumEntryData', enumEntryData)
+	addSymbol('enumEntryData', state.enumEntryData)
 
 	typePtr.to = typeInfo
-	fieldArray.of = fieldData
-	entryArray.of = enumEntryData
+	fieldArray.of = state.fieldData
+	entryArray.of = state.enumEntryData
 
 	$typeof = fn('typeof', [param('symbol')], typeInfo)
 	addSymbol('typeof', $typeof)
@@ -188,7 +195,7 @@ function typeInfoFor(type) {
 					if (!type) console.log(typeInfoLabel(field.type))
 					assert(type)
 
-					const f = ctor(fieldData,
+					const f = ctor(state.fieldData,
 						str(field.name, typeMap.string),
 						num(field.offset, typeMap.int),
 						type
@@ -199,7 +206,7 @@ function typeInfoFor(type) {
 
 				const fieldsType = cloneType(typeMap.array)
 				fieldsType.count = 0
-				fieldsType.of = fieldData
+				fieldsType.of = state.fieldData
 
 				let fieldArr = {
 					kind: 'arrayLiteral',
@@ -214,7 +221,7 @@ function typeInfoFor(type) {
 					fieldArr.entries = fields
 				}
 
-				const f = ctor(enumEntryData,
+				const f = ctor(state.enumEntryData,
 					str(entry.name, typeMap.string),
 					num(entry.value, typeMap.int),
 					fieldArr,
@@ -225,7 +232,7 @@ function typeInfoFor(type) {
 			const entries = type.entries.map(emitEntry)
 			const entriesType = cloneType(typeMap.array)
 			entriesType.count = entries.length
-			entriesType.of = enumEntryData
+			entriesType.of = state.enumEntryData
 
 			const entryArr = {
 				kind: 'arrayLiteral',
@@ -234,17 +241,17 @@ function typeInfoFor(type) {
 				span: compilerSpan()
 			}
 
-			args.push(ctor(enumData, entryArr))
+			args.push(ctor(state.enumData, entryArr))
 		}
 		else if (type.tag == tag_pointer) {
 			const to = findSymbol(typeInfoLabel(type.to), state.globalScope, false)
 			// TODO: turn type info into a tagged union and support rtti for tagged unions
 			if (type.to.name == 'type info') {
-				args.push(ctor(pointerData, num(0, typeMap.int)))
+				args.push(ctor(state.pointerData, num(0, typeMap.int)))
 			} else {
 				assert(to)
 				// args.push(ctor(pointerData, unary('->', to, ptr)))
-				args.push(ctor(pointerData, to))
+				args.push(ctor(state.pointerData, to))
 			}
 		} else if (type.tag == tag_array) {
 			const of = typeInfoFor(type.of) //findSymbol(typeInfoLabel(type.of), globalScope, false)
@@ -262,7 +269,7 @@ function typeInfoFor(type) {
 				if (!type) console.log(typeInfoLabel(field.type))
 				assert(type)
 
-				const f = ctor(fieldData,
+				const f = ctor(state.fieldData,
 					str(field.name, typeMap.string),
 					num(field.offset, typeMap.int),
 					type
@@ -279,7 +286,7 @@ function typeInfoFor(type) {
 			const fields = type.fields.map(f => emitField(infoName, f))
 			const fieldsType = cloneType(typeMap.array)
 			fieldsType.count = fields.length
-			fieldsType.of = fieldData
+			fieldsType.of = state.fieldData
 
 			const fieldArr = {
 				kind: 'arrayLiteral',
@@ -288,7 +295,7 @@ function typeInfoFor(type) {
 				span: compilerSpan()
 			}
 
-			args.push(ctor(structData, fieldArr))
+			args.push(ctor(state.structData, fieldArr))
 		} else {
 			console.log(type)
 			assert(false)
@@ -505,7 +512,6 @@ function coerceType(type, it) {
 	// assert(it.type.type == type.type, `type matches ${it.type.type} ${type.type}`)
 }
 function bind(files) {
-	function compilerSpan() { return { file: '<compiler>', from: 0, to: 0 } }
 
 	/*
 	our compiler binds declarations in passes:
@@ -1733,7 +1739,9 @@ function bind(files) {
 				function resolveTypeDispute(a, b) {
 					if (typeEqual(a, b)) {
 						if (a.type.tag == tag_enum) {
-							assert(a.symbol.type.notes.has('bitfield'), 'enum arithmetic is only executed on enums marked as #bitfield')
+							if (op != '==' && op != '!=') {
+								assert(a.symbol.type.notes.has('bitfield'), 'enum arithmetic is only executed on enums marked as #bitfield')
+							}
 							return a.type.backingType
 						}
 

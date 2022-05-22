@@ -913,11 +913,14 @@ function lower(ast) {
 			case 'enum entry': {
 				if (node.type.size == 8 || asTag) {
 					// NOTE: only returns the tag, enum instances with values are instead stored in 'enumctor'
-					const numericRepresentation = num(node.value, node.type.backingType)
+					const tagType = node.type.backingType.fields
+						? node.type.backingType.fields[0].type
+						: node.type.backingType
+					const numericRepresentation = num(node.value, tagType)
 					return lowerNode(numericRepresentation)
 				} else {
 					console.log(node)
-					throw 'h'
+					throw 'tried to lower enum entry but asTag was set to false'
 				}
 			}
 			case 'assignProp': {
