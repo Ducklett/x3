@@ -942,14 +942,39 @@ ${[...data.keys()]
 					assert(node.type && node.type.count)
 
 					lines.push(`; initializing array literal`)
-					const isAligned = node.type.of.size % 8 == 0
 
 					const count = node.entries?.length ?? node.type?.count ?? null
 					assert(count !== null)
 
-					if (isAligned) {
+					const size = count * node.type.of.size
 
-						if (node.entries) {
+					function zeroInitialize(varKey, size) {
+						let offset = 0
+						while (size > 0) {
+							if (size >= 8) {
+								lines.push(`mov qword ${emitVar(varKey, offset)}, 0`)
+								size -= 8
+								offset += 8
+							} else if (size >= 4) {
+								lines.push(`mov dword ${emitVar(varKey, offset)}, 0`)
+								size -= 4
+								offset += 4
+							} else if (size >= 2) {
+								lines.push(`mov word ${emitVar(varKey, offset)}, 0`)
+								size -= 2
+								offset += 2
+							} else {
+								lines.push(`mov byte ${emitVar(varKey, offset)}, 0`)
+								size -= 1
+								offset += 1
+							}
+						}
+					}
+
+
+					if (node.entries) {
+						const isAligned = node.type.of.size % 8 == 0
+						if (isAligned) {
 							for (let i = 0; i < count; i++) {
 								emitExpr(node.entries[i])
 								for (let j = 0; j < node.type.of.size; j += 8) {
@@ -959,17 +984,8 @@ ${[...data.keys()]
 								}
 							}
 						} else {
-							for (let i = 0; i < count; i++) {
-								for (let j = 0; j < node.type.of.size; j += 8) {
-									const offset = i * node.type.of.size + j
-									lines.push(`mov qword ${emitVar(node, offset)}, 0`)
-								}
-							}
-						}
-					} else {
-						assert(node.type.of.size == 1)
+							assert(node.type.of.size == 1)
 
-						if (node.entries) {
 							// TODO: make this faster??
 							for (let i = 0; i < count; i++) {
 								emitExpr(node.entries[i])
@@ -978,14 +994,9 @@ ${[...data.keys()]
 								// TODO: work with other sizes
 								lines.push(`mov ${emitVar(node, i)}, al`)
 							}
-						} else {
-							// TODO: make this faster??
-							for (let i = 0; i < count; i++) {
-								// NOTE: using al since we're working with 1 byte
-								// TODO: work with other sizes
-								lines.push(`mov byte ${emitVar(node, i)}, 0`)
-							}
 						}
+					} else {
+						zeroInitialize(node, size)
 					}
 
 					lines.push(`push ${node.type.count}`)
