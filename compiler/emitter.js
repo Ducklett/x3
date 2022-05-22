@@ -996,7 +996,9 @@ ${[...data.keys()]
 							}
 						}
 					} else {
-						zeroInitialize(node, size)
+						if (node.shouldZeroInitialize) {
+							zeroInitialize(node, size)
+						}
 					}
 
 					lines.push(`push ${node.type.count}`)

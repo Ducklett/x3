@@ -667,6 +667,9 @@ function bind(files) {
 				const isConst = node.keyword.value == 'const'
 				if (isConst) it.notes.set('const', [])
 
+				for (let n of node.tags) {
+					it.notes.set(...bindTag(n))
+				}
 
 				if (node.type) {
 					it.type = bindType(node.type)
@@ -687,6 +690,12 @@ function bind(files) {
 				if (it.expr) {
 					it.expr = coerceType(it.type, it.expr)
 				}
+
+				const isSizedArray = it.type.tag == tag_array && it.type.count
+				const noInit = it.notes.has('noinit')
+				if (noInit && node.expr) assert(false, `noinit should only be used on variables without initializers ${JSON.stringify(node.span)}`)
+				if (!noInit && !node.expr && !isSizedArray) assert(false, `variable should be initialized or marked as #noinit (${isConst ? 'const' : 'var'} ${it.name}:type #noinit) ${JSON.stringify(node.span)}`)
+
 
 				return it
 			}

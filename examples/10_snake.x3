@@ -15,10 +15,10 @@ proc play snake {
 	const board size = 16
 	const board area = board size * board size
 
-	var apple = 0
+	var apple:int #noinit
 	// TODO: constant folding for array size (board size * board size)
-	var snake:[256]int
-	var board:[256]char
+	var snake:[256]int  #noinit
+	var board:[256]char #noinit
 
 	each _,i <- board { board[i] = "_" }
 

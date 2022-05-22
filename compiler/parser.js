@@ -152,13 +152,13 @@ function parse(source) {
 			if (is('operator', ':')) {
 				const colon = take('operator', ':')
 				const type = parseType()
-				lhs = { kind: 'cast', expr: lhs, colon, type, span: spanFromRange(lhs, type) }
+				lhs = { kind: 'cast', expr: lhs, colon, type, span: spanFromRange(lhs.span, type.span) }
 			}
 
 			if (is('operator', '~')) {
 				const colon = take('operator', '~')
 				const type = parseType()
-				lhs = { kind: 'reinterpret', expr: lhs, colon, type, span: spanFromRange(lhs, type) }
+				lhs = { kind: 'reinterpret', expr: lhs, colon, type, span: spanFromRange(lhs.span, type.span) }
 			}
 
 			// HACK: this is needed to make casts and unary work on rhs until we implement precedence
@@ -503,14 +503,22 @@ function parse(source) {
 						colon = take('operator')
 						type = parseType()
 					}
+
+					const tags = parseTags()
+
 					let equals, expr, terminator
 					if (is('operator', '=')) {
 						equals = take('operator', '=')
 						expr = parseExpression()
 					}
-					const tags = parseTags()
 					if (takeTerminator && is('operator', ';')) terminator = take('operator', ';')
-					return { kind: 'var', keyword, name, colon, type, equals, expr, terminator, tags }
+
+					const last = terminator ?? expr ?? (tags.length ? tags[tags.length - 1] : null) ?? type ?? name
+					if (!last.span) console.log(last)
+					assert(last.span)
+					const span = spanFromRange(keyword.span, last.span)
+
+					return { kind: 'var', keyword, name, colon, type, equals, expr, terminator, tags, span }
 				}
 				case 'goto': {
 					const keyword = take('keyword', 'goto')
@@ -775,14 +783,16 @@ function parse(source) {
 			while (is('operator', '.')) {
 				const dot = take('operator', '.')
 				const rhs = parseSymbol()
-				lhs = { kind: 'property access', scope: lhs, dot, property: rhs }
+				const span = spanFromRange(lhs.span, rhs.span)
+				lhs = { kind: 'property access', scope: lhs, dot, property: rhs, span }
 			}
 
 			return lhs
 		}
 		function parseType() {
 			if (is('symbol') || is('keyword')) {
-				return { kind: 'type atom', name: parseChain() }
+				const name = parseChain()
+				return { kind: 'type atom', name, span: name.span }
 			} else if (is('operator', '[')) {
 				let size
 				let begin = take('operator', '[')
@@ -793,25 +803,30 @@ function parse(source) {
 
 				let end = take('operator', ']')
 				let of = parseType()
-				return { kind: 'type array', begin, size, end, of }
+				const span = spanFromRange(begin.span, of.span)
+				return { kind: 'type array', begin, size, end, of, span }
 			} else if (is('operator', '~>')) {
 				let pointer = take('operator', '~>')
 				let to = parseType()
-				return { kind: 'type pointer', pointer, to }
+				const span = spanFromRange(pointer.span, to.span)
+				return { kind: 'type pointer', pointer, to, span }
 			} else if (is('operator', '?')) {
 				let optional = take('operator', '?')
 				let it = parseType()
-				return { kind: 'type optional', optional, it }
+				const span = spanFromRange(optional.span, it.span)
+				return { kind: 'type optional', optional, it, span }
 			} else if (is('operator', '!')) {
 				let mutable = take('operator', '!')
 				let it = parseType()
-				return { kind: 'type mutable', mutable, it }
+				const span = spanFromRange(mutable.span, it.span)
+				return { kind: 'type mutable', mutable, it, span }
 			} else if (is('operator', '(')) {
 				// always a function for now, might be a tuple eventually
 				const params = parseList(parseType)
 				const arrow = take('operator', '->')
 				const returnType = parseType()
-				return { kind: 'type function', params, arrow, returnType }
+				const span = spanFromRange(params.span, returnType.span)
+				return { kind: 'type function', params, arrow, returnType, span }
 			}
 			console.log(current())
 			throw `unhandled type ${current().kind}::${current().value}`

@@ -527,7 +527,7 @@ proc parse int(s:string) -> int {
 
 proc random range(from:int,to:int) -> int
 {
-	var value:int
+	var value:int #noinit
 	// TODO: pass proper flag?
 	sys.getrandom(~>value,sizeof(int),0)
 

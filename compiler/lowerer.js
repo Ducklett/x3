@@ -626,22 +626,12 @@ function lower(ast) {
 				let expr
 
 				if (!node.expr && node.type.type == 'array' && node.type.count) {
-					function getByteCount(type) {
-						if (type.type == 'array') {
-							return type.count * getByteCount(type.of)
-
-						} else {
-							return type.size
-						}
-					}
-					const count = getByteCount(node.type)
-					assert(count > 0)
-
-					// zero initialize
+					const shouldZeroInitialize = !node.notes.has('noinit')
 					node.expr = {
 						kind: 'arrayLiteral',
 						// when entries are null the x64 backend will zero initialize the memory block
 						entries: null,
+						shouldZeroInitialize,
 						type: node.type
 					}
 				}
