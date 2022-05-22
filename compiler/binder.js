@@ -14,6 +14,7 @@ const state = {
 	structData: null,
 	enumData: null,
 	enumEntryData: null,
+	arrayData: null,
 }
 
 function compilerSpan() { return { file: '<compiler>', from: 0, to: 0 } }
@@ -48,11 +49,11 @@ function declareBuiltins() {
 	])
 	addSymbol('pointerData', state.pointerData)
 
-	const arrayData = struct('arrayData', [
+	state.arrayData = struct('arrayData', [
 		param('of', typePtr),
 		param('count', typeMap.int),
 	])
-	addSymbol('arrayData', arrayData)
+	addSymbol('arrayData', state.arrayData)
 
 	const fieldArray = cloneType(typeMap.array)
 	state.structData = struct('structData', [
@@ -68,7 +69,7 @@ function declareBuiltins() {
 
 	const typeInfoData = union('data', [
 		param('intData', intData),
-		param('arrayData', arrayData),
+		param('arrayData', state.arrayData),
 		param('structData', state.structData),
 		param('pointerData', state.pointerData),
 		param('enumData', state.enumData),
@@ -259,7 +260,7 @@ function typeInfoFor(type) {
 			assert(of)
 			const count = num(type.count || 0, typeMap.int)
 
-			args.push(ctor(arrayData, of, count))
+			args.push(ctor(state.arrayData, of, count))
 		} else if (type.tag == tag_struct) {
 			function emitField(structLabel, field) {
 				// TODO: rewrite this so it stores pointer to reference of type
@@ -1335,7 +1336,7 @@ function bind(files) {
 					if (!acc) return cur.type
 					if (acc.type == cur.type.type) return acc
 					// type didn't match, this must be an any[]
-					return any
+					return state.any
 				}, null)
 
 				const arrayType = {
