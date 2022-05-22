@@ -1034,7 +1034,7 @@ ${[...data.keys()]
 					emitExpr(node.expr)
 
 					switch (node.type.type) {
-						case 'i64':
+						case 's64':
 						case 'int': switch (node.expr.type.type) {
 							case 'f64': {
 								// pop into xmm0

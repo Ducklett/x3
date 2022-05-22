@@ -1,10 +1,10 @@
 module sys
 
 type size_t = u64
-type ssize_t = i64
-type mode_t = i64
+type ssize_t = s64
+type mode_t = s64
 
-struct timespec(seconds:i64,nanoseconds:i64)
+struct timespec(seconds:s64,nanoseconds:s64)
 
 // see linux manual for syscall documentation
 proc read(fd:uint,buf:~>!char,count:size_t) -> ssize_t       #syscall(0x000)

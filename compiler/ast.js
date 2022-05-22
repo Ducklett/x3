@@ -19,7 +19,13 @@ const typeMap = {
 	'int': { tag: tag_int, type: 'int', size: 8, signed: true },
 	'uint': { tag: tag_int, type: 'uint', size: 8, signed: false },
 	'u64': { tag: tag_int, type: 'u64', size: 8, signed: false },
-	'i64': { tag: tag_int, type: 'i64', size: 8, signed: true },
+	's64': { tag: tag_int, type: 's64', size: 8, signed: true },
+	'u32': { tag: tag_int, type: 'u32', size: 4, signed: false },
+	's32': { tag: tag_int, type: 's32', size: 4, signed: true },
+	'u16': { tag: tag_int, type: 'u16', size: 2, signed: false },
+	's16': { tag: tag_int, type: 's16', size: 2, signed: true },
+	'u8': { tag: tag_int, type: 'u8', size: 1, signed: false },
+	's8': { tag: tag_int, type: 's8', size: 1, signed: true },
 	'f64': { tag: tag_float, type: 'f64', size: 8, signed: true },
 	'f32': { tag: tag_float, type: 'f32', size: 4, signed: true },
 	'void': { tag: tag_void, type: 'void', size: 0 },
@@ -57,8 +63,52 @@ function typeInfoLabel(type) {
 	return l.join('')
 }
 
-
+// rounds number op to the next factor of increment
+// used for struct alignment
 function roundToIncrement(number, increment) { return Math.ceil(number / increment) * increment }
+function alignmentForSize(size) {
+	assert(size > 0)
+	switch (size) {
+		case 1: return 1
+		case 2: return 2
+		case 3: return 4
+		case 4: return 4
+		default: return 8
+	}
+}
+
+function alignStructFields(fields) {
+	let size = 0
+	for (let field of fields) {
+		assert(field.type)
+		assert(field.type.size)
+		field.kind = 'field'
+
+		// potentially fix alignment
+		const alignment = alignmentForSize(field.type.size)
+		size = roundToIncrement(size, alignment)
+
+		field.offset = size
+		size += field.type.size
+	}
+
+	const alignment = alignmentForSize(size)
+	return roundToIncrement(size, alignment)
+}
+
+function alignUnionFields(fields) {
+	let size = 0
+	for (let field of fields) {
+		assert(field.type)
+		assert(field.type.size)
+		field.kind = 'field'
+		field.offset = 0
+		size = Math.max(size, field.type.size)
+	}
+
+	const alignment = alignmentForSize(size)
+	return roundToIncrement(size, alignment)
+}
 
 // compiler boilerplate injector
 function B(node) {
@@ -165,6 +215,8 @@ module.exports = {
 	cloneType,
 	typeInfoLabel,
 	roundToIncrement,
+	alignStructFields,
+	alignUnionFields,
 
 	nop,
 	MARK,

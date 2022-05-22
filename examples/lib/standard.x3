@@ -11,7 +11,7 @@ proc sleep(seconds:f64) {
 	assert(seconds >= 0)
 	const nanoseconds in second:f64 = 10_0000_0000
 	var full seconds = seconds:int
-	var full nanos = (nanoseconds in second * (seconds - full seconds:f64)):i64
+	var full nanos = (nanoseconds in second * (seconds - full seconds:f64)):s64
 
 	var t = sys.timespec(full seconds, full nanos)
 	sys.nanosleep(~>t, null)

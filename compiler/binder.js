@@ -1,4 +1,4 @@
-const { typeMap, cloneType, typeInfoLabel, declareVar, num, binary, ref, readProp, unary, label, goto, assignVar, indexedAccess, nop, call, ctor, struct, param, fn, str, MARK, union, bool, roundToIncrement, tag_void, tag_pointer, tag_int, tag_float, tag_string, tag_array, tag_char, tag_bool, tag_function, tag_struct, tag_enum } = require('./ast')
+const { typeMap, cloneType, typeInfoLabel, declareVar, num, binary, ref, readProp, unary, label, goto, assignVar, indexedAccess, nop, call, ctor, struct, param, fn, str, MARK, union, bool, roundToIncrement, tag_void, tag_pointer, tag_int, tag_float, tag_string, tag_array, tag_char, tag_bool, tag_function, tag_struct, tag_enum, alignStructFields, alignUnionFields } = require('./ast')
 const { assert, spanFromRange } = require('./util')
 const { fileMap } = require('./parser')
 
@@ -458,7 +458,7 @@ function coerceType(type, it) {
 		return cast
 	}
 
-	const intTypes = new Set(['u64', 'i64', 'int', 'uint'])
+	const intTypes = new Set(['u64', 's64', 'int', 'uint'])
 
 	if (intTypes.has(type.type) && intTypes.has(it.type.type)) {
 		assert(type.size == it.type.size)
@@ -497,7 +497,7 @@ function coerceType(type, it) {
 	return it
 	// if (!type) return it
 
-	// const intTypes = new Set(['u64', 'i64', 'int', 'uint'])
+	// const intTypes = new Set(['u64', 's64', 'int', 'uint'])
 
 	// if (intTypes.has(type) && intTypes.has(it.type.type)) {
 	//     assert(type.size == it.type.size)
@@ -827,25 +827,10 @@ function bind(files) {
 				it.size = 0
 
 				if (kind == 'struct') {
-					for (let field of it.fields) {
-						assert(field.type)
-						assert(field.type.size)
-						field.kind = 'field'
-						// TODO: alignment
-						assert(field.type.size % 8 == 0)
-						field.offset = it.size
-						it.size += field.type.size
-					}
+					it.size = alignStructFields(it.fields)
 				} else {
 					assert(it.kind == 'union')
-					for (let field of it.fields) {
-						assert(field.type)
-						assert(field.type.size)
-						field.kind = 'field'
-						assert(field.type.size % 8 == 0)
-						field.offset = 0
-						it.size = Math.max(it.size, field.type.size)
-					}
+					it.size = alignUnionFields(it.fields)
 				}
 
 				assert(it.size > 0)
