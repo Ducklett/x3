@@ -456,10 +456,6 @@ ${[...data.keys()]
 					return
 				}
 				case 'ctorcall': {
-					if (!node.type) {
-						console.log(node)
-						console.log(node.args[0].expr)
-					}
 					lines.push(`; new ${node.type.name}()`)
 
 					const args = node.args
@@ -471,15 +467,57 @@ ${[...data.keys()]
 					// unions might need some padding since the constructors are of variable size
 					// push the padding first since this means it will be added to the end of the object
 					// let startByte = args.reduce((acc, cur) => Math.min(acc, cur.type.offset ?? 0), Number.POSITIVE_INFINITY)
-					let size = args.reduce((acc, cur) => acc + cur.type.size, 0)
-					assert(!isNaN(size))
+					// let size = args.reduce((acc, cur) => acc + cur.type.size, 0)
+					// assert(!isNaN(size))
 
-					while (size < targetSize) {
-						lines.push('push qword 0 ; end padding')
-						size += 8
+					// while (size < targetSize) {
+					// 	lines.push('push qword 0 ; end padding')
+					// 	size += 8
+					// }
+
+					// emitArgs(args)
+
+					// args correspond directly to fields; so we can steal the offset
+					assert(node.type.fields.length == node.args.length)
+
+					assert(targetSize % 8 == 0)
+					const size = targetSize //roundToIncrement(targetSize, 8)
+					lines.push(`sub rsp, ${size}`)
+
+					let i = 0
+					for (let arg of args) {
+						// assert(arg.type.size % 8 == 0, `don't small values for now`)
+						emitExpr(arg)
+						const argSize = arg.type.size
+						let exprSizeOnStack = roundToIncrement(arg.type.size, 8)
+						const offset = node.type.fields[i].offset
+						assert(offset !== undefined)
+
+						lines.push(`add rsp, ${exprSizeOnStack}`)
+
+
+						if (argSize >= 8) {
+							for (let j = 0; j < exprSizeOnStack; j += 8) {
+								lines.push(`mov rax, [rsp-${exprSizeOnStack - j}]`)
+								lines.push(`mov [rsp+${offset + j}], rax`)
+							}
+						} else {
+							// small values are always emitted as qwords
+							lines.push(`mov rax, [rsp-${exprSizeOnStack}]`)
+
+							if (argSize > 4) {
+								lines.push(`mov [rsp+${offset}], rax`)
+							} else if (argSize > 2) {
+								lines.push(`mov [rsp+${offset}], eax`)
+							} else if (argSize == 2) {
+								lines.push(`mov [rsp+${offset}], ax`)
+							} else {
+								lines.push(`mov [rsp+${offset}], al`)
+							}
+						}
+						i++
 					}
 
-					emitArgs(args)
 					return
 				}
 				case 'call': {
@@ -967,7 +1005,7 @@ ${[...data.keys()]
 
 					const buffer = emitVar(node)
 					assert(buffer)
-					assert(node.type && node.type.count)
+					assert(node.type)
 
 					lines.push(`; initializing array literal`)
 
