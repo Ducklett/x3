@@ -765,9 +765,15 @@ ${[...data.keys()]
 						left = 'rdx'
 					}
 
-					if (size == 1) {
-						lines.push(`mov rax, ${emitVar(left, offset)} ; ${node.left.symbol.name}..${prop.symbol.name}`)
-						lines.push(`and rax, 0xFF ; mask 1st byte`)
+					if (size <= 4) {
+						// NOTE: move into eax, upper bits will automatically reset
+						lines.push(`mov eax, ${emitVar(left, offset)} ; ${node.left.symbol.name}..${prop.symbol.name}`)
+
+						if (size == 1) lines.push(`movzx rax, al`)
+						else if (size == 2) lines.push(`movzx rax, ax`)
+						else if (size == 4) { } // lines.push(`movzx rax, eax`)
+						else assert(false)
+
 						lines.push(`push rax`)
 					} else {
 						assert(size && size % 8 == 0)
@@ -974,7 +980,9 @@ ${[...data.keys()]
 				}
 				case 'numberLiteral': {
 					assert(shouldReturn, 'number should not be called at top level')
+					const size = node.type.size
 					if (node.type.tag == tag_float) {
+						assert(size == 8)
 						const [a, b] = f64ToBytes(node.n)
 						const fullNumber = '0x' + (b.toString(16).padStart(8, '0')) + a.toString(16).padStart(8, '0')
 
@@ -986,13 +994,38 @@ ${[...data.keys()]
 							console.log(node)
 						}
 						assert(node.type.tag == tag_int)
-						if (node.type.signed) {
-							lines.push(`push ${node.n}`)
-						} else {
-							// NOTE: we put it into rax first, because pushing a number into the stack directly causes it to be sign extended
+
+						const signed = node.type.signed
+
+						// sign extend if signed; zero extend if unsigned
+						const movExtend = signed ? 'movsx' : 'movzx'
+
+						if (size == 8) { lines.push(`mov rax, ${node.n}`) }
+						else if (size == 4) {
+							if (!signed) {
+								lines.push(`mov eax, ${node.n}`)
+								lines.push(`cdqe`)
+							} else {
+								lines.push(`${movExtend} rax, eax`)
+							}
+						} else if (size == 2) {
 							lines.push(`mov rax, ${node.n}`)
-							lines.push(`push rax`)
+							lines.push(`${movExtend} rax, ax`)
+						} else if (size == 1) {
+							lines.push(`mov rax, ${node.n}`)
+							lines.push(`${movExtend} rax, al`)
+						} else {
+							assert(false)
 						}
+
+						lines.push(`push rax`)
+						// if (node.type.signed) {
+						// 	lines.push(`push ${node.n}`)
+						// } else {
+						// 	// NOTE: we put it into rax first, because pushing a number into the stack directly causes it to be sign extended
+						// 	lines.push(`mov rax, ${node.n}`)
+						// 	lines.push(`push rax`)
+						// }
 					}
 
 					return
@@ -1113,6 +1146,10 @@ ${[...data.keys()]
 					emitExpr(node.expr)
 
 					switch (node.type.type) {
+						case 'u64': switch (node.expr.type.type) {
+							case 'int': break /* do nothing, just like c... */
+							default: throw node.expr.type
+						} break
 						case 's64':
 						case 'int': switch (node.expr.type.type) {
 							case 'f64': {
@@ -1125,6 +1162,10 @@ ${[...data.keys()]
 								lines.push(`cvttsd2si rax, xmm0 ; cast f64 -> int`)
 								lines.push(`push qword rax`)
 							} break
+							case 'u8': break
+							case 'u16': break
+							case 'u32': break
+							case 'u64': break
 							default: throw node.expr.type
 						} break
 						case 'f64': switch (node.expr.type.type) {

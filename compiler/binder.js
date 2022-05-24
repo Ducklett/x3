@@ -462,8 +462,10 @@ function coerceType(type, it) {
 
 	if (intTypes.has(type.type) && intTypes.has(it.type.type)) {
 		assert(type.size == it.type.size)
-		const cast = { kind: 'implicit cast', type: type, expr: it, span: it.span }
-		return cast
+		if (!typeEqual(type, it.type)) {
+			const cast = { kind: 'implicit cast', type: type, expr: it, span: it.span }
+			return cast
+		}
 	}
 
 	if (type.type == 'any' && it.type.type != 'any') {
@@ -2046,4 +2048,4 @@ function bind(files) {
 	}
 }
 
-module.exports = { bind, typeInfoFor, state }
+module.exports = { bind, typeInfoFor, state, typeEqual, coerceType }

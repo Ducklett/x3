@@ -1,5 +1,5 @@
 const { tag_int, tag_float, tag_bool, typeMap, num, readProp, ref, label, goto, binary, cloneType, declareVar, assignVar, indexedAccess, unary, ctor, fn, } = require("./ast")
-const { typeInfoFor, state } = require("./binder")
+const { typeInfoFor, state, typeEqual } = require("./binder")
 const { assert } = require("./util")
 
 function lower(ast) {
@@ -182,6 +182,40 @@ function lower(ast) {
 			}
 			case 'reinterpret': return lowerNode(node.expr)
 			case 'implicit cast': {
+
+				if (typeEqual(node.type, node.expr.type)) {
+					console.log(node)
+					throw `bug: cast to own type`
+				}
+
+				const toLabel = node.type.type
+				const fromLabel = node.expr.type.type
+
+				if (fromLabel == 'cstring' && toLabel == 'pointer') return lowerNode(node.expr)
+				if (fromLabel == 'pointer' && toLabel == 'pointer') return lowerNode(node.expr)
+				if (fromLabel == 's64' && toLabel == 'int') return lowerNode(node.expr)
+				if (fromLabel == 'int' && toLabel == 's64') return lowerNode(node.expr)
+				if (fromLabel == 'int' && toLabel == 'u64') {
+					node.kind = 'cast'
+					return lowerNode(node)
+				}
+				if (fromLabel == 'int' && toLabel == 'uint') {
+					node.kind = 'cast'
+					return lowerNode(node)
+				}
+				if (fromLabel == 'uint' && toLabel == 'int') {
+					node.kind = 'cast'
+					return lowerNode(node)
+				}
+
+
+				if (node.expr.type.type == 'void') {
+					// we allow dereferencing of void pointers when the expected type can be inferrect from context
+					// to make this work we replace the void type with that of the implicit cast before emitting to asm
+					node.expr.type = node.type
+					return lowerNode(node.expr)
+				}
+
 				if (node.type.type == 'array' && node.expr.type.type == 'array') {
 					assert(node.type.of.type == 'any')
 					const count = node.expr.type.count
@@ -259,13 +293,6 @@ function lower(ast) {
 					return toReturn
 				}
 
-				if (node.expr.type.type == 'void') {
-					// we allow dereferencing of void pointers when the expected type can be inferrect from context
-					// to make this work we replace the void type with that of the implicit cast before emitting to asm
-					node.expr.type = node.type
-					return lowerNode(node.expr)
-				}
-
 				if (node.type.type == 'pointer' && (node.expr.type.type == 'string' || node.expr.type.type == 'array')) {
 					const bufferProp = node.expr.type.type == 'string'
 						? typeMap.string.scope.symbols.get('buffer')
@@ -288,7 +315,8 @@ function lower(ast) {
 					return lowerNode(pad)
 				}
 
-				return lowerNode(node.expr)
+				throw `unhandled implicit cast from ${node.expr.type.type} to ${node.type.type}`
+				// return lowerNode(node.expr)
 			}
 
 			case 'pad': {
