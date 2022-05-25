@@ -1,3 +1,5 @@
+const { assert } = require("./util")
+
 const keywords = new Set(["module", "import", "use", "type", "struct", "union", "proc", "return", "break", "continue", "goto", "label", "var", "const", "for", "do", "while", "each", "enum", "if", "else", "match", "true", "false", "null"])
 const operators = new Set(["...", "<<=", ">>=", "&&=", "||=", "==", "!=", ">=", "<=", "<<", ">>", "<~", "~>", "<-", "->", "=>", "&&", "||", "++", "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "~=", "=", "!", ">", "<", "+", "-", "/", "*", "%", "^", "~", "&", "|", "(", ")", "[", "]", "{", "}", "?", ":", ";", ".", ","])
 const binaryOperators = new Set(["==", "!=", ">=", "<=", "<<", ">>", "&&", "||", "=>", ">", "<", "+", "-", "/", "*", "%", "^", "&", "|"])
@@ -19,8 +21,47 @@ function lex(code, sourcePath = '<compiler>') {
 		return span
 	}
 
-	function advance(amount = 1) { lexerIndex += amount }
-	function retreat(amount = 1) { lexerIndex -= amount }
+	const columnSizes = []
+	function advance(amount = 1) {
+		for (let i = 0; i < amount; i++) {
+			// the next character will be on a new line
+			if (current() == '\n') {
+				columnSizes.push(column)
+				line++
+				column = 0
+			} else {
+				column++
+			}
+
+			lexerIndex++
+		}
+	}
+
+	function retreat(amount = 1) {
+		for (let i = 0; i < amount; i++) {
+			lexerIndex--
+			// we went up to the previous line
+			if (current() == '\n') {
+				assert(line > 0)
+				assert(columnSizes.length > 0)
+				line--
+				column = columnSizes.pop()
+			} else {
+				assert(column > 0)
+				column--
+			}
+		}
+	}
+
+	function current() {
+		// overstepped by 2, should definitely just kys now to prevent inifinite loop ;)
+		if (lexerIndex > len) throw "out of range!"
+		return code[lexerIndex]
+	}
+
+	function peek(n) {
+		return code[lexerIndex + n]
+	}
 
 	function isNewline(c) { return c == '\n' }
 
@@ -63,16 +104,6 @@ function lex(code, sourcePath = '<compiler>') {
 
 	lex:
 	while (lexerIndex < len) {
-
-		const current = () => {
-			// overstepped by 2, should definitely just kys now to prevent inifinite loop ;)
-			if (lexerIndex > len) throw "out of range!"
-			return code[lexerIndex]
-		}
-
-		const peek = (n) => {
-			return code[lexerIndex + n]
-		}
 
 		const lexSymbol = (from = null, leftEscaped = false) => {
 			let rightEscaped = false

@@ -83,7 +83,7 @@ proc write cstring(str:cstring) {
 }
 
 proc assert(
-	condition:bool      #callee span(message),
+	condition:bool      #caller span(message),
 	message:string,
 	call site:string    #call site
 ) {

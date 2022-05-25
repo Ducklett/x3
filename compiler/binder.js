@@ -1601,6 +1601,11 @@ function bind(files) {
 					return it
 				}
 
+				function callsite(span) {
+					// return `${span.file}(${span.fromLine + 1},${span.fromColumn + 1},${span.toLine + 1},${span.toColumn + 1})`
+					return `${span.file}:${span.fromLine + 1}:${span.fromColumn + 1}`
+				}
+
 				if (isEnumCtor) {
 					const params = [...def.symbol.type.sharedFields, ...def.symbol.params]
 					const it = {
@@ -1610,7 +1615,7 @@ function bind(files) {
 						type,
 						span: spanFromRange(node.name.span, node.argumentList.end.span)
 					}
-					it.args = validateArguments(it.args, params, node.name.span.file)
+					it.args = validateArguments(it.args, params, callsite(node.name.span))
 					return it
 				}
 				else if (isStruct) {
@@ -1621,7 +1626,7 @@ function bind(files) {
 						type,
 						span: spanFromRange(node.name.span, node.argumentList.end.span)
 					}
-					it.args = validateArguments(it.args, params, node.name.span.file)
+					it.args = validateArguments(it.args, params, callsite(node.name.span))
 					return it
 				} else if (isSyscall) {
 					const params = def.symbol.params
@@ -1632,7 +1637,7 @@ function bind(files) {
 						type,
 						span: spanFromRange(node.name.span, node.argumentList.end.span)
 					}
-					it.args = validateArguments(it.args, params, node.name.span.file)
+					it.args = validateArguments(it.args, params, callsite(node.name.span))
 					return it
 				} else {
 					const params = def.symbol.params
@@ -1670,7 +1675,7 @@ function bind(files) {
 							span: spanFromRange(node.name.span, node.argumentList.end.span)
 						}
 
-						it.args = validateArguments(it.args, params, node.name.span.file)
+						it.args = validateArguments(it.args, params, callsite(node.name.span))
 
 						return it
 					}
@@ -1904,14 +1909,14 @@ function bind(files) {
 
 			for (let [note, context] of param.notes.entries()) {
 				switch (note) {
-					case 'callee span': {
+					case 'caller span': {
 						assert(context.length == 1)
 						const targetParam = context[0]
 						assert(targetParam.kind == 'reference' && targetParam.symbol.kind == 'parameter')
 						const index = params.indexOf(targetParam.symbol)
 						assert(index > -1)
 						if (!args[index]) {
-							// inject callee span
+							// inject caller span
 							const expr = args[i]
 							assert(args[i])
 							const sourcecode = fileMap.get(expr.span.file)
