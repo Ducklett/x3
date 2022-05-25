@@ -9,13 +9,18 @@ function lex(code, sourcePath = '<compiler>') {
 	let span
 
 	function startSpan() {
-		span = { file: sourcePath, from: lexerIndex }
+		span = { file: sourcePath, from: lexerIndex, fromLine: line, fromColumn: column }
 	}
 
 	function takeSpan() {
 		span.to = lexerIndex
+		span.toLine = line
+		span.toColumn = column
 		return span
 	}
+
+	function advance(amount = 1) { lexerIndex += amount }
+	function retreat(amount = 1) { lexerIndex -= amount }
 
 	function isNewline(c) { return c == '\n' }
 
@@ -47,9 +52,11 @@ function lex(code, sourcePath = '<compiler>') {
 		return (c == '0' || c == '1')
 	}
 
+
 	const maxTokenLength = 3;
-	let lexerIndex = 0;
+	let lexerIndex = 0, line = 0, column = 0;
 	const len = code.length
+
 
 	let tokens = []
 
@@ -72,23 +79,23 @@ function lex(code, sourcePath = '<compiler>') {
 
 			if (!from) {
 				if (current() == "'") {
-					lexerIndex++
+					advance()
 					leftEscaped = true
 				}
 				from = lexerIndex
 			}
 
-			while (isLegalSymbol(current())) lexerIndex++
+			while (isLegalSymbol(current())) advance()
 
 			// remove trailing whitespace
-			while (isWhitespace(peek(-1))) lexerIndex--
+			while (isWhitespace(peek(-1))) retreat()
 
 
 			let symbol = code.slice(from, lexerIndex)
 
 			// symbols may end with ' to prevent collisions with keywords
 			if (current() == "'") {
-				lexerIndex++
+				advance()
 				rightEscaped = true
 			}
 
@@ -107,7 +114,7 @@ function lex(code, sourcePath = '<compiler>') {
 				}
 
 			}
-			lexerIndex++
+			advance()
 		}
 		if (from != lexerIndex) {
 			tokens.push({ kind: 'whitespace', value: code.slice(from, lexerIndex), span: takeSpan() })
@@ -120,9 +127,9 @@ function lex(code, sourcePath = '<compiler>') {
 		// multi line comment
 		if (current() == '/' && peek(1) == '*') {
 			let from = lexerIndex + 2
-			while (!(current() == '*' && peek(1) == '/')) lexerIndex++
+			while (!(current() == '*' && peek(1) == '/')) advance()
 			const comment = code.slice(from, lexerIndex)
-			lexerIndex += 2
+			advance(2)
 			tokens.push({ kind: 'comment', value: comment, span: takeSpan() })
 			continue
 		}
@@ -138,7 +145,7 @@ function lex(code, sourcePath = '<compiler>') {
 
 		// tag
 		if (current() == '#') {
-			lexerIndex++
+			advance()
 			const smb = lexSymbol()
 			if (!smb) throw 'expected symbol..'
 			const value = smb.value
@@ -150,19 +157,19 @@ function lex(code, sourcePath = '<compiler>') {
 		let shouldNullTerminate = false
 		if (current() == 'c' && peek(1) == '"') {
 			shouldNullTerminate = true
-			lexerIndex++
+			advance()
 		}
 
 		if (current() == '"') {
-			lexerIndex++
+			advance()
 			let from = lexerIndex
 			while (true) {
 				if (current() == '"') break
 				if (current() == '\\' && peek(1) == '"') {
-					lexerIndex += 2
+					advance(2)
 				}
 				else {
-					lexerIndex++
+					advance()
 				}
 			}
 
@@ -176,7 +183,7 @@ function lex(code, sourcePath = '<compiler>') {
 				// arbitrary hex byte
 				.replace(/\\x([0-9a-zA-Z]{2})/g, (...p) => String.fromCharCode(parseInt(p[1], 16)))
 			if (shouldNullTerminate) str += '\0'
-			lexerIndex++
+			advance()
 			tokens.push({ kind: 'string', value: str, span: takeSpan() })
 			continue
 		}
@@ -190,7 +197,7 @@ function lex(code, sourcePath = '<compiler>') {
 				while (f(current()) || (allowUnderscore && current() == '_')) {
 					// don't allow multiple underscores in a row
 					allowUnderscore = current() != '_'
-					lexerIndex++
+					advance()
 				}
 			}
 
@@ -202,7 +209,7 @@ function lex(code, sourcePath = '<compiler>') {
 			let from = lexerIndex
 			if (current() == '0' && peek(1) == 'b') {
 				// binary
-				lexerIndex += 2
+				advance(2)
 				let from = lexerIndex
 				lexNumbers(isLegalBinaryNumber)
 
@@ -212,7 +219,7 @@ function lex(code, sourcePath = '<compiler>') {
 			}
 			else if (current() == '0' && peek(1) == 'x') {
 				// hex
-				lexerIndex += 2
+				advance(2)
 				let from = lexerIndex
 				lexNumbers(isLegalHexNumber)
 
@@ -222,7 +229,7 @@ function lex(code, sourcePath = '<compiler>') {
 			}
 			else if (current() == '0' && peek(1) == 'o') {
 				// octal
-				lexerIndex += 2
+				advance(2)
 				let from = lexerIndex
 				lexNumbers(isLegalOctalNumber)
 
@@ -241,7 +248,7 @@ function lex(code, sourcePath = '<compiler>') {
 				// float
 				if (current() == '.') {
 					floating = true
-					lexerIndex++
+					advance()
 					lexNumbers(isLegalNumber)
 				}
 
@@ -255,7 +262,7 @@ function lex(code, sourcePath = '<compiler>') {
 		// symbols may start with ' to prevent collisions with keywords
 		var mightBeKeyword = true
 		if (current() == "'" && isLegalSymbol(peek(1))) {
-			lexerIndex++
+			advance()
 			mightBeKeyword = false
 		}
 
@@ -264,7 +271,7 @@ function lex(code, sourcePath = '<compiler>') {
 			let from = lexerIndex
 
 			if (mightBeKeyword) {
-				while (isLegalKeyword(current())) lexerIndex++
+				while (isLegalKeyword(current())) advance()
 				if (current() != "'") {
 					let potentialKeyword = code.slice(from, lexerIndex)
 					if (keywords.has(potentialKeyword)) {
@@ -286,7 +293,7 @@ function lex(code, sourcePath = '<compiler>') {
 			while (operatorLen) {
 				const op = code.slice(from, from + operatorLen)
 				if (operators.has(op)) {
-					lexerIndex = from + operatorLen
+					advance(operatorLen)
 					tokens.push({ kind: 'operator', value: op, span: takeSpan() })
 					continue lex;
 				}
