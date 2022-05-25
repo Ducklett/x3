@@ -31,7 +31,7 @@
 		"storage": {
 			"patterns": [
 				{
-					"match": "\\b(use)\\b([a-zA-Z0-9_\\s]+)((\\.)([a-zA-Z0-9_\\s]+))*\\b",
+					"match": "\\b(use)\\b([a-zA-Z0-9\\x{7f}-\\x{fffff}_\\s]+)((\\.)([a-zA-Z0-9\\x{7f}-\\x{fffff}_\\s]+))*\\b",
 					"captures": {
 						"1": {
 							"name": "keyword.control.x3"
@@ -48,7 +48,7 @@
 					}
 				},
 				{
-					"match": "\\b(module)\\b([a-zA-Z0-9_\\s]+)\\b",
+					"match": "\\b(module)\\b([a-zA-Z0-9\\x{7f}-\\x{fffff}_\\s]+)\\b",
 					"captures": {
 						"1": {
 							"name": "storage.type.module.x3"
@@ -59,7 +59,7 @@
 					}
 				},
 				{
-					"match": "\\b(enum)\\b([a-zA-Z0-9_\\s]+)\\b",
+					"match": "\\b(enum)\\b([a-zA-Z0-9\\x{7f}-\\x{fffff}_\\s]+)\\b",
 					"captures": {
 						"1": {
 							"name": "storage.type.enum.x3"
@@ -70,7 +70,7 @@
 					}
 				},
 				{
-					"match": "\\b(proc)\\b([a-zA-Z0-9_\\s]+)\\b",
+					"match": "\\b(proc)\\b([a-zA-Z0-9\\x{7f}-\\x{fffff}_\\s]+)\\b",
 					"captures": {
 						"1": {
 							"name": "storage.type.function.x3"
@@ -81,7 +81,7 @@
 					}
 				},
 				{
-					"match": "\\b(do)\\b([a-zA-Z0-9_\\s]+)\\b",
+					"match": "\\b(do)\\b([a-zA-Z0-9\\x{7f}-\\x{fffff}_\\s]+)\\b",
 					"captures": {
 						"1": {
 							"name": "storage.type.function.x3"
@@ -92,7 +92,7 @@
 					}
 				},
 				{
-					"match": "\\b(struct)\\b([a-zA-Z0-9_\\s]+)\\b",
+					"match": "\\b(struct)\\b([a-zA-Z0-9\\x{7f}-\\x{fffff}_\\s]+)\\b",
 					"captures": {
 						"1": {
 							"name": "storage.type.struct.x3"
@@ -103,7 +103,7 @@
 					}
 				},
 				{
-					"match": "\\b(union)\\b([a-zA-Z0-9_\\s]+)\\b",
+					"match": "\\b(union)\\b([a-zA-Z0-9\\x{7f}-\\x{fffff}_\\s]+)\\b",
 					"captures": {
 						"1": {
 							"name": "storage.type.union.x3"
@@ -114,7 +114,7 @@
 					}
 				},
 				{
-					"match": "\\b(type)\\b([a-zA-Z0-9_\\s]+)\\b",
+					"match": "\\b(type)\\b([a-zA-Z0-9\\x{7f}-\\x{fffff}_\\s]+)\\b",
 					"captures": {
 						"1": {
 							"name": "storage.type.type.x3"
@@ -125,7 +125,7 @@
 					}
 				},
 				{
-					"match": "\\b(const)\\b([a-zA-Z0-9_\\s]+)\\b",
+					"match": "\\b(const)\\b([a-zA-Z0-9\\x{7f}-\\x{fffff}_\\s]+)\\b",
 					"captures": {
 						"1": {
 							"name": "storage.type.const.x3"
@@ -136,7 +136,7 @@
 					}
 				},
 				{
-					"match": "\\b(var)\\b([a-zA-Z0-9_\\s]+)\\b",
+					"match": "\\b(var)\\b([a-zA-Z0-9\\x{7f}-\\x{fffff}_\\s]+)\\b",
 					"captures": {
 						"1": {
 							"name": "storage.type.var.x3"
@@ -158,7 +158,7 @@
 					}
 				},
 				{
-					"match": "\\b([a-zA-Z0-9_\\s]+)\\(",
+					"match": "\\b([a-zA-Z0-9\\x{7f}-\\x{fffff}_\\s]+)\\(",
 					"captures": {
 						"1": {
 							"name": "entity.name.function.x3"
@@ -169,7 +169,7 @@
 					}
 				},
 				{
-					"match": "(=>)([a-zA-Z0-9_\\s]+)",
+					"match": "(=>)([a-zA-Z0-9\\x{7f}-\\x{fffff}_\\s]+)",
 					"captures": {
 						"1": {
 							"name": "storage.type.function.pipe.x3"
@@ -205,7 +205,7 @@
 			"patterns": [
 				{
 					"name": "variable.x3",
-					"match": "\\b([a-zA-Z0-9_\\s]+)\\b"
+					"match": "\\b([a-zA-Z0-9\\x{7f}-\\x{fffff}_\\s]+)\\b"
 				}
 			]
 		},

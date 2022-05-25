@@ -74,7 +74,8 @@ function lex(code, sourcePath = '<compiler>') {
 	}
 
 	function isLegalSymbol(c) {
-		return c == ' ' || c == '_' || isLegalKeyword(c) || (c >= '0' && c <= '9')
+		const code = c.charCodeAt(0)
+		return c == ' ' || c == '_' || isLegalKeyword(c) || (c >= '0' && c <= '9') || (code > 127)
 	}
 
 	function isLegalNumber(c) {
