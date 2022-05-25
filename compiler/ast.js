@@ -67,7 +67,7 @@ function typeInfoLabel(type) {
 // used for struct alignment
 function roundToIncrement(number, increment) { return Math.ceil(number / increment) * increment }
 function alignmentForSize(size) {
-	assert(size > 0)
+	if (size <= 0) throw 'illegal size'
 	switch (size) {
 		case 1: return 1
 		case 2: return 2
@@ -77,19 +77,22 @@ function alignmentForSize(size) {
 	}
 }
 
-function alignStructFields(fields) {
-	let size = 0
+function alignStructFields(fields, startOffset = 0) {
+	let size = startOffset
 	for (let field of fields) {
 		assert(field.type)
 		assert(field.type.size)
-		field.kind = 'field'
 
 		// potentially fix alignment
 		const alignment = alignmentForSize(field.type.size)
 		size = roundToIncrement(size, alignment)
 
-		field.offset = size
-		size += field.type.size
+		if (field.offset === undefined) {
+			field.offset = size
+			size += field.type.size
+		} else {
+			size = Math.max(size, field.offset + field.type.size)
+		}
 	}
 
 	const alignment = alignmentForSize(size)
@@ -141,16 +144,17 @@ const struct = (name, fields) => {
 		scope.symbols.set(f.name, f)
 	}
 
-	const size = fields.reduce((acc, cur) => {
-		assert(cur.type.size > 0)
-		if (cur.offset === undefined) {
-			cur.offset = acc
-			acc += cur.type.size
-		} else {
-			acc = Math.max(acc, cur.type.size + cur.offset)
-		}
-		return acc
-	}, 0)
+	const size = alignStructFields(fields)
+	// const size = fields.reduce((acc, cur) => {
+	// 	assert(cur.type.size > 0)
+	// 	if (cur.offset === undefined) {
+	// 		cur.offset = acc
+	// 		acc += cur.type.size
+	// 	} else {
+	// 		acc = Math.max(acc, cur.type.size + cur.offset)
+	// 	}
+	// 	return acc
+	// }, 0)
 	return B({ tag: 7, kind: 'struct', name, type: name, fields, size, scope })
 }
 
@@ -199,7 +203,7 @@ const unary = (op, expr, type) => B({ kind: 'unary', op, expr, type })
 const ret = expr => B({ kind: 'return', expr })
 const goto = (label, condition) => B({ kind: 'goto', condition, label })
 const label = (name) => B({ kind: 'label', name })
-const bool = (v, type) => B({ kind: 'booleanLiteral', v, type })
+const bool = (value, type) => B({ kind: 'booleanLiteral', value, type })
 const num = (n, type) => {
 	if (!type) throw 'num needs type'
 	return B({ kind: 'numberLiteral', n, type })

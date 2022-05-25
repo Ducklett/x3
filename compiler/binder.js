@@ -583,7 +583,7 @@ function bind(files) {
 	}
 
 	function createEnumAlias(entry, name) {
-		const s = struct(entry.name + '$backingStruct', entry.params)
+		const s = struct(entry.name + '$backingStruct', [...entry.type.sharedFields, ...entry.params])
 		aliasType = s
 		const alias = {
 			kind: 'enum alias',
@@ -707,7 +707,7 @@ function bind(files) {
 
 				let fields = []
 
-				function bindEnumEntry(node) {
+				function bindEnumEntry(node, offset = 0) {
 					assert(node.kind == 'enum entry')
 					const name = node.name.value
 					const scope = pushScope()
@@ -715,13 +715,15 @@ function bind(files) {
 					if (node.params && node.params.items.length) {
 						params = bindParameters(node.params)
 
-						let offset = 0
-						for (let param of params) {
-							param.offset = offset
-							assert(param.type.size)
-							offset += roundToIncrement(param.type.size, 8)
-							fields.push(param)
-						}
+						// let offset = 0
+						alignStructFields(params, offset)
+						fields.push(...params)
+						// for (let param of params) {
+						// 	param.offset = offset
+						// 	assert(param.type.size)
+						// 	offset += roundToIncrement(param.type.size, 8)
+						// 	fields.push(param)
+						// }
 					}
 					popScope()
 
@@ -768,28 +770,30 @@ function bind(files) {
 
 				const scope = pushScope(null, name, 'enum')
 
-				let backingType = typeMap.int
-				let offset = backingType.size
+				let tagType = node.type ? bindType(node.type) : typeMap.int
+				assert(tagType.tag == tag_int, `enum type must be integer`)
+				let offset = tagType.size
 				let sharedFields = bindParameters(node.params)
-				for (let field of sharedFields) {
-					field.offset = offset
-					assert(field.type.size)
-					offset += roundToIncrement(field.type.size, 8)
-				}
+				offset = alignStructFields(sharedFields, offset)
+				// for (let field of sharedFields) {
+				// 	field.offset = offset
+				// 	assert(field.type.size)
+				// 	offset += roundToIncrement(field.type.size, 8)
+				// }
 
 
-				const entries = bindList(node.entries.items, bindEnumEntry)
+				const entries = bindList(node.entries.items, bindEnumEntry, offset)
 				if (fields.length || sharedFields.length) {
 					// update the field offsets to account for the tag
-					for (let f of fields) {
-						f.offset += offset
-					}
+					// for (let f of fields) {
+					// 	f.offset += offset
+					// }
 
 					// put tag and shared fields at the start of fields
-					fields = [param('tag', backingType), ...sharedFields, ...fields]
+					fields = [param('tag', tagType), ...sharedFields, ...fields]
 
 					// update the backing type so it's a struct containing the tag followed by the fields
-					backingType = struct(name + '$backingTaggedUnion', fields)
+					tagType = struct(name + '$backingTaggedUnion', fields)
 				}
 
 				popScope(scope)
@@ -805,8 +809,8 @@ function bind(files) {
 				it.scope = scope
 				it.sharedFields = sharedFields
 				it.entries = entries
-				it.backingType = backingType
-				it.size = backingType.size
+				it.backingType = tagType
+				it.size = tagType.size
 
 				return it
 			}
@@ -836,6 +840,10 @@ function bind(files) {
 				addSymbol(name, it)
 
 				it.size = 0
+
+				for (let field of it.fields) {
+					field.kind = 'field'
+				}
 
 				if (kind == 'struct') {
 					it.size = alignStructFields(it.fields)
@@ -941,7 +949,15 @@ function bind(files) {
 						} break
 						case 'pattern expression': {
 							let expr = bindExpression(arm.pattern.expr)
-							if (expr.kind == 'stringLiteral') {
+							if (expr.kind == 'numberLiteral') {
+								expr = coerceType(operand.type, expr)
+								pattern = {
+									kind: 'pattern value',
+									value: expr,
+									span: expr.span
+								}
+							}
+							else if (expr.kind == 'stringLiteral') {
 								expr = coerceType(operand.type, expr)
 								assert(expr.type.type == 'char', `match only supports char literals`)
 								pattern = {
@@ -1695,15 +1711,19 @@ function bind(files) {
 					// from this point on the lhs should be treated as entry on the rhs
 					// so we create an alias
 					assert(b.kind == 'reference' && b.symbol.kind == 'enum entry')
-					let alias
-					if (node.lhs.kind == 'symbol') {
-						alias = createEnumAlias(b.symbol, node.lhs) // use name of lhs
-					} else {
-						alias = createEnumAlias(b.symbol) // use default name
-					}
-					addSymbol(alias.name, alias)
 
-					b.alias = alias
+					// this is a type binding
+					if (op == '==' && (b.symbol.params?.length || b.type.sharedFields.length)) {
+						let alias
+						if (node.lhs.kind == 'symbol') {
+							alias = createEnumAlias(b.symbol, node.lhs) // use name of lhs
+						} else {
+							alias = createEnumAlias(b.symbol) // use default name
+						}
+						addSymbol(alias.name, alias)
+
+						b.alias = alias
+					}
 				} else {
 					b = bindExpression(node.rhs)
 				}
@@ -2010,10 +2030,10 @@ function bind(files) {
 		})
 	}
 
-	function bindList(list, binder) {
+	function bindList(list, binder, ...args) {
 		if (!list) return []
 		return list.filter((_, i) => i % 2 == 0).map((p) => {
-			return binder(p)
+			return binder(p, ...args)
 		})
 	}
 

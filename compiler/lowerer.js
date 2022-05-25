@@ -1,6 +1,16 @@
-const { tag_int, tag_float, tag_bool, typeMap, num, readProp, ref, label, goto, binary, cloneType, declareVar, assignVar, indexedAccess, unary, ctor, fn, } = require("./ast")
+const { tag_int, tag_float, tag_bool, typeMap, num, readProp, ref, label, goto, binary, cloneType, declareVar, assignVar, indexedAccess, unary, ctor, fn, struct, param, bool, } = require("./ast")
 const { typeInfoFor, state, typeEqual } = require("./binder")
 const { assert } = require("./util")
+
+function structForEnumEntry(entry) {
+	const tag = entry.type.backingType.fields[0]
+	const fields = [tag, ...entry.type.sharedFields, ...entry.params]
+	const s = struct(entry.name + '$backingStruct', fields)
+	assert(s.size <= entry.type.size)
+	s.size = entry.type.size
+
+	return s
+}
 
 function lower(ast) {
 	const { any } = state
@@ -207,6 +217,19 @@ function lower(ast) {
 					node.kind = 'cast'
 					return lowerNode(node)
 				}
+
+				if (fromLabel == 'void' && node.type.tag == tag_int && node.type.size < 8) {
+					// might need to do some cleanup before deref
+					node.kind = 'cast'
+					return lowerNode(node)
+				}
+
+				if (node.type.kind == 'enum' && node.expr.kind == 'reference' && node.expr.symbol.kind == 'enum alias') {
+					assert(node.expr.type.kind == 'struct')
+					assert(node.expr.type.size == node.type.size)
+					return lowerNode(node.expr)
+				}
+
 
 
 				if (node.expr.type.type == 'void') {
@@ -798,7 +821,7 @@ function lower(ast) {
 				// HACK: bad constant folding
 				if (node.a.kind == 'numberLiteral' && node.b.kind == 'numberLiteral') {
 
-					assert(node.type.tag == tag_int || node.type.tag == tag_float)
+					assert(node.type.tag == tag_int || node.type.tag == tag_float || node.type.tag == tag_bool)
 
 					// NOTE: tight coupling between x3 and js operators
 					const newValue = eval(`node.a.n ${node.op} node.b.n`)
@@ -891,14 +914,18 @@ function lower(ast) {
 				}
 				return lowerNode(it)
 			}
+
 			case 'enumctorcall': {
+				const type = structForEnumEntry(node.entry)
+
 				const backingType = node.type.backingType
 				assert(backingType)
 				const tagType = backingType.fields[0].type
 				assert(tagType)
+
 				const args = [num(node.entry.value, tagType), ...(node.args ?? [])]
 
-				const c = ctor(backingType, ...args)
+				const c = ctor(type, ...args)
 				return lowerNode(c)
 			}
 			case 'ctorcall':
@@ -929,7 +956,7 @@ function lower(ast) {
 				return [node]
 			}
 			case 'enum entry': {
-				if (node.type.size == 8 || asTag) {
+				if (node.type.size <= 8 || asTag) {
 					// NOTE: only returns the tag, enum instances with values are instead stored in 'enumctor'
 					const tagType = node.type.backingType.fields
 						? node.type.backingType.fields[0].type
@@ -993,9 +1020,19 @@ function lower(ast) {
 							if (hasFields) {
 								// the source code was 'enum.entry' but the the enum has fields
 								// we must turn it into a constructor call so it has the right size
-								const c = ctor(symbol.backingType, tag)
+								const entry = node.prop.symbol
+
+								assert(entry.type.sharedFields.length === 0, `cannot reference entry ${entry.name} because it has shared arguments, construct it with ${entry.name}() instead.`)
+								assert(entry.params.length == 0, `cannot reference entry ${entry.name} because it has arguments, construct it with ${entry.name}() instead.`)
+
+								const s = structForEnumEntry(entry)//struct(entry.name + '$backingStruct', [param('tag', tagType)])
+								// s.size = entry.type.size
+
+								const c = ctor(s, tag)
+
 								return lowerNode(c)
 							} else {
+								// it's just a number
 								return lowerNode(tag)
 							}
 						}

@@ -176,7 +176,7 @@ ${[...data.keys()]
 				} break
 				case 'booleanLiteral': {
 					// NOTE: padded to qword...
-					data.push(node.v ? 1 : 0)
+					data.push(node.value ? 1 : 0)
 				} break
 				case 'declareVar': {
 					// this acts as a pointer to a variable..
@@ -1166,6 +1166,7 @@ ${[...data.keys()]
 							case 'u16': break
 							case 'u32': break
 							case 'u64': break
+							case 'void': break
 							default: throw node.expr.type
 						} break
 						case 'f64': switch (node.expr.type.type) {
@@ -1178,6 +1179,22 @@ ${[...data.keys()]
 								// push xmm0
 								lines.push(`sub rsp, 8`)
 								lines.push(`movsd [rsp], xmm0`)
+							} break
+							default: throw node.expr.type
+						} break
+						// case 'bool': switch (node.expr.type.type) {
+						// 	case 'void': {
+						// 		lines.push(`pop rax`)
+						// 		lines.push(`movzx rax, al`)
+						// 		lines.push(`push rax`)
+						// 	} break
+						// 	default: throw node.expr.type
+						// } break
+						case 'u8': switch (node.expr.type.type) {
+							case 'void': {
+								// lines.push(`pop rax`)
+								// lines.push(`movzx rax, al`)
+								// lines.push(`push rax`)
 							} break
 							default: throw node.expr.type
 						} break

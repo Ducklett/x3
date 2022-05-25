@@ -198,8 +198,18 @@ proc print(it:any) {
 		} else {
 			write("false")
 		}
-	} else if (t.kind == type tag.int) || (t.kind == type tag.float) {
-		write number(<~it.data)
+	} else if (t.kind == type tag.int) {
+		// TODO: use take sign info into account
+		// TODO: fix '<~it.data:int not casting properly for some reason'
+		// d:int = <~it.data works fine
+		var d:int = <~it.data
+		match t.size {
+			8  { write number(d) }
+			4  { write number(d & 0xFFFF_FFFF) }
+			2  { write number(d & 0xFFFF) }
+			1  { write number(d & 0xFF) }
+			else { panic("illegal size") }
+		}
 	} else if t.kind == type tag.string {
 		write(<~it.data)
 	} else if t.kind == type tag.pointer {
