@@ -4,9 +4,9 @@ import "./lib/standard" use standard
 // struct person[name:string,age:int,gender:string]
 // struct complex[entity:person,pos:point]
 
-proc write type(t:~>type info) {
+proc write_type(t:~>type_info) {
 	if t.kind == type_tag.struct {
-		write ("struct ")
+		write("struct ")
 	}
 
 	// write_number(t.size)
@@ -23,7 +23,7 @@ proc write type(t:~>type info) {
 		write(")")
 	} else if t.kind == type_tag.pointer {
 		write("<")
-		write type(t.data.pointerData.to)
+		write_type(t.data.pointerData.to)
 		write(">")
 	} else if t.kind == type_tag.array {
 		write("[")
@@ -31,7 +31,7 @@ proc write type(t:~>type info) {
 			write_number(t.data.arrayData.count)
 		}
 		write("]")
-		write type(t.data.arrayData.of)
+		write_type(t.data.arrayData.of)
 	} else if t.kind == type_tag.struct {
 		write(" {\n")
 		// TODO: property access from array (foo[0].bar)
@@ -44,7 +44,7 @@ proc write type(t:~>type info) {
 			write("~>")
 			write(field.name)
 			write(":")
-			write type(field.type)
+			write_type(field.type)
 			write("\n")
 		}
 		write("}")
@@ -63,14 +63,14 @@ proc main {
 
 	printf("hex: %\n", format.hex(0xABC99F00BAB00))
 	struct vec3(x:int,y:int,z:int)
-	var mixed array = ["hey gamers", 10, true, false, vec3(1,2,3)]
-	trace(mixed array)
+	var mixed_array = ["hey gamers", 10, true, false, vec3(1,2,3)]
+	trace(mixed_array)
 	println("---")
-	each x <- mixed array {
+	each x <- mixed_array {
 		println(x)
 	}
 
-	printf("%\n", format.json(mixed array))
+	printf("%\n", format.json(mixed_array))
 	printf("%\n", format.json(vec3(2,3,4)))
 
 	struct complex1(x:int,y:int,z:int,w:int,v:int)

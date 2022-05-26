@@ -19,14 +19,14 @@ proc main {
 	write_line(names[0])
 	write_line("=======")
 
-	write names(names)
+	write_names(names)
 
 	write_line("=======")
 
 	write_numbers([10,20,30,40,66])
 }
 
-proc write names(names:[]string) {
+proc write_names(names:[]string) {
 	each name,idx <- names {
 		printf("%:%\n",idx,name)
 	}

@@ -142,7 +142,7 @@ ${[...data.keys()]
 						}
 					}
 
-					if (node.type.name == 'type info') {
+					if (node.type.name == 'type_info') {
 						// HACK: treat type info as a pointer
 					} else {
 						offset = `[${offset}]`

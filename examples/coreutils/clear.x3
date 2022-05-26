@@ -1,4 +1,4 @@
-proc write(fd:int,msg:~>void,msg length:int) #syscall(0x001)
+proc write(fd:int,msg:~>void,msg_length:int) #syscall(0x001)
 proc exit(code:int)                          #syscall(0x03c)
 
 const stdout = 1

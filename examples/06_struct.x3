@@ -2,7 +2,7 @@ import "./lib/standard" use standard
 
 struct vec3(x:int,y:int,z:int) #arithmetic
 
-proc write vec3(v:vec3)
+proc write_vec3(v:vec3)
 {
 	write("{ ")
 	write_number(v.x)
@@ -13,14 +13,13 @@ proc write vec3(v:vec3)
 	write(" }\n")
 }
 
-proc main
-{
+proc main {
 	var a = vec3(10, 20, 30)
 	var b = vec3(1, 2, 3)
-	var c = a + b; ((operator implemented by the #arithmetic tag))
+	var c = a + b // operator implemented by the #arithmetic tag
 	c+=vec3(7,7,7)
 
-	write vec3(c)
-	write vec3(a*b)
-	write vec3(a/b)
+	write_vec3(c)
+	write_vec3(a*b)
+	write_vec3(a/b)
 }

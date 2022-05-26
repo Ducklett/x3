@@ -1,4 +1,4 @@
-proc write(fd:int,msg:~>void,msg length:int) #syscall(0x001)
+proc write(fd:int,msg:~>void,msg_length:int) #syscall(0x001)
 proc exit(code:int)                          #syscall(0x03c)
 
 const stdout = 1
@@ -6,9 +6,9 @@ const stderr = 2
 
 proc main(args:[]cstring)
 {
-	if args.length <= 1 				show_help()
-	if cstr_equal(args[1], "-h")   		show_help()
-	if cstr_equal(args[1], "--help")   	show_help()
+	if args.length <= 1              show_help()
+	if cstr_equal(args[1], "-h")     show_help()
+	if cstr_equal(args[1], "--help") show_help()
 
 	each arg,i <- args {
 		if i == 0 continue
@@ -16,10 +16,11 @@ proc main(args:[]cstring)
 		var len = strlen(arg)
 		write(stdout, arg, len)
 
+		// TODO: make this work without c prefix again
 		if i != (args.length-1) {
-			write(stdout, " ", 1)
+			write(stdout, c" ", 1)
 		} else {
-			write(stdout, "\n", 1)
+			write(stdout, c"\n", 1)
 		}
 	}
 }
@@ -45,9 +46,8 @@ proc cstr_equal(c:cstring,s:string) -> bool {
 	var i = 0
 	while c[i] != 0 {
 		if i >= s.length return false
-		if c[i] != s[i]   return false
+		if c[i] != s[i]  return false
 		i++
 	}
-
 	return i == s.length
 }

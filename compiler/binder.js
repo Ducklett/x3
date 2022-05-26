@@ -78,15 +78,15 @@ function declareBuiltins() {
 		param('enumData', state.enumData),
 		param('nothing', typeMap.void),
 	])
-	addSymbol('type info data', typeInfoData)
+	addSymbol('type_info_data', typeInfoData)
 
-	typeInfo = struct('type info', [
+	typeInfo = struct('type_info', [
 		param('kind', typeMap.int),
 		param('name', typeMap.string),
 		param('size', typeMap.int),
 		param('data', typeInfoData),
 	])
-	addSymbol('type info', typeInfo)
+	addSymbol('type_info', typeInfo)
 
 	state.fieldData = struct('fieldData', [
 		param('name', typeMap.string),
@@ -250,7 +250,7 @@ function typeInfoFor(type) {
 		else if (type.tag == tag_pointer) {
 			const to = findSymbol(typeInfoLabel(type.to), state.globalScope, false)
 			// TODO: turn type info into a tagged union and support rtti for tagged unions
-			if (type.to.name == 'type info') {
+			if (type.to.name == 'type_info') {
 				args.push(ctor(state.pointerData, num(0, typeMap.int)))
 			} else {
 				assert(to)

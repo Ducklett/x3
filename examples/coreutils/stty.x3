@@ -1,6 +1,6 @@
 import "../lib/standard" use standard
 
-proc write(fd:int,msg:~>void,msg length:int) #syscall(0x001)
+proc write(fd:int,msg:~>void,msg_length:int) #syscall(0x001)
 proc exit(code:int)                          #syscall(0x03c)
 proc ioctl(fd:int,cmd:u64,arg:u64) -> int    #syscall(0x010)
 
@@ -150,7 +150,7 @@ proc cstr_equal(c:cstring,s:string) -> bool {
 }
 
 proc disable_input(term:~>termios, mask:u32) { term.c_iflag &= !mask }
-proc enable_input  (term:~>termios, mask:u32) { term.c_iflag |= mask }
+proc enable_input (term:~>termios, mask:u32) { term.c_iflag |= mask }
 
 proc disable_output(term:~>termios, mask:u32) { term.c_oflag &= !mask }
 proc enable_output (term:~>termios, mask:u32) { term.c_oflag |= mask }

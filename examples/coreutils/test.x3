@@ -21,9 +21,9 @@ proc main() {
 	// printf
 	// 10+20
 
-	struct alignment test(a:u8,b:u16,c:u32,d:u64)
+	struct alignment_test(a:u8,b:u16,c:u32,d:u64)
 
-	proc printIt(s:alignment test) {
+	proc printIt(s:alignment_test) {
 		printf("----\n")
 		printf("a %\n", s.a)
 		printf("b %\n", s.b)
@@ -31,7 +31,7 @@ proc main() {
 		printf("d %\n", s.d)
 	}
 
-	var 🎹 = alignment test(1,2,3,4)
+	var 🎹 = alignment_test(1,2,3,4)
 	printf("%\n", 🎹)
 
 	printIt(🎹)

@@ -1,6 +1,6 @@
 import "./lib/standard" use standard
 
-proc print list(list:[]string)  {
+proc print_list(list:[]string)  {
 	each item <- list {
 		write_line(item)
 	}
@@ -12,7 +12,7 @@ proc main {
 	names[1] = "billy"
 	names[3] = "a longer string"
 
-	print list(names)
+	print_list(names)
 
 	const msg = "yellw"
 	msg[0] = "h"
@@ -33,7 +33,7 @@ proc main {
 	}
 
 	write_line("each loop")
-	each (char <- msg) {
+	each char <- msg {
 		write_char(char)
 		write_line("")
 	}
