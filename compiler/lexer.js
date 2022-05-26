@@ -1,3 +1,4 @@
+const { error, reportError } = require("./errors")
 const { assert } = require("./util")
 
 const keywords = new Set(["module", "import", "use", "type", "struct", "union", "proc", "return", "break", "continue", "goto", "label", "var", "const", "for", "do", "while", "each", "enum", "if", "else", "match", "true", "false", "null"])
@@ -179,9 +180,16 @@ function lex(code, sourcePath = '<compiler>') {
 		if (current() == '#') {
 			advance()
 			const smb = lexSymbol()
-			if (!smb) throw 'expected symbol..'
-			const value = smb.value
-			tokens.push({ kind: 'tag', value, span: takeSpan() })
+			const span = takeSpan()
+			if (!smb || !smb.value) {
+				startSpan()
+				advance()
+				const illegalSpan = takeSpan()
+				retreat(1)
+				reportError(error.expectedSymbol(current(), illegalSpan))
+			}
+			const value = smb?.value
+			tokens.push({ kind: 'tag', value, span })
 			continue
 		}
 

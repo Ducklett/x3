@@ -1,6 +1,7 @@
 const path = require("path")
 const { assert, read, spanFromRange } = require('./util')
 const { lex, preUnaryOperators, postUnaryOperators, binaryOperators, assignmentOperators } = require('./lexer')
+const { error, reportError } = require("./errors")
 
 const fileMap = new Map()
 
@@ -110,7 +111,7 @@ function parse(source) {
 		}
 
 		function take(kind, value) {
-			expect(kind, value)
+			if (kind) expect(kind, value)
 			return tokens[tokenIndex++]
 		}
 
@@ -121,8 +122,7 @@ function parse(source) {
 				const cur = current()
 				const stmt = parseDeclaration('file')
 				if (!stmt) {
-					console.log(cur)
-					assert(false, 'expected statement')
+					reportError(error.expectedStatement(take()))
 				}
 				declarations.push(stmt)
 			}

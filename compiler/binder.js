@@ -1,6 +1,9 @@
 const { typeMap, cloneType, typeInfoLabel, declareVar, num, binary, ref, readProp, unary, label, goto, assignVar, indexedAccess, nop, call, ctor, struct, param, fn, str, MARK, union, bool, roundToIncrement, tag_void, tag_pointer, tag_int, tag_float, tag_string, tag_array, tag_char, tag_bool, tag_function, tag_struct, tag_enum, alignStructFields, alignUnionFields } = require('./ast')
 const { assert, spanFromRange } = require('./util')
 const { fileMap } = require('./parser')
+const { reportError, error } = require('./errors')
+
+const errorNode = { kind: 'error' }
 
 const state = {
 	fileScopes: null,
@@ -695,8 +698,11 @@ function bind(files) {
 
 				const isSizedArray = it.type.tag == tag_array && it.type.count
 				const noInit = it.notes.has('noinit')
-				if (noInit && node.expr) assert(false, `noinit should only be used on variables without initializers ${JSON.stringify(node.span)}`)
-				if (!noInit && !node.expr && !isSizedArray) assert(false, `variable should be initialized or marked as #noinit (${isConst ? 'const' : 'var'} ${it.name}:type #noinit) ${JSON.stringify(node.span)}`)
+				if (noInit && node.expr) {
+					reportError(error.noInitOnVariableWithInitializer(node))
+				} else if (!noInit && !node.expr && !isSizedArray) {
+					reportError(error.variableWithoutInitializer(node))
+				}
 
 
 				return it
@@ -1174,17 +1180,13 @@ function bind(files) {
 			case 'continue':
 				return node
 
-			case 'binary':
-			case 'unary':
 			case 'assignment':
 			case 'call':
-			case 'return':
 			case 'pre unary':
 			case 'post unary':
-			case 'parenthesized expression':
-			case 'property access': {
-				return bindExpression(node)
-			}
+				{
+					return bindExpression(node)
+				}
 
 			case 'terminated expression': {
 				return bindExpression(node.expr)
@@ -1193,9 +1195,16 @@ function bind(files) {
 				return bindBlock(node)
 			}
 			default:
-				console.log(node)
-				throw node
-				assert(false, `unhandled kind "${node.kind}"`)
+				// if we get to this point it must be an expression that's illegal as a declaration
+				// bind the expression to get some more information out of it, then report the error
+				const expr = bindExpression(node)
+				if (expr.kind != 'error') {
+					reportError(error.expectedDeclaration(expr))
+				}
+				// console.log(node)
+				// throw node
+				// assert(false, `unhandled kind "${node.kind}"`)
+				return errorNode
 		}
 	}
 
@@ -1419,11 +1428,8 @@ function bind(files) {
 			case 'symbol': {
 				const symbol = findSymbol(node.value, inScope)
 				if (!symbol) {
-					console.log("SCOPE:")
-					console.log(inScope)
-					console.log("NODE:")
-					console.log(node)
-					throw '?'
+					reportError(error.symbolNotFound(node))
+					return errorNode
 				}
 				assert(symbol, `symbol "${node.value}" is defined`)
 				const type = symbol.type

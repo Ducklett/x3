@@ -4,3 +4,4 @@ test.c
 *.asm
 *.o
 out.html
+node_modules
