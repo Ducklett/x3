@@ -49,69 +49,69 @@ proc main(args:[]cstring) {
 		}
 
 		// TODO: parse flags first
-		// TODO: implement matching of c srings so we don't have to spam cstr equal(arg, "foo")
+		// TODO: implement matching of c srings so we don't have to spam cstr_equal(arg, "foo")
 		match arg {
 			// input settings
-			cstr equal(arg, "brkint")     { write(stdout, c"brkint\n", 7) }
-			cstr equal(arg, "icrnl")      { write(stdout, c"icrnl\n", 6) }
-			cstr equal(arg, "ignbrk")     { write(stdout, c"ignbrk\n", 7) }
-			cstr equal(arg, "igncr")      { write(stdout, c"igncr\n", 6) }
-			cstr equal(arg, "ignpar")     { write(stdout, c"ignpar\n", 7) }
-			cstr equal(arg, "imaxbel")    { write(stdout, c"imaxbel\n", 8) }
-			cstr equal(arg, "inlcr")      { write(stdout, c"inlcr\n", 6) }
-			cstr equal(arg, "inpck")      { write(stdout, c"inpck\n", 6) }
-			cstr equal(arg, "istrip")     { write(stdout, c"istrip\n", 7) }
-			cstr equal(arg, "iutf8")      { write(stdout, c"iutf8\n", 6) }
-			cstr equal(arg, "iuclc")      { write(stdout, c"iuclc\n", 6) }
-			cstr equal(arg, "ixany")      { write(stdout, c"ixany\n", 6) }
-			cstr equal(arg, "ixoff")      { write(stdout, c"ixoff\n", 6) }
-			cstr equal(arg, "ixon")       { write(stdout, c"ixon\n", 5) }
-			cstr equal(arg, "parmrk")     { write(stdout, c"parmrk\n", 7) }
-			cstr equal(arg, "tandem")     { write(stdout, c"tandem\n", 7) }
+			cstr_equal(arg, "brkint")     { write(stdout, c"brkint\n", 7) }
+			cstr_equal(arg, "icrnl")      { write(stdout, c"icrnl\n", 6) }
+			cstr_equal(arg, "ignbrk")     { write(stdout, c"ignbrk\n", 7) }
+			cstr_equal(arg, "igncr")      { write(stdout, c"igncr\n", 6) }
+			cstr_equal(arg, "ignpar")     { write(stdout, c"ignpar\n", 7) }
+			cstr_equal(arg, "imaxbel")    { write(stdout, c"imaxbel\n", 8) }
+			cstr_equal(arg, "inlcr")      { write(stdout, c"inlcr\n", 6) }
+			cstr_equal(arg, "inpck")      { write(stdout, c"inpck\n", 6) }
+			cstr_equal(arg, "istrip")     { write(stdout, c"istrip\n", 7) }
+			cstr_equal(arg, "iutf8")      { write(stdout, c"iutf8\n", 6) }
+			cstr_equal(arg, "iuclc")      { write(stdout, c"iuclc\n", 6) }
+			cstr_equal(arg, "ixany")      { write(stdout, c"ixany\n", 6) }
+			cstr_equal(arg, "ixoff")      { write(stdout, c"ixoff\n", 6) }
+			cstr_equal(arg, "ixon")       { write(stdout, c"ixon\n", 5) }
+			cstr_equal(arg, "parmrk")     { write(stdout, c"parmrk\n", 7) }
+			cstr_equal(arg, "tandem")     { write(stdout, c"tandem\n", 7) }
 
 			// output settings
 			// ...
 
 			// local settings
-			cstr equal(arg, "crterase")   { write(stdout, c"crterase\n", 9) }
-			cstr equal(arg, "crtkill")    { write(stdout, c"crtkill\n", 8) }
-			cstr equal(arg, "ctlecho")    { write(stdout, c"ctlecho\n", 8) }
-			cstr equal(arg, "echo")       {
+			cstr_equal(arg, "crterase")   { write(stdout, c"crterase\n", 9) }
+			cstr_equal(arg, "crtkill")    { write(stdout, c"crtkill\n", 8) }
+			cstr_equal(arg, "ctlecho")    { write(stdout, c"ctlecho\n", 8) }
+			cstr_equal(arg, "echo")       {
 				if negate {
-					term=>disable local(ECHO)
+					term=>disable_local(ECHO)
 				} else {
-					term=>enable local(ECHO)
+					term=>enable_local(ECHO)
 				}
 			}
-			cstr equal(arg, "echoctl")    { write(stdout, c"echoctl\n", 8) }
-			cstr equal(arg, "echoe")      { write(stdout, c"echoe\n", 6) }
-			cstr equal(arg, "echok")      { write(stdout, c"echok\n", 6) }
-			cstr equal(arg, "echoke")     { write(stdout, c"echoke\n", 7) }
-			cstr equal(arg, "echonl")     { write(stdout, c"echonl\n", 7) }
-			cstr equal(arg, "echoprt")    { write(stdout, c"echoprt\n", 8) }
-			cstr equal(arg, "extproc")    { write(stdout, c"extproc\n", 8) }
-			cstr equal(arg, "flushno")    { write(stdout, c"flushno\n", 8) }
-			cstr equal(arg, "icanon")     { write(stdout, c"icanon\n", 7) }
-			cstr equal(arg, "iexten")     { write(stdout, c"iexten\n", 7) }
-			cstr equal(arg, "isig")       { write(stdout, c"isig\n", 5) }
-			cstr equal(arg, "noflsh")     { write(stdout, c"noflsh\n", 7) }
-			cstr equal(arg, "prterase")   { write(stdout, c"prterase\n", 9) }
-			cstr equal(arg, "tostop")     { write(stdout, c"tostop\n", 7) }
-			cstr equal(arg, "xcase")      { write(stdout, c"xcase\n", 6) }
+			cstr_equal(arg, "echoctl")    { write(stdout, c"echoctl\n", 8) }
+			cstr_equal(arg, "echoe")      { write(stdout, c"echoe\n", 6) }
+			cstr_equal(arg, "echok")      { write(stdout, c"echok\n", 6) }
+			cstr_equal(arg, "echoke")     { write(stdout, c"echoke\n", 7) }
+			cstr_equal(arg, "echonl")     { write(stdout, c"echonl\n", 7) }
+			cstr_equal(arg, "echoprt")    { write(stdout, c"echoprt\n", 8) }
+			cstr_equal(arg, "extproc")    { write(stdout, c"extproc\n", 8) }
+			cstr_equal(arg, "flushno")    { write(stdout, c"flushno\n", 8) }
+			cstr_equal(arg, "icanon")     { write(stdout, c"icanon\n", 7) }
+			cstr_equal(arg, "iexten")     { write(stdout, c"iexten\n", 7) }
+			cstr_equal(arg, "isig")       { write(stdout, c"isig\n", 5) }
+			cstr_equal(arg, "noflsh")     { write(stdout, c"noflsh\n", 7) }
+			cstr_equal(arg, "prterase")   { write(stdout, c"prterase\n", 9) }
+			cstr_equal(arg, "tostop")     { write(stdout, c"tostop\n", 7) }
+			cstr_equal(arg, "xcase")      { write(stdout, c"xcase\n", 6) }
 
 			// combination settings
-			cstr equal(arg, "raw") {
+			cstr_equal(arg, "raw") {
 				if negate {
-					term=>enable input(BRKINT | IGNPAR | ISTRIP | ICRNL | IXON)
-					term=>enable local(OPOST | ISIG | ICANON)
+					term=>enable_input(BRKINT | IGNPAR | ISTRIP | ICRNL | IXON)
+					term=>enable_local(OPOST | ISIG | ICANON)
 					// TODO: figure out the default value for these
-					// term=>set special(VEOF, ?)
-					// term=>set special(VEOL, ?)
+					// term=>set_special(VEOF, ?)
+					// term=>set_special(VEOL, ?)
 				} else {
-					term=>disable input(IGNBRK | BRKINT | IGNPAR | PARMRK | INPCK | ISTRIP | INLCR | IGNCR | ICRNL | IXON | IXOFF)
-					term=>disable local(ICANON | OPOST | ISIG | IUCLC | IXANY | IMAXBEL | XCASE)
-					term=>set special(VMIN, 1)
-					term=>set special(VTIME, 0)
+					term=>disable_input(IGNBRK | BRKINT | IGNPAR | PARMRK | INPCK | ISTRIP | INLCR | IGNCR | ICRNL | IXON | IXOFF)
+					term=>disable_local(ICANON | OPOST | ISIG | IUCLC | IXANY | IMAXBEL | XCASE)
+					term=>set_special(VMIN, 1)
+					term=>set_special(VTIME, 0)
 				}
 			}
 
@@ -138,10 +138,10 @@ proc strlen(c:cstring) -> int {
 	return i
 }
 
-proc cstr equal(c:cstring,s:string) -> bool {
+proc cstr_equal(c:cstring,s:string) -> bool {
 	var i = 0
 	while c[i] != 0 {
-		if i >= s.length' return false
+		if i >= s.length  return false
 		if c[i] != s[i]   return false
 		i++
 	}
@@ -149,16 +149,16 @@ proc cstr equal(c:cstring,s:string) -> bool {
 	return i == s.length
 }
 
-proc disable input(term:~>termios, mask:u32) { term.c_iflag &= !mask }
-proc enable input  (term:~>termios, mask:u32) { term.c_iflag |= mask }
+proc disable_input(term:~>termios, mask:u32) { term.c_iflag &= !mask }
+proc enable_input  (term:~>termios, mask:u32) { term.c_iflag |= mask }
 
-proc disable output(term:~>termios, mask:u32) { term.c_oflag &= !mask }
-proc enable output (term:~>termios, mask:u32) { term.c_oflag |= mask }
+proc disable_output(term:~>termios, mask:u32) { term.c_oflag &= !mask }
+proc enable_output (term:~>termios, mask:u32) { term.c_oflag |= mask }
 
-proc disable local(term:~>termios, mask:u32) { term.c_lflag &= !mask }
-proc enable local (term:~>termios, mask:u32) { term.c_lflag |= mask }
+proc disable_local(term:~>termios, mask:u32) { term.c_lflag &= !mask }
+proc enable_local (term:~>termios, mask:u32) { term.c_lflag |= mask }
 
-proc set special (term:~>termios, index:int, value:u8) { term.c_cc[index] = value }
+proc set_special (term:~>termios, index:int, value:u8) { term.c_cc[index] = value }
 
 const TCGETS = 0x00005401
 

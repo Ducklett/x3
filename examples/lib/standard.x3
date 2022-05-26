@@ -9,11 +9,11 @@ proc exit(code:int)
 
 proc sleep(seconds:f64) {
 	assert(seconds >= 0)
-	const nanoseconds in second:f64 = 10_0000_0000
-	var full seconds = seconds:int
-	var full nanos = (nanoseconds in second * (seconds - full seconds:f64)):s64
+	const nanoseconds_in_second:f64 = 10_0000_0000
+	var full_seconds = seconds:int
+	var full_nanos = (nanoseconds_in_second * (seconds - full_seconds:f64)):s64
 
-	var t = sys.timespec(full seconds, full nanos)
+	var t = sys.timespec(full_seconds, full_nanos)
 	sys.nanosleep(~>t, null)
 }
 
@@ -22,51 +22,51 @@ proc write(msg:string)
 	sys.write(sys.stdout, msg, msg.length)
 }
 
-proc write char(c:char)
+proc write_char(c:char)
 {
 	sys.write(sys.stdout, ~>c, 1)
 }
 
-proc write number(number:int)
+proc write_number(number:int)
 {
 	if number == 0 {
-		write char("0")
+		write_char("0")
 		return
 	}
 
 	if number < 0 {
-		write char("-")
+		write_char("-")
 		number = 0 - number
 	}
 
-	// find highest decimal place
-	var decimal place = 1
-	while number > decimal place {
-		decimal place *= 10
+	// find highest decimal_place
+	var decimal_place = 1
+	while number > decimal_place {
+		decimal_place *= 10
 	}
-	if number / decimal place == 0 {
-		decimal place /= 10
+	if number / decimal_place == 0 {
+		decimal_place /= 10
 	}
 
 	// work our way down, printing along the way
-	while decimal place > 0 {
-		var digit = number / decimal place
-		write char("0" + digit)
-		number -= digit * decimal place
-		decimal place /= 10
+	while decimal_place > 0 {
+		var digit = number / decimal_place
+		write_char("0" + digit)
+		number -= digit * decimal_place
+		decimal_place /= 10
 	}
 }
 
-proc write hex(number:int) {
-	write char("0")
-	write char("x")
+proc write_hex(number:int) {
+	write_char("0")
+	write_char("x")
 	const lut = "0123456789ABCDEF"
 	for var i = 60; i >= 0; i-=4 {
-		write char(lut[(number>>i) & 0xF])
+		write_char(lut[(number>>i) & 0xF])
 	}
 }
 
-proc write line(msg:string) {
+proc write_line(msg:string) {
 	write(msg)
 	write("\n")
 }
@@ -78,18 +78,18 @@ proc strlen(str:cstring) -> int
 	return len
 }
 
-proc write cstring(str:cstring) {
+proc write_cstring(str:cstring) {
 	sys.write(sys.stdout, str, strlen(str))
 }
 
 proc assert(
-	condition:bool      #caller span(message),
+	condition:bool    #callerspan(message),
 	message:string,
-	call site:string    #call site
+	callsite:string   #callsite
 ) {
 	if condition { return }
 
-	write(call site)
+	write(callsite)
 	write(" assertion failed: ")
 	write(message)
 	write("\n")
@@ -98,9 +98,9 @@ proc assert(
 
 proc panic(
 	message:string,
-	call site:string #call site
+	callsite:string #callsite
 ) {
-	write(call site)
+	write(callsite)
 	write(" PANIC: ")
 	write(message)
 	write("\n")
@@ -109,16 +109,16 @@ proc panic(
 
 proc trace(
 	it:any,
-	call site:string #call site
+	callsite:string #callsite
 ) {
-	write(call site)
+	write(callsite)
 	write(": ")
 	println(it)
 }
 
-proc TODO(call site:string #call site)
+proc TODO(callsite:string #callsite)
 {
-	write(call site)
+	write(callsite)
 	write(" not implemented.\n")
 	exit(1)
 }
@@ -132,7 +132,7 @@ proc read(buffer:![]char) -> string
 }
 
 
-proc write file text base(filename:cstring, content:string, flags:int, mode: sys.mode_t) #private
+proc write_file_text_base(filename:cstring, content:string, flags:int, mode: sys.mode_t) #private
 {
 	var fd = sys.open(filename, flags, mode)
 	assert(fd>=0)
@@ -143,21 +143,21 @@ proc write file text base(filename:cstring, content:string, flags:int, mode: sys
 	assert(error == 0)
 }
 
-proc write all text(filename:cstring, content:string)
+proc write_all_text(filename:cstring, content:string)
 {
 	const flags = sys.O_CREAT|sys.O_WRONLY
 	const mode = sys.S_IRUSR|sys.S_IWUSR
 
 	sys.unlink(filename)
-	write file text base(filename, content, flags, mode)
+	write_file_text_base(filename, content, flags, mode)
 }
 
-proc append text(filename:cstring, content:string)
+proc append_text(filename:cstring, content:string)
 {
 	const flags = sys.O_CREAT|sys.O_WRONLY|sys.O_APPEND
 	const mode = sys.S_IRUSR|sys.S_IWUSR
 
-	write file text base(filename, content, flags, mode)
+	write_file_text_base(filename, content, flags, mode)
 }
 
 proc strequal(a:string,b:string) {
@@ -173,7 +173,7 @@ proc strequal(a:string,b:string) {
 }
 
 // TODO: turn type info into tagged union
-enum type tag #bitfield {
+enum type_tag #bitfield {
 	void    = 0,
 	int     = 1,
 	bool    = 2,
@@ -191,31 +191,31 @@ proc print(it:any) {
 	// TODO: fix pointer following for nested property access
 	var t = it.type
 
-	if t.kind == type tag.bool {
+	if t.kind == type_tag.bool {
 		var res:bool = <~it.data
 		if res {
 			write("true")
 		} else {
 			write("false")
 		}
-	} else if (t.kind == type tag.int) {
+	} else if (t.kind == type_tag.int) {
 		// TODO: use take sign info into account
 		// TODO: fix '<~it.data:int not casting properly for some reason'
 		// d:int = <~it.data works fine
 		var d:int = <~it.data
 		match t.size {
-			8  { write number(d) }
-			4  { write number(d & 0xFFFF_FFFF) }
-			2  { write number(d & 0xFFFF) }
-			1  { write number(d & 0xFF) }
+			8  { write_number(d) }
+			4  { write_number(d & 0xFFFF_FFFF) }
+			2  { write_number(d & 0xFFFF) }
+			1  { write_number(d & 0xFF) }
 			else { panic("illegal size") }
 		}
-	} else if t.kind == type tag.string {
+	} else if t.kind == type_tag.string {
 		write(<~it.data)
-	} else if t.kind == type tag.pointer {
+	} else if t.kind == type_tag.pointer {
 		write("~>")
 		print(any(<~it.data, t.data.pointerData.to))
-	} else if t.kind == type tag.array {
+	} else if t.kind == type_tag.array {
 		write("[")
 		var entries:[]void = <~it.data
 		var entryType = t.data.arrayData.of
@@ -229,7 +229,7 @@ proc print(it:any) {
 			i++
 		}
 		write("]")
-	} else if t.kind == type tag.struct {
+	} else if t.kind == type_tag.struct {
 		var name = t.name
 		if strequal(name,"any") {
 			var it:any = <~it.data
@@ -252,13 +252,13 @@ proc print(it:any) {
 			print(any(fieldPtr, fieldType))
 		}
 		write("}")
-	} else if t.kind == type tag.enum {
+	} else if t.kind == type_tag.enum {
 		write(t.name)
 		write(".")
 		var index:int = <~it.data
 		var entries = t.data.enumData.entries
 		each entry <- entries {
-			if entry.tag != index' continue
+			if entry.tag != index continue
 
 			var fields = entry.fields
 			write(entry.name)
@@ -283,8 +283,8 @@ proc print(it:any) {
 		printf("entry not found for value %\n", index)
 		exit(1)
 	} else {
-		write number(t.kind)
-		assert(false, "Unsupported type tag")
+		write_number(t.kind)
+		assert(false, "Unsupported type_tag")
 	}
 }
 
@@ -313,7 +313,7 @@ proc printf(fmt:string,...xs:[]any) {
 			
 			j++
 		} else {
-			write char(c)
+			write_char(c)
 		}
 	}
 }
@@ -324,7 +324,7 @@ module format {
 			var d = it.data
 			var t = it.type
 			assert((t.kind == 1) || (t.kind == 11)) // int or float
-			write hex(<~d)
+			write_hex(<~d)
 		}, it)
 	}
 
@@ -349,21 +349,21 @@ module format {
 	proc bgWhite  (it:any) -> formatter { return formatter((it:any) { printf("\x1B[47m%\x1B[0m", it) }, it) }
 
 	proc json(it:any) -> formatter {
-		proc to json internal(it:any,padding:int,use padding:bool) {
+		proc to_json_internal(it:any,padding:int,use_padding:bool) {
 			proc pad(padding:int) {
 				for var i = 0; i < padding; i++ {
-					write char(" ") 
+					write_char(" ") 
 				}
 			}
 
-			if use padding {
+			if use_padding {
 				pad(padding)
 			}
 
 			// TODO: fix pointer following for nested property access
 			var t = it.type
 
-			if t.kind == type tag.bool {
+			if t.kind == type_tag.bool {
 				var res:bool = <~it.data
 				if res {
 					write("true")
@@ -371,27 +371,27 @@ module format {
 					write("false")
 				}
 			}
-			else if t.kind == type tag.int {
-				write number(<~it.data)
-			} else if t.kind == type tag.string {
+			else if t.kind == type_tag.int {
+				write_number(<~it.data)
+			} else if t.kind == type_tag.string {
 				write("\"")
 				write(<~it.data)
 				write("\"")
-			} else if t.kind == type tag.pointer {
+			} else if t.kind == type_tag.pointer {
 				panic("pointers cannot be serialized")
-			} else if t.kind == type tag.array {
+			} else if t.kind == type_tag.array {
 				var entries:[]void = <~it.data
 				var entryType = t.data.arrayData.of
 				var entrySize = entryType.size
-				var is complex = (entries.length > 12) || ((entryType.kind != type tag.int) && (entries.length > 1))
+				var is_complex = (entries.length > 12) || ((entryType.kind != type_tag.int) && (entries.length > 1))
 
-				if is complex {
+				if is_complex {
 					var i = 0
 					write("[\n")
 
 					while(i<entries.length) {
 						var ptr = entries.buffer + (i * entrySize)
-						to json internal(any(ptr,entryType),padding+4,true)
+						to_json_internal(any(ptr,entryType),padding+4,true)
 						if i != (entries.length-1) {
 							write(",")
 						}
@@ -405,7 +405,7 @@ module format {
 
 					while(i<entries.length) {
 						var ptr = entries.buffer + (i * entrySize)
-						to json internal(any(ptr,entryType),padding,false)
+						to_json_internal(any(ptr,entryType),padding,false)
 						if i != (entries.length-1) {
 							write(", ")
 						}
@@ -414,31 +414,31 @@ module format {
 					write("]")
 				}
 
-			} else if t.kind == type tag.struct {
+			} else if t.kind == type_tag.struct {
 				if strequal(t.name, "any") {
 					var asAny:any = <~it.data
-					to json internal(asAny,padding-4,true)
+					to_json_internal(asAny,padding-4,true)
 					return
 				}
 				var basePtr = it.data
 				var fields = t.data.structData.fields
-				// TODO: 'fix is complex = field.length>4' not working for some reason
-				var is complex = fields.length > 4 //false
-				if !is complex {
+				// TODO: 'fix is_complex = field.length>4' not working for some reason
+				var is_complex = fields.length > 4 //false
+				if !is_complex {
 					each field <- fields {
 						var fieldType = field.type
 						if (field.name.length > 12) {
-							is complex = true
+							is_complex = true
 							break
 						}
-						if (fieldType.kind != type tag.int) {
-							is complex = true
+						if (fieldType.kind != type_tag.int) {
+							is_complex = true
 							break
 						}
 					}
 				}
 
-				if is complex {
+				if is_complex {
 					write("{\n")
 					each field,i <- fields {
 						var fieldPtr = basePtr + field.offset
@@ -448,7 +448,7 @@ module format {
 						write(field.name)
 						write("\"")
 						write(": ")
-						to json internal(any(fieldPtr, fieldType), padding+4,false)
+						to_json_internal(any(fieldPtr, fieldType), padding+4,false)
 						if (i != (fields.length-1)) {
 							write(",\n")
 						} else {
@@ -466,25 +466,25 @@ module format {
 						write(field.name)
 						write("\"")
 						write(": ")
-						to json internal(any(fieldPtr, fieldType), padding,false)
+						to_json_internal(any(fieldPtr, fieldType), padding,false)
 						if (i != (fields.length-1)) {
 							write(", ")
 						}
 					}
 					write("}")
 				}
-			} else if t.kind == type tag.enum {
+			} else if t.kind == type_tag.enum {
 				// TODO: add cast so we can just cast(int, <~d)
 				var index:int = <~it.data
-				write number(index)
+				write_number(index)
 			} else {
-				write number(t.kind)
-				panic(": Unsupported type tag")
+				write_number(t.kind)
+				panic(": Unsupported type_tag")
 			}
 		}
 
 		return formatter((it:any) {
-			to json internal(it,0,false)
+			to_json_internal(it,0,false)
 		}, it)
 	}
 
@@ -525,17 +525,17 @@ module format {
 	// }
 }
 
-proc parse int(s:string) -> int {
+proc parse_int(s:string) -> int {
 	var num = 0
 	each c <- s {
 		// TODO: get precedence working
-		if (c < "0") || (c > "9") { break }
+		if (c < "0") || (c > "9") break
 		num = (num * 10) + (c - "0")
 	}
 	return num
 }
 
-proc random range(from:int,to:int) -> int
+proc random_range(from:int,to:int) -> int
 {
 	var value:int #noinit
 	// TODO: pass proper flag?
@@ -553,11 +553,11 @@ module tui {
 		write("\x1B[H\x1B[J")
 	}
 
-	proc cursor to(x:int,y:int) {
+	proc cursor_to(x:int,y:int) {
 		write("\x1B[")
-		write number(y+1)
+		write_number(y+1)
 		write(";")
-		write number(x+1)
+		write_number(x+1)
 		write("H")
 	}
 

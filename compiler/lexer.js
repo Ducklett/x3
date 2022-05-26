@@ -22,12 +22,10 @@ function lex(code, sourcePath = '<compiler>') {
 		return span
 	}
 
-	const columnSizes = []
 	function advance(amount = 1) {
 		for (let i = 0; i < amount; i++) {
 			// the next character will be on a new line
 			if (current() == '\n') {
-				columnSizes.push(column)
 				line++
 				column = 0
 			} else {
@@ -35,22 +33,6 @@ function lex(code, sourcePath = '<compiler>') {
 			}
 
 			lexerIndex++
-		}
-	}
-
-	function retreat(amount = 1) {
-		for (let i = 0; i < amount; i++) {
-			lexerIndex--
-			// we went up to the previous line
-			if (current() == '\n') {
-				assert(line > 0)
-				assert(columnSizes.length > 0)
-				line--
-				column = columnSizes.pop()
-			} else {
-				assert(column > 0)
-				column--
-			}
 		}
 	}
 
@@ -76,7 +58,7 @@ function lex(code, sourcePath = '<compiler>') {
 
 	function isLegalSymbol(c) {
 		const code = c.charCodeAt(0)
-		return c == ' ' || c == '_' || isLegalKeyword(c) || (c >= '0' && c <= '9') || (code > 127)
+		return c == '_' || isLegalKeyword(c) || (c >= '0' && c <= '9') || (code > 127)
 	}
 
 	function isLegalNumber(c) {
@@ -107,32 +89,13 @@ function lex(code, sourcePath = '<compiler>') {
 	lex:
 	while (lexerIndex < len) {
 
-		const lexSymbol = (from = null, leftEscaped = false) => {
-			let rightEscaped = false
-
-			if (!from) {
-				if (current() == "'") {
-					advance()
-					leftEscaped = true
-				}
-				from = lexerIndex
-			}
-
+		const lexSymbol = (from = null) => {
+			if (!from) from = lexerIndex
 			while (isLegalSymbol(current())) advance()
-
-			// remove trailing whitespace
-			while (isWhitespace(peek(-1))) retreat()
-
 
 			let symbol = code.slice(from, lexerIndex)
 
-			// symbols may end with ' to prevent collisions with keywords
-			if (current() == "'") {
-				advance()
-				rightEscaped = true
-			}
-
-			return { kind: 'symbol', value: symbol, leftEscaped, rightEscaped, span: takeSpan() }
+			return { kind: 'symbol', value: symbol, span: takeSpan() }
 		}
 
 		startSpan()
@@ -183,9 +146,9 @@ function lex(code, sourcePath = '<compiler>') {
 			const span = takeSpan()
 			if (!smb || !smb.value) {
 				startSpan()
+				// TODO: take span without advancing the lexer
 				advance()
 				const illegalSpan = takeSpan()
-				retreat(1)
 				reportError(error.expectedSymbol(current(), illegalSpan))
 			}
 			const value = smb?.value
@@ -299,25 +262,16 @@ function lex(code, sourcePath = '<compiler>') {
 			}
 		}
 
-		// symbols may start with ' to prevent collisions with keywords
-		var mightBeKeyword = true
-		if (current() == "'" && isLegalSymbol(peek(1))) {
-			advance()
-			mightBeKeyword = false
-		}
-
 		// keyword and symbol
 		if (isLegalKeyword(current()) || isLegalSymbol(current())) {
 			let from = lexerIndex
 
-			if (mightBeKeyword) {
-				while (isLegalKeyword(current())) advance()
-				if (current() != "'") {
-					let potentialKeyword = code.slice(from, lexerIndex)
-					if (keywords.has(potentialKeyword)) {
-						tokens.push({ kind: 'keyword', value: potentialKeyword, span: takeSpan() })
-						continue
-					}
+			while (isLegalKeyword(current())) advance()
+			if (!isLegalSymbol(current())) {
+				let potentialKeyword = code.slice(from, lexerIndex)
+				if (keywords.has(potentialKeyword)) {
+					tokens.push({ kind: 'keyword', value: potentialKeyword, span: takeSpan() })
+					continue
 				}
 			}
 
@@ -341,7 +295,7 @@ function lex(code, sourcePath = '<compiler>') {
 			}
 		}
 
-		throw `unexpected character '${code[lexerIndex]} : ${lexerIndex}'`
+		throw `${sourcePath} unexpected character '${code[lexerIndex]} : ${lexerIndex}'`
 	}
 
 	return tokens

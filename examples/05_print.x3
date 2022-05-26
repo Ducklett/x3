@@ -15,15 +15,15 @@ proc main {
 	names[0] = "hello"
 	names[3] = "arrays"
 
-	write line("=======")
-	write line(names[0])
-	write line("=======")
+	write_line("=======")
+	write_line(names[0])
+	write_line("=======")
 
 	write names(names)
 
-	write line("=======")
+	write_line("=======")
 
-	write numbers([10,20,30,40,66])
+	write_numbers([10,20,30,40,66])
 }
 
 proc write names(names:[]string) {
@@ -32,7 +32,7 @@ proc write names(names:[]string) {
 	}
 }
 
-proc write numbers(nums:[]int) {
+proc write_numbers(nums:[]int) {
 	each num,i <- nums {
 		printf("%:%\n",i,num)
 	}

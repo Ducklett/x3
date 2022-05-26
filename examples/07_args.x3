@@ -3,14 +3,14 @@ import "./lib/standard" use standard
 proc main(args:[]cstring)
 {
 	write("argc: ")
-	write number(args.length)
+	write_number(args.length)
 	write("\n")
 
 	each arg,i <- args {
 		write("arg ")
-		write number(i)
+		write_number(i)
 		write(": ")
-		write cstring(arg)
+		write_cstring(arg)
 		write("\n")
 	}
 }

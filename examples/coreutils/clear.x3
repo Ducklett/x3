@@ -6,7 +6,7 @@ const stderr = 2
 
 proc main(args:[]cstring)
 {
-	if args.length > 1 show help()
+	if args.length > 1 show_help()
 
 	// goto 0,0; clear
 	const msg = "\x1B[H\x1B[J"
@@ -14,7 +14,7 @@ proc main(args:[]cstring)
 	write(stdout, msg, msg.length)
 }
 
-proc show help() {
+proc show_help() {
 	const msg = "
 Usage: clear [options]
 

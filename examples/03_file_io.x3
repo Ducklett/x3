@@ -9,11 +9,11 @@ proc main {
 - baz
 "
 
-	write all text(c"out.txt", file content)
-	append text(c"out.txt", "- qux\n")
-	append text(c"out.txt", "- quuuuux\n")
+	write_all_text(c"out.txt", file content)
+	append_text(c"out.txt", "- qux\n")
+	append_text(c"out.txt", "- quuuuux\n")
 
-	write line("==================")
-	write line("done writing file!")
-	write line("==================")
+	write_line("==================")
+	write_line("done writing file!")
+	write_line("==================")
 }

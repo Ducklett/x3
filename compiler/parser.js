@@ -16,27 +16,8 @@ function parse(source) {
 	function _parse(tokens) {
 		let isTopLevel = true
 		const filesToImport = new Set()
-		let lastSymbol = null
-		tokens = tokens.filter((t, i, arr) => {
-			if (t.kind == 'whitespace') {
-				if (t.value.length > 1) {
-					if (lastSymbol) {
-						lastSymbol.rightEscaped = true
-					}
-				}
-				return false
-			} else if (t.kind == 'comment') {
-				if (lastSymbol) {
-					lastSymbol.rightEscaped = true
-				}
-				return false
-			} else if (t.kind == 'symbol' || t.kind == 'keyword') {
-				lastSymbol = t
-			} else {
-				lastSymbol = null
-			}
-			return true
-		})
+		// let lastSymbol = null
+		tokens = tokens.filter((t) => t.kind !== 'whitespace' && t.kind !== 'comment')
 		let tokenIndex = 0
 
 		let contents = parseFile()
@@ -687,7 +668,7 @@ function parse(source) {
 			return take('symbol')
 		}
 
-		function parseSymbol(root = true) {
+		function parseSymbol() {
 			let symbol
 
 			if (is('keyword')) {
@@ -698,18 +679,7 @@ function parse(source) {
 				symbol = take('symbol')
 			}
 
-			if (symbol && !symbol?.rightEscaped) {
-				const toTheRight = parseSymbol(false)
-				if (toTheRight) {
-					symbol.value += ' ' + toTheRight.value
-				}
-			}
-
-			if (root && !symbol) {
-				console.log(current())
-				throw 'expected symbol!'
-			}
-
+			assert(symbol)
 			return symbol
 		}
 		function parseTypedSymbol() {

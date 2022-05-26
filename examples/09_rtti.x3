@@ -5,15 +5,15 @@ import "./lib/standard" use standard
 // struct complex[entity:person,pos:point]
 
 proc write type(t:~>type info) {
-	if t.kind == type tag.struct {
+	if t.kind == type_tag.struct {
 		write ("struct ")
 	}
 
-	// write number(t.size)
+	// write_number(t.size)
 	// write("::")
 	write(t.name)
 
-	if t.kind == type tag.int {
+	if t.kind == type_tag.int {
 		write("(")
 		if t.data.intData.signed {
 			write("signed")
@@ -21,18 +21,18 @@ proc write type(t:~>type info) {
 			write("unsigned")
 		}
 		write(")")
-	} else if t.kind == type tag.pointer {
+	} else if t.kind == type_tag.pointer {
 		write("<")
 		write type(t.data.pointerData.to)
 		write(">")
-	} else if t.kind == type tag.array {
+	} else if t.kind == type_tag.array {
 		write("[")
 		if (t.data.arrayData.count > 0) {
-			write number(t.data.arrayData.count)
+			write_number(t.data.arrayData.count)
 		}
 		write("]")
 		write type(t.data.arrayData.of)
-	} else if t.kind == type tag.struct {
+	} else if t.kind == type_tag.struct {
 		write(" {\n")
 		// TODO: property access from array (foo[0].bar)
 		// TODO: allow property in each loop
@@ -40,7 +40,7 @@ proc write type(t:~>type info) {
 
 		each field <- fields {
 			write("  ")
-			write number(field.offset)
+			write_number(field.offset)
 			write("~>")
 			write(field.name)
 			write(":")
@@ -114,7 +114,7 @@ proc main {
 	// println(p)
 	// println(me)
 
-	// write line("json gang:")
+	// write_line("json gang:")
 	// to json(num)
 	// to json(str)
 	// to json(num list)
@@ -122,5 +122,5 @@ proc main {
 	// to json(p)
 	// to json(me)
 	// to json(c)
-	// write line("私は猫がラブ😭🐾")
+	// write_line("私は猫がラブ😭🐾")
 }

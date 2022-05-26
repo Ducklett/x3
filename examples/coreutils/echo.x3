@@ -6,9 +6,9 @@ const stderr = 2
 
 proc main(args:[]cstring)
 {
-	if args.length <= 1 				show help()
-	if cstr equal(args[1], "-h")   		show help()
-	if cstr equal(args[1], "--help")   	show help()
+	if args.length <= 1 				show_help()
+	if cstr_equal(args[1], "-h")   		show_help()
+	if cstr_equal(args[1], "--help")   	show_help()
 
 	each arg,i <- args {
 		if i == 0 continue
@@ -24,7 +24,7 @@ proc main(args:[]cstring)
 	}
 }
 
-proc show help() {
+proc show_help() {
 	const msg = "
 Usage: echo [options] text
 
@@ -41,10 +41,10 @@ proc strlen(c:cstring) -> int {
 	return i
 }
 
-proc cstr equal(c:cstring,s:string) -> bool {
+proc cstr_equal(c:cstring,s:string) -> bool {
 	var i = 0
 	while c[i] != 0 {
-		if i >= s.length' return false
+		if i >= s.length return false
 		if c[i] != s[i]   return false
 		i++
 	}

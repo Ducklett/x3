@@ -11,7 +11,7 @@ enum type(name:string,size:int) {
 	pointer(to:~>type),
 }
 
-proc print action(action:action) {
+proc print_action(action:action) {
 	match action {
 		idle { printf("%\n","idle") }
 		move { printf("move(%, %)\n",it.x,it.y) }
@@ -31,22 +31,22 @@ proc main {
 	if c == heal {
 		printf("heal %!\n",c.amount)
 	} else {
-		write line("It's not heal")
+		write_line("It's not heal")
 	}
 
 	assert(b==move, "b is a move")
 
-	write number(b.x)
+	write_number(b.x)
 	write(", ")
-	write number(b.y)
+	write_number(b.y)
 	write("\n")
 
 	b.x=45
 	b.y=68
 
-	print action(a)
-	print action(b)
-	print action(c)
+	print_action(a)
+	print_action(b)
+	print_action(c)
 
 	var i  = type.number (name="int",     size=8, signed=true)
 	var u  = type.number (name="uint",    size=8, signed=false)
@@ -58,19 +58,19 @@ proc main {
 	printf("%: %\n", pi.name, pi.size)
 	printf("%: %\n", pu.name, pu.size)
 
-	// write line("match:")
+	// write_line("match:")
 	// match c {
-	//     red     { write line("red") }
-	//     green   { write line("green") }
-	//     blue    { write line("blue") }
+	//     red     { write_line("red") }
+	//     green   { write_line("green") }
+	//     blue    { write_line("blue") }
 	// }
-	// write line("-----")
+	// write_line("-----")
 }
 
 	// TODO: fix foo(color.red,"bob",7) not working unless enum already emitted type info
 
 	// // TODO: make print work with string literals
-	// write line("--------")
+	// write_line("--------")
 	// println(839)
 	// println(183)
 	// println(1)

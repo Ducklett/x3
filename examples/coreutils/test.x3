@@ -2,21 +2,50 @@ import "../lib/standard"
 
 proc main() {
 	use standard
-	use nums
-	printf("%\n", one | two)
-	printf("%\n", two | three)
-	printf("%\n", three | one)
+	use ナンバー
+	printf("%\n", 一 | 二)
+	printf("%\n", 二 | 三)
+	printf("%\n", 三 | 一)
+	printf("%\n", 三 == 一)
+	printf("%\n", 一 == 一)
 
-	var a = 15
-	var b = 15:u64 //0b00011000
-	// TODO: allow unary on things that arent references
+	var f = foo.bar(10)
 
-	printf("%\n", format.hex(a))
-	printf("%\n", format.hex(!b))
+	if f == bar {
+		printf("% %\n","bar", f.num)
+	}
+
+	// var a number #noinit = 44
+	// var b number:int
+	// a number
+	// printf
+	// 10+20
+
+	struct alignment test(a:u8,b:u16,c:u32,d:u64)
+
+	proc printIt(s:alignment test) {
+		printf("----\n")
+		printf("a %\n", s.a)
+		printf("b %\n", s.b)
+		printf("c %\n", s.c)
+		printf("d %\n", s.d)
+	}
+
+	var 🎹 = alignment test(1,2,3,4)
+	printf("%\n", 🎹)
+
+	printIt(🎹)
+
+	assert(二 == 三)
 }
 
-enum nums #bitfield {
-	three = 0b100,
-	two   = 0b010,
-	one   = 0b001,
+enum ナンバー:u8 #bitfield {
+	三 = 0b100,
+	二 = 0b010,
+	一 = 0b001,
+}
+
+enum foo {
+	bar(num:int),
+	baz(name:string),
 }

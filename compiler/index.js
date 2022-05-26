@@ -8,8 +8,8 @@ const { outputHtml } = require('./tool/outputHtml')
 const { hasErrors: hasErrors, displayErrors } = require('./errors')
 
 // compile('examples/09_rtti.x3')
-// compile('examples/10_snake.x3')
-compile('examples/11_enum.x3')
+compile('examples/10_snake.x3')
+// compile('examples/11_enum.x3')
 // compile('examples/coreutils/test.x3')
 
 function compile(filename) {

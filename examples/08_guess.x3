@@ -1,23 +1,23 @@
 import "./lib/standard" use standard
 
 proc main {
-	var number = random range(0,100)
+	var number = random_range(0,100)
 	var guessbuffer:[5]char
 
 	while true {
 		write("Please guess the number:")
 
-		var guess = read(guessbuffer) => parse int
+		var guess = read(guessbuffer) => parse_int
 
 		match guess {
-			guess > number' write line("Lower")
-			guess < number' write line("Higher")
+			guess > number write_line("Lower")
+			guess < number write_line("Higher")
 			else {
-				write line("You got it!")
+				write_line("You got it!")
 				break
 			}
 		}
 	}
 
-	write line("See ya!")
+	write_line("See ya!")
 }

@@ -1915,14 +1915,14 @@ function bind(files) {
 
 			for (let [note, context] of param.notes.entries()) {
 				switch (note) {
-					case 'caller span': {
+					case 'callerspan': {
 						assert(context.length == 1)
 						const targetParam = context[0]
 						assert(targetParam.kind == 'reference' && targetParam.symbol.kind == 'parameter')
 						const index = params.indexOf(targetParam.symbol)
 						assert(index > -1)
 						if (!args[index]) {
-							// inject caller span
+							// inject callerspan
 							const expr = args[i]
 							assert(args[i])
 							const sourcecode = fileMap.get(expr.span.file)
@@ -1932,10 +1932,10 @@ function bind(files) {
 							args[index] = bindExpression({ kind: 'string', value: exprText })
 						}
 					} break
-					case 'call site': {
+					case 'callsite': {
 						assert(context.length == 0)
 						if (!args[i]) {
-							// inject call site
+							// inject callsite
 							args[i] = bindExpression({ kind: 'string', value: callsite })
 						}
 					} break
@@ -1947,7 +1947,7 @@ function bind(files) {
 				}
 			}
 
-			// TODO: figure out a way to make this work with callee span, call site, etc.
+			// TODO: figure out a way to make this work with callee span, callsite, etc.
 			if (param.spread) {
 
 				const targetType = param.type.of
