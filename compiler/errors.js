@@ -24,17 +24,18 @@ function reportError(err) {
 function hasErrors() { return errors.length > 0 }
 
 function displayErrors() {
-	console.log(`${'     compiler has errors:'.toUpperCase()}`)
+	const boring = process.argv[2] == '--boring'
+	if (!boring) console.log(`${'     compiler has errors:'.toUpperCase()}`)
 	for (let error of errors) {
 		assert(error.err)
-		renderError(error)
-		console.log('')
+		renderError(error, boring)
+		if (!boring) console.log('')
 	}
-	console.log(`     ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄`)
+	if (!boring) console.log(`     ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄`)
 	process.exit(1)
 }
 
-function renderError(error) {
+function renderError(error, boring) {
 
 	// TODO: optimize file reads
 	function textFromSpan(span) {
@@ -44,19 +45,30 @@ function renderError(error) {
 	}
 
 	function renderSpan(span) {
-		return `${span.file}:${span.fromLine + 1}:${span.fromColumn + 1}`
+		if (boring) {
+			return `${span.file}:${span.fromLine + 1},${span.fromColumn + 1},${span.toLine},${span.toColumn}`
+		} else {
+			return `${span.file}:${span.fromLine + 1}:${span.fromColumn + 1}`
+		}
 	}
 
 	const span = error.span ?? error.token?.span ?? error.node?.span
 	assert(span)
-	console.log(`${chalk.red('╭───')} ${chalk.underline(renderSpan(span))}`)
+
+	if (!boring) {
+		console.log(`${chalk.red('╭───')} ${chalk.underline(renderSpan(span))}`)
+	}
 
 	function reason(str) {
-		console.log(`${chalk.red('╰──►')} ${str}`)
+		if (boring) {
+			console.log(`${renderSpan(span)} ${str}`)
+		} else {
+			console.log(`${chalk.red('╰──►')} ${str}`)
+		}
 	}
 
 	function help(str) {
-		console.log(`     ┊ ${str}`)
+		if (!boring) console.log(`     ┊ ${str}`)
 	}
 
 	switch (error.err) {
