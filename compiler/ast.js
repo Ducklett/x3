@@ -1,5 +1,6 @@
 const { assert } = require("./util")
 
+const tag_error = -1
 const tag_void = 0
 const tag_int = 1
 const tag_bool = 2
@@ -12,8 +13,10 @@ const tag_type = 8
 const tag_enum = 9
 const tag_function = 10
 const tag_float = 11
+const tag_buffer = 12
 
 const typeMap = {
+	'error': { tag: tag_error, type: 'error', size: -1 },
 	'unknown': { tag: tag_void, type: 'unknown', size: 0 },
 	'null': { tag: tag_pointer, type: 'null', size: 0 },
 	'int': { tag: tag_int, type: 'int', size: 8, signed: true },
@@ -32,6 +35,7 @@ const typeMap = {
 	'string': { tag: tag_string, type: 'string', size: 16 },  // *char, length
 	'cstring': { tag: tag_pointer, type: 'cstring', size: 8 }, // *char
 	'array': { tag: tag_array, type: 'array', size: 16 },    // *values,length
+	'buffer': { tag: tag_buffer, type: 'buffer', size: 0 },   // contiguous block of memory
 	'char': { tag: tag_char, type: 'char', size: 1 },
 	'bool': { tag: tag_bool, type: 'bool', size: 1 },
 	'pointer': { tag: tag_pointer, type: 'pointer', size: 8, to: undefined },
@@ -214,7 +218,7 @@ const str = (value, type) => {
 }
 
 module.exports = {
-	tag_void, tag_int, tag_bool, tag_string, tag_char, tag_pointer, tag_array, tag_struct, tag_type, tag_enum, tag_function, tag_float,
+	tag_error, tag_void, tag_int, tag_bool, tag_string, tag_char, tag_pointer, tag_array, tag_struct, tag_type, tag_enum, tag_function, tag_float, tag_buffer,
 	typeMap,
 	cloneType,
 	typeInfoLabel,

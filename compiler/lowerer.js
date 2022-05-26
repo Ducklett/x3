@@ -162,7 +162,8 @@ function lower(ast) {
 
 			case 'sizeof': {
 				assert(node.arg)
-				assert(node.arg.size !== undefined)
+				const size = node.arg.size || node.arg.type.size
+				assert(size !== undefined)
 
 				const theSize = num(node.arg.size, node.type)
 				return lowerNode(theSize)
@@ -408,7 +409,12 @@ function lower(ast) {
 
 				return [node]
 			}
-
+			case 'bufferLiteral': {
+				const toReturn = []
+				node.entries = lowerNodeList(node.entries, toReturn)
+				toReturn.push(node)
+				return toReturn
+			}
 			case 'arrayLiteral': {
 				const toReturn = []
 				node.entries = lowerNodeList(node.entries, toReturn)

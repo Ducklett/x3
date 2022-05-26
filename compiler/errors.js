@@ -14,6 +14,8 @@ const error = {
 	symbolNotFound(token) { return { err: 'symbolNotFound', token } },
 	noInitOnVariableWithInitializer(node) { return { err: 'noInitOnVariableWithInitializer', node } },
 	variableWithoutInitializer(node) { return { err: 'variableWithoutInitializer', node } },
+	typeMismatch(type, node) { return { err: 'typeMismatch', type, node } },
+	unsupportedTypeForIndexing(node) { return { err: 'unsupportedTypeForIndexing', node } },
 }
 
 const errors = []
@@ -142,8 +144,30 @@ function renderError(error, boring) {
 			reason(`'${chalk.red(error.node.name.value)}' is not initialized`)
 			help(`either initialize it or add the ${chalk.yellow('#noinit')} tag`)
 			break
+		case 'typeMismatch':
+			const expected = error.type
+			const got = error.node.type
+			// console.log(error)
+			reason(`expected an expression of type ${formatType(expected)} but got ${formatType(got)}`)
+			break
+		case 'unsupportedTypeForIndexing':
+			const indexableTypes = ['string', 'cstring', 'array', 'buffer', 'pointer']
+			const typesFormatted = indexableTypes.map(t => chalk.bold.yellow(t)).join(', ')
+			reason(`expression is of type ${formatType(error.node.type)}, it cannot be indexed.`)
+			help(`the types that can be indexed are: ${typesFormatted}`)
+			break
 		default: throw `unhandled error code ${error.err}`
 	}
 }
 
+function formatType(t) {
+	switch (t.type) {
+		case 'u32':
+		case 'int':
+			return chalk.red(t.type)
+		case 'buffer': return `[${chalk.yellow(t.count)}]${formatType(t.of)}`
+		case 'array': return `[]${formatType(t.of)}`
+		default: throw `unhandled ${t.type}`
+	}
+}
 module.exports = { error, reportError, hasErrors, displayErrors }

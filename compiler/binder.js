@@ -1,9 +1,9 @@
-const { typeMap, cloneType, typeInfoLabel, declareVar, num, binary, ref, readProp, unary, label, goto, assignVar, indexedAccess, nop, call, ctor, struct, param, fn, str, MARK, union, bool, roundToIncrement, tag_void, tag_pointer, tag_int, tag_float, tag_string, tag_array, tag_char, tag_bool, tag_function, tag_struct, tag_enum, alignStructFields, alignUnionFields } = require('./ast')
+const { typeMap, cloneType, typeInfoLabel, declareVar, num, binary, ref, readProp, unary, label, goto, assignVar, indexedAccess, nop, call, ctor, struct, param, fn, str, MARK, union, bool, roundToIncrement, tag_void, tag_pointer, tag_int, tag_float, tag_string, tag_array, tag_char, tag_bool, tag_function, tag_struct, tag_enum, alignStructFields, alignUnionFields, tag_error, tag_buffer } = require('./ast')
 const { assert, spanFromRange } = require('./util')
 const { fileMap } = require('./parser')
 const { reportError, error } = require('./errors')
 
-const errorNode = { kind: 'error' }
+const errorNode = (node = {}) => ({ ...node, kind: 'error', type: cloneType(typeMap.error) })
 
 const state = {
 	fileScopes: null,
@@ -383,6 +383,18 @@ function typeEqual(a, b) {
 function coerceType(type, it) {
 	if (typeEqual(type, it.type)) return it
 
+	if (type.tag == tag_buffer && it.kind == 'arrayLiteral') {
+		assert(it.entries.length == type.count)
+		for (let i = 0; i < it.entries.length; i++) {
+			it.entries[i] = coerceType(type.of, it.entries[i])
+			assert(it.entries[i].kind != 'error')
+		}
+
+		it.type = type
+		it.kind = 'bufferLiteral'
+		return it
+	}
+
 	if (it.kind == 'numberLiteral') {
 		if (type.tag == tag_float || type.tag == tag_int) {
 			it.type = type
@@ -492,12 +504,14 @@ function coerceType(type, it) {
 	const equal = typeEqual(type, it.type)
 
 	if (!equal) {
-		console.log("expected:")
-		console.log(type)
-		console.log("got:")
-		console.log(it)
+		// console.log("expected:")
+		// console.log(type)
+		// console.log("got:")
+		// console.log(it)
+		reportError(error.typeMismatch(type, it))
+		return errorNode(it)
 	}
-	assert(equal, 'it matches type after coersion')
+	// assert(equal, 'it matches type after coersion')
 
 	return it
 	// if (!type) return it
@@ -1204,7 +1218,7 @@ function bind(files) {
 				// console.log(node)
 				// throw node
 				// assert(false, `unhandled kind "${node.kind}"`)
-				return errorNode
+				return errorNode(expr)
 		}
 	}
 
@@ -1237,17 +1251,22 @@ function bind(files) {
 				return type
 			}
 			case 'type array': {
-				const type = cloneType(typeMap.array)
+				const hasSize = !!node.size
+
+				const type = cloneType(hasSize ? typeMap.buffer : typeMap.array)
 				type.of = bindType(node.of)
-				if (node.size) {
+				if (hasSize) {
 					if (node.size.kind == 'symbol') {
 						const s = findSymbol(node.size.value)
 						assert(s)
+						// TODO: actually assign the value
+						assert(false)
 					} else {
 						assert(node.size.kind == 'number')
 						assert(node.size.value !== undefined)
 						type.count = node.size.value
 					}
+					type.size = type.count * type.of.size
 				}
 				type.span = spanFromRange(node.begin.span, type.of.span)
 				return type
@@ -1349,7 +1368,7 @@ function bind(files) {
 				const it = {
 					kind: 'arrayLiteral',
 					entries: bindList(node.items, bindExpression),
-					span: spanFromRange(node.begin, node.end),
+					span: spanFromRange(node.begin.span, node.end.span),
 					type: undefined
 				}
 
@@ -1400,7 +1419,16 @@ function bind(files) {
 					op: node.op.value,
 					expr: bindExpression(node.expr),
 				}
+
+
+				if (it.expr.kind == 'error') {
+					return errorNode(it)
+				}
+
 				if (it.op == '<~') {
+					if (it.expr.type.type == 'error') {
+						console.log(it.expr)
+					}
 					assert(it.expr.type.type == 'pointer')
 					assert(it.expr.type.to)
 					it.type = it.expr.type.to
@@ -1429,7 +1457,7 @@ function bind(files) {
 				const symbol = findSymbol(node.value, inScope)
 				if (!symbol) {
 					reportError(error.symbolNotFound(node))
-					return errorNode
+					return errorNode(node)
 				}
 				assert(symbol, `symbol "${node.value}" is defined`)
 				const type = symbol.type
@@ -1469,10 +1497,19 @@ function bind(files) {
 				return it
 			}
 			case 'offset access': {
+				let isError = false
 				const left = bindExpression(node.name)
 				assert(left)
-				const legalTypes = ['array', 'string', 'cstring', 'pointer']
-				assert(legalTypes.includes(left.symbol.type.type), `can only access offset of arrays, strings,cstrings, pointers`)
+				const symbol = left.symbol
+				assert(symbol)
+
+				const legalTypes = ['array', 'buffer', 'string', 'cstring', 'pointer']
+				const typeIsLegal = legalTypes.includes(symbol.type.type)
+
+				if (!typeIsLegal) {
+					reportError(error.unsupportedTypeForIndexing(left))
+				}
+				// assert(legalTypes.includes(left.symbol.type.type), `can only access offset of arrays, strings,cstrings, pointers`)
 
 				const index = bindExpression(node.index)
 
@@ -1482,16 +1519,21 @@ function bind(files) {
 					index,
 					span: spanFromRange(left, node.end.span)
 				}
-				if (left.symbol.type.type == 'pointer') {
-					it.type = left.symbol.type.to
-				} else if (left.symbol.type.type == 'array') {
-					it.type = left.symbol.type.of
+
+				if (!typeIsLegal) {
+					isError = true
 				} else {
-					assert(left.symbol.type.type == 'cstring' || left.symbol.type.type == 'string')
-					it.type = typeMap.char
+					if (symbol.type.type == 'pointer') {
+						it.type = symbol.type.to
+					} else if (symbol.type.type == 'array' || symbol.type.type == 'buffer') {
+						it.type = symbol.type.of
+					} else {
+						assert(symbol.type.type == 'cstring' || left.symbol.type.type == 'string')
+						it.type = typeMap.char
+					}
 				}
 
-				return it
+				return isError ? errorNode(it) : it
 			}
 			case 'property access': {
 				const left = bindExpression(node.scope, inScope)
@@ -1530,11 +1572,15 @@ function bind(files) {
 
 				const right = bindExpression(node.property, scope)
 
-				// TODO: give functions a type
-				if (right.symbol.kind != 'function' && right.symbol.kind != 'module') {
-					if (!right.type) console.log(right)
-					assert(right.type)
+				if (right.kind != 'error') {
+					// TODO: give functions a type
+					const hasType = right.symbol.kind != 'function' && right.symbol.kind != 'module'
+					if (hasType) {
+						if (!right.type) console.log(right)
+						assert(right.type)
+					}
 				}
+
 				const type = right.type
 
 				const it = {
@@ -1549,7 +1595,8 @@ function bind(files) {
 					span: spanFromRange(left.span, right.span)
 				}
 
-				return it
+				const isError = right.kind == 'error' || left.kind == 'error'
+				return isError ? errorNode(it) : it
 			}
 			case 'call': {
 				const def = bindExpression(node.name, inScope)
@@ -1765,6 +1812,8 @@ function bind(files) {
 				// attempt to match up type a with b, inserting implicit casts where needed
 				// returns the dominant type if there is one
 				function resolveTypeDispute(a, b) {
+					if (a.type.tag == tag_error || b.type.tag == tag_error) return
+
 					if (typeEqual(a, b)) {
 						if (a.type.tag == tag_enum) {
 							if (op != '==' && op != '!=') {

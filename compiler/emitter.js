@@ -464,19 +464,6 @@ ${[...data.keys()]
 
 					if (targetSize == undefined) throw 'expected target size'
 
-					// unions might need some padding since the constructors are of variable size
-					// push the padding first since this means it will be added to the end of the object
-					// let startByte = args.reduce((acc, cur) => Math.min(acc, cur.type.offset ?? 0), Number.POSITIVE_INFINITY)
-					// let size = args.reduce((acc, cur) => acc + cur.type.size, 0)
-					// assert(!isNaN(size))
-
-					// while (size < targetSize) {
-					// 	lines.push('push qword 0 ; end padding')
-					// 	size += 8
-					// }
-
-					// emitArgs(args)
-
 					// args correspond directly to fields; so we can steal the offset
 					assert(node.type.fields.length == node.args.length)
 
@@ -1104,6 +1091,11 @@ ${[...data.keys()]
 					lines.push(`lea rax, ${buffer}`)
 					lines.push(`push rax`)
 
+					return
+				}
+				case 'bufferLiteral': {
+					console.log(node)
+					assert(false)
 					return
 				}
 				case 'booleanLiteral': {
