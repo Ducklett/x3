@@ -229,6 +229,8 @@ const str = (value, type) => {
 	const v = new TextEncoder().encode(value)
 	return B({ kind: 'stringLiteral', value, len: v.length, type })
 }
+const arr = (entries, type) => B({ kind: 'arrayLiteral', entries, type })
+const buff = (entries, type) => B({ kind: 'bufferLiteral', entries, type })
 
 module.exports = {
 	tag_error, tag_void, tag_int, tag_bool, tag_string, tag_char, tag_pointer, tag_array, tag_struct, tag_type, tag_enum, tag_function, tag_float, tag_buffer,
@@ -262,4 +264,6 @@ module.exports = {
 	bool,
 	num,
 	str,
+	arr,
+	buff,
 }

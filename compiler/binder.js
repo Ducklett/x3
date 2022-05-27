@@ -1610,6 +1610,27 @@ function bind(files) {
 				return isError ? errorNode(it) : it
 			}
 			case 'call': {
+
+				// type alias of buffer can be constructed with its name:
+				// type color = [3]float
+				// var c = color(.1,.2,1)
+				// TODO: move type alias to symbol table on look it up in there
+				const typeAlias = typeMap[node.name.value]
+				if (typeAlias?.tag == tag_buffer) {
+					const it = {
+						kind: 'bufferctorcall',
+						args: bindList(node.argumentList.items, bindExpression),
+						type: typeAlias,
+						span: spanFromRange(node.name.span, node.argumentList.end.span)
+					}
+
+					for (let i = 0; i < it.args.length; i++) {
+						it.args[i] = coerceType(typeAlias.of, it.args[i])
+					}
+
+					return it
+				}
+
 				const def = bindExpression(node.name, inScope)
 
 				const isStruct = def.symbol.kind == 'struct'

@@ -1,4 +1,4 @@
-const { tag_int, tag_float, tag_bool, typeMap, num, readProp, ref, label, goto, binary, cloneType, declareVar, assignVar, indexedAccess, unary, ctor, fn, struct, param, bool, tag_buffer, tag_array, } = require("./ast")
+const { tag_int, tag_float, tag_bool, typeMap, num, readProp, ref, label, goto, binary, cloneType, declareVar, assignVar, indexedAccess, unary, ctor, fn, struct, param, bool, tag_buffer, tag_array, buff, } = require("./ast")
 const { typeInfoFor, state, typeEqual } = require("./binder")
 const { assert } = require("./util")
 
@@ -956,6 +956,26 @@ function lower(ast) {
 
 				const c = ctor(type, ...args)
 				return lowerNode(c)
+			}
+			case 'bufferctorcall': {
+				const toReturn = []
+
+				const args = (node.args ?? []).map(a => {
+					const result = lowerNode(a)
+					assert(result.length > 0)
+
+					// arg may return several instructions
+					// execute all but the last before we start doing the call
+					for (let i = 0; i < result.length - 1; i++) {
+						toReturn.push(result[i])
+					}
+
+					return result[result.length - 1]
+				})
+
+				const buf = buff(args, node.type)
+				toReturn.push(buf)
+				return toReturn
 			}
 			case 'ctorcall':
 			case 'syscall':
