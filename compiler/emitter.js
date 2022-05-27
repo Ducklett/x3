@@ -1216,6 +1216,7 @@ ${[...data.keys()]
 					emitExpr(node.expr)
 
 					switch (node.type.type) {
+						case 'uint':
 						case 'u64': switch (node.expr.type.type) {
 							case 'int': break /* do nothing, just like c... */
 							default: throw node.expr.type
@@ -1236,6 +1237,7 @@ ${[...data.keys()]
 							case 'u16': break
 							case 'u32': break
 							case 'u64': break
+							case 'uint': break
 							case 'void': break
 							default: throw node.expr.type
 						} break

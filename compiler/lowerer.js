@@ -147,6 +147,182 @@ function lower(ast) {
 		return newList
 	}
 
+	// try cast node and return the result
+	// if the cast cannot be done at compile time the node will be returned as is, with only the expression being lowered
+	function tryCast(node) {
+		if (typeEqual(node.type, node.expr.type)) {
+			console.log(node)
+			throw `bug: cast to own type`
+		}
+
+		const toLabel = node.type.type
+		const fromLabel = node.expr.type.type
+
+		function runtimeCast(node) {
+			node.kind = 'cast'
+			const expr = lowerNode(node.expr)
+			assert(expr.length == 1)
+			node.expr = expr[0]
+			return [node]
+		}
+
+		if (fromLabel == 'cstring' && toLabel == 'pointer') return lowerNode(node.expr)
+		if (fromLabel == 'pointer' && toLabel == 'pointer') return lowerNode(node.expr)
+		if (fromLabel == 's64' && toLabel == 'int') return lowerNode(node.expr)
+		if (fromLabel == 'int' && toLabel == 's64') return lowerNode(node.expr)
+		if (fromLabel == 'int' && toLabel == 'u64') return runtimeCast(node)
+		if (fromLabel == 'int' && toLabel == 'uint') return runtimeCast(node)
+		if (fromLabel == 'uint' && toLabel == 'int') return runtimeCast(node)
+
+		if (fromLabel == 'void' && node.type.tag == tag_int && node.type.size < 8) {
+			// as of right now we push data onto the stack in 8 byte segments
+			// cast at runtime so we can clear the upper bytes, otherwise we will read garbage
+			return runtimeCast(node)
+		}
+
+		if (node.type.kind == 'enum' && node.expr.kind == 'reference' && node.expr.symbol.kind == 'enum alias') {
+			assert(node.expr.type.kind == 'struct')
+			assert(node.expr.type.size == node.type.size)
+			return lowerNode(node.expr)
+		}
+
+
+
+		if (node.expr.type.type == 'void') {
+			// we allow dereferencing of void pointers when the expected type can be inferrect from context
+			// to make this work we replace the void type with that of the implicit cast before emitting to asm
+			node.expr.type = node.type
+			return lowerNode(node.expr)
+		}
+
+		if (node.type.type == 'array' && node.expr.type.type == 'array') {
+			assert(node.type.of.type == 'any')
+			const count = node.expr.type.count
+			assert(count !== undefined)
+			node.expr.type = cloneType(node.type)
+			node.expr.type.count = count
+
+			return lowerNode(node.expr)
+		}
+
+		if (node.type.tag == tag_array && node.expr.type.tag == tag_buffer) {
+			// TODO: create temp variable if it's not a reference
+			assert(node.expr.kind == 'reference')
+			const count = node.expr.type.count
+			assert(count !== undefined)
+			const pointerType = cloneType(typeMap.pointer)
+			pointerType.to = node.expr.type.to
+			const pointerTo = unary('~>', node.expr, pointerType)
+			const length = num(count, cloneType(typeMap.int))
+			const c = ctor(arr, pointerTo, length)
+			return lowerNode(c)
+		}
+
+
+		if (node.type.type == 'any') {
+			const toReturn = []
+			// let loweredExpr = lowerNode(node.expr)
+			// assert(loweredExpr.length == 1)
+			// loweredExpr = loweredExpr[0]
+
+			const isEnumEntry =
+				(node.expr.kind == 'reference' && node.expr.symbol.kind == 'enum entry') ||
+				(node.expr.kind == 'readProp' && node.expr.prop.symbol.kind == 'enum entry')
+
+			if (node.expr.type.type == 'void') {
+				// just reinterpret
+				node.expr.type = node.type
+				return lowerNode(node.expr)
+			}
+			else if (isEnumEntry || (node.expr.kind != 'reference' && node.expr.kind != 'readProp')) {
+				// the expression MUST refer to some memory address at the end of the day, because we have to point to it
+				// if we encounter any immediates we will first have to store them in memory and then reference their address
+				const v = declareVar(mangleLabel('v'), node.expr)
+
+				const stuff = lowerNode(v)
+				assert(stuff.length >= 2)
+
+				toReturn.push(...stuff)
+
+				node.expr = ref(v)
+			}
+
+			let loweredExpr = lowerNode(node.expr)
+
+			assert(loweredExpr.length == 1)
+			loweredExpr = loweredExpr[0]
+
+			if (loweredExpr.kind == 'stringLiteral') {
+				console.log(node.expr)
+				throw 'how'
+			}
+
+			if (loweredExpr.kind == 'ctorcall' && loweredExpr.type.type == 'any') {
+				return [loweredExpr]
+			}
+
+			if (!(loweredExpr.kind == 'reference' || loweredExpr.kind == 'readProp')) {
+				console.log(node.expr)
+				console.log(loweredExpr)
+			}
+			assert(loweredExpr.kind == 'reference' || loweredExpr.kind == 'readProp')
+			const tPtr = cloneType(typeMap.pointer)
+			tPtr.to = node.expr.type
+
+			const expr = unary('~>', loweredExpr, tPtr)
+
+			// NOTE: we are using the raw expr type. not the lowered one
+			// this is because enums get lowered to their backing type but we still want to print them as enums
+			const exprTypeInfo = ref(typeInfoFor(node.expr.type))
+			// HACK: make type a pointer because globals are always emitted as pointers
+			const ptr = cloneType(typeMap.pointer)
+			ptr.to = exprTypeInfo.type
+			exprTypeInfo.type = ptr
+
+			const data = ctor(any, expr, exprTypeInfo)
+
+			toReturn.push(data)
+			return toReturn
+		}
+
+		if (node.type.type == 'pointer' && (node.expr.type.type == 'string' || node.expr.type.type == 'array')) {
+			const bufferProp = node.expr.type.type == 'string'
+				? typeMap.string.scope.symbols.get('buffer')
+				: typeMap.array.scope.symbols.get('buffer')
+			assert(bufferProp)
+
+			assert(node.expr.kind == 'reference')
+			const bufferAccess = readProp(node.expr, ref(bufferProp))
+			return lowerNode(bufferAccess)
+		}
+
+
+		const expr = lowerNode(node.expr)
+		assert(expr.length == 1)
+		node.expr = expr[0]
+
+		if (node.expr.kind == 'numberLiteral' && node.type.tag == tag_int) {
+			node.expr.type = node.type
+			return [node.expr]
+		}
+
+		// if (node.type.size != node.expr.type.size) {
+		// 	const padding = node.type.size - node.expr.type.size
+		// 	assert(padding > 0)
+		// 	const pad = {
+		// 		kind: 'pad',
+		// 		padding,
+		// 		expr: node.expr,
+		// 	}
+		// 	return lowerNode(pad)
+		// }
+
+		// throw `unhandled implicit cast from ${node.expr.type.type} to ${node.type.type}`
+
+		// runtime cast
+		return [node]
+	}
+
 	function lowerNode(node, { makeBuffer = true, asTag = false } = {}) {
 		switch (node.kind) {
 			case 'import':
@@ -180,183 +356,9 @@ function lower(ast) {
 
 				return lowerNode(arr)
 			}
-			case 'cast': {
-				const expr = lowerNode(node.expr)
-				assert(expr.length == 1)
-				node.expr = expr[0]
-
-				if (node.expr.kind == 'numberLiteral' && node.type.tag == tag_int) {
-					node.expr.type = node.type
-					return [node.expr]
-				}
-
-				return [node]
-			}
 			case 'reinterpret': return lowerNode(node.expr)
-			case 'implicit cast': {
-
-				if (typeEqual(node.type, node.expr.type)) {
-					console.log(node)
-					throw `bug: cast to own type`
-				}
-
-				const toLabel = node.type.type
-				const fromLabel = node.expr.type.type
-
-				if (fromLabel == 'cstring' && toLabel == 'pointer') return lowerNode(node.expr)
-				if (fromLabel == 'pointer' && toLabel == 'pointer') return lowerNode(node.expr)
-				if (fromLabel == 's64' && toLabel == 'int') return lowerNode(node.expr)
-				if (fromLabel == 'int' && toLabel == 's64') return lowerNode(node.expr)
-				if (fromLabel == 'int' && toLabel == 'u64') {
-					node.kind = 'cast'
-					return lowerNode(node)
-				}
-				if (fromLabel == 'int' && toLabel == 'uint') {
-					node.kind = 'cast'
-					return lowerNode(node)
-				}
-				if (fromLabel == 'uint' && toLabel == 'int') {
-					node.kind = 'cast'
-					return lowerNode(node)
-				}
-
-				if (fromLabel == 'void' && node.type.tag == tag_int && node.type.size < 8) {
-					// might need to do some cleanup before deref
-					node.kind = 'cast'
-					return lowerNode(node)
-				}
-
-				if (node.type.kind == 'enum' && node.expr.kind == 'reference' && node.expr.symbol.kind == 'enum alias') {
-					assert(node.expr.type.kind == 'struct')
-					assert(node.expr.type.size == node.type.size)
-					return lowerNode(node.expr)
-				}
-
-
-
-				if (node.expr.type.type == 'void') {
-					// we allow dereferencing of void pointers when the expected type can be inferrect from context
-					// to make this work we replace the void type with that of the implicit cast before emitting to asm
-					node.expr.type = node.type
-					return lowerNode(node.expr)
-				}
-
-				if (node.type.type == 'array' && node.expr.type.type == 'array') {
-					assert(node.type.of.type == 'any')
-					const count = node.expr.type.count
-					assert(count !== undefined)
-					node.expr.type = cloneType(node.type)
-					node.expr.type.count = count
-
-					return lowerNode(node.expr)
-				}
-
-				if (node.type.tag == tag_array && node.expr.type.tag == tag_buffer) {
-					// TODO: create temp variable if it's not a reference
-					assert(node.expr.kind == 'reference')
-					const count = node.expr.type.count
-					assert(count !== undefined)
-					const pointerType = cloneType(typeMap.pointer)
-					pointerType.to = node.expr.type.to
-					const pointerTo = unary('~>', node.expr, pointerType)
-					const length = num(count, cloneType(typeMap.int))
-					const c = ctor(arr, pointerTo, length)
-					return lowerNode(c)
-				}
-
-
-				if (node.type.type == 'any') {
-					const toReturn = []
-
-					// let loweredExpr = lowerNode(node.expr)
-					// assert(loweredExpr.length == 1)
-					// loweredExpr = loweredExpr[0]
-
-					const isEnumEntry =
-						(node.expr.kind == 'reference' && node.expr.symbol.kind == 'enum entry') ||
-						(node.expr.kind == 'readProp' && node.expr.prop.symbol.kind == 'enum entry')
-
-					// the expression MUST refer to some memory address at the end of the day, because we have to point to it
-					// if we encounter any immediates we will first have to store them in memory and then reference their address
-					if (node.expr.type.type == 'void') {
-						// just reinterpret
-						node.expr.type = node.type
-						return lowerNode(node.expr)
-					}
-					else if (isEnumEntry || (node.expr.kind != 'reference' && node.expr.kind != 'readProp')) {
-						const v = declareVar(mangleLabel('v'), node.expr)
-
-						const stuff = lowerNode(v)
-						assert(stuff.length >= 2)
-
-						toReturn.push(...stuff)
-
-						node.expr = ref(v)
-					}
-
-					let loweredExpr = lowerNode(node.expr)
-
-					assert(loweredExpr.length == 1)
-					loweredExpr = loweredExpr[0]
-
-					if (loweredExpr.kind == 'stringLiteral') {
-						console.log(node.expr)
-						throw 'how'
-					}
-
-					if (loweredExpr.kind == 'ctorcall' && loweredExpr.type.type == 'any') {
-						return [loweredExpr]
-					}
-
-					if (!(loweredExpr.kind == 'reference' || loweredExpr.kind == 'readProp')) {
-						console.log(node.expr)
-						console.log(loweredExpr)
-					}
-					assert(loweredExpr.kind == 'reference' || loweredExpr.kind == 'readProp')
-					const tPtr = cloneType(typeMap.pointer)
-					tPtr.to = node.expr.type
-
-					const expr = unary('~>', loweredExpr, tPtr)
-
-					// NOTE: we are using the raw expr type. not the lowered one
-					// this is because enums get lowered to their backing type but we still want to print them as enums
-					const exprTypeInfo = ref(typeInfoFor(node.expr.type))
-					// HACK: make type a pointer because globals are always emitted as pointers
-					const ptr = cloneType(typeMap.pointer)
-					ptr.to = exprTypeInfo.type
-					exprTypeInfo.type = ptr
-
-					const data = ctor(any, expr, exprTypeInfo)
-
-					toReturn.push(data)
-					return toReturn
-				}
-
-				if (node.type.type == 'pointer' && (node.expr.type.type == 'string' || node.expr.type.type == 'array')) {
-					const bufferProp = node.expr.type.type == 'string'
-						? typeMap.string.scope.symbols.get('buffer')
-						: typeMap.array.scope.symbols.get('buffer')
-					assert(bufferProp)
-
-					assert(node.expr.kind == 'reference')
-					const bufferAccess = readProp(node.expr, ref(bufferProp))
-					return lowerNode(bufferAccess)
-				}
-
-				// if (node.type.size != node.expr.type.size) {
-				// 	const padding = node.type.size - node.expr.type.size
-				// 	assert(padding > 0)
-				// 	const pad = {
-				// 		kind: 'pad',
-				// 		padding,
-				// 		expr: node.expr,
-				// 	}
-				// 	return lowerNode(pad)
-				// }
-
-				throw `unhandled implicit cast from ${node.expr.type.type} to ${node.type.type}`
-				// return lowerNode(node.expr)
-			}
+			case 'cast':
+			case 'implicit cast': return tryCast(node)
 
 			case 'pad': {
 				const expr = lowerNode(node.expr)

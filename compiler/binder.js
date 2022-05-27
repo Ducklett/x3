@@ -130,12 +130,11 @@ function declareBuiltins() {
 	])
 	addSymbol('any', state.any)
 
+	const tagsToSkip = new Set([tag_array, tag_struct, tag_pointer, tag_buffer, tag_error])
 	// add type infos
 	for (let [name, type] of Object.entries(typeMap)) {
-		if (type.tag == tag_array || type.tag == tag_struct || type.tag == tag_pointer) {
-			// these are unique to each instance! skip for now and add when needed
-			continue
-		}
+		// these are unique to each instance or internal. skip for now and add when needed
+		if (tagsToSkip.has(type.tag)) continue
 
 		// TODO: add additional type data
 		const args = [num(type.tag, typeMap.int), str(name, typeMap.string), num(type.size, typeMap.int)]
@@ -182,8 +181,9 @@ function typeInfoFor(type) {
 	const infoName = typeInfoLabel(type)
 	let info = findSymbol(infoName, state.globalScope, false)
 
+	const dynamicallyEmitted = new Set([tag_pointer, tag_array, tag_struct, tag_enum, tag_buffer])
 	if (!info) {
-		assert(type.type == 'pointer' || type.type == 'array' || type.kind == 'struct' || type.kind == 'enum')
+		assert(dynamicallyEmitted.has(type.tag))
 
 		// generate type info
 		const args = [num(type.tag, typeMap.int), str(name, typeMap.string), num(type.size, typeMap.int)]
@@ -258,7 +258,10 @@ function typeInfoFor(type) {
 				// args.push(ctor(pointerData, unary('->', to, ptr)))
 				args.push(ctor(state.pointerData, to))
 			}
-		} else if (type.tag == tag_array) {
+		} else if (type.tag == tag_array || type.tag == tag_buffer) {
+			// TODO: maybe split array and buffer
+			// array should never have count, while buffer always has it
+
 			const of = typeInfoFor(type.of) //findSymbol(typeInfoLabel(type.of), globalScope, false)
 			// TODO: support nested arrays
 			assert(of)

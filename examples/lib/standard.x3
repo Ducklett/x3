@@ -184,7 +184,8 @@ enum type_tag #bitfield {
 	struct  = 7,
 	type    = 8,
 	enum    = 9,
-	float    = 11,
+	float   = 11,
+	buffer  = 12,
 }
 
 proc print(it:any) {
@@ -215,6 +216,22 @@ proc print(it:any) {
 	} else if t.kind == type_tag.pointer {
 		write("~>")
 		print(any(<~it.data, t.data.pointerData.to))
+	} else if t.kind == type_tag.buffer {
+		write("b[")
+		var entries:~>void = it.data
+		var entryType = t.data.arrayData.of
+		var entrySize = entryType.size
+
+		var entryCount = t.data.arrayData.count
+
+		var i = 0
+		while(i<entryCount) {
+			if (i != 0) { write(", ") }
+			var ptr = entries + (i * entrySize)
+			print(any(ptr,entryType))
+			i++
+		}
+		write("]")
 	} else if t.kind == type_tag.array {
 		write("[")
 		var entries:[]void = <~it.data

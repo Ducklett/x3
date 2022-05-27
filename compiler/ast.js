@@ -59,6 +59,14 @@ function typeInfoLabel(type) {
 		l.push(typeInfoLabel(type.to))
 	}
 
+	if (type.type == 'buffer') {
+		if (type.size == 0) throw 'uninitialized buffer type'
+		l.push('$')
+		l.push(type.count)
+		l.push('$')
+		l.push(typeInfoLabel(type.of))
+	}
+
 	if (type.type == 'array') {
 		l.push('$')
 		l.push(typeInfoLabel(type.of))
