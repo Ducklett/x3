@@ -18,6 +18,7 @@ const state = {
 	enumData: null,
 	enumEntryData: null,
 	arrayData: null,
+	arr: null,
 }
 
 function compilerSpan() { return { file: '<compiler>', from: 0, to: 0 } }
@@ -29,15 +30,15 @@ function declareBuiltins() {
 	])
 	addSymbol('string', strr)
 
-	const arr = struct('array', [
+	state.arr = struct('array', [
 		param('buffer', { ...typeMap.pointer, to: typeMap.void }),
 		param('length', typeMap.int)
 	])
-	addSymbol('array', arr)
+	addSymbol('array', state.arr)
 
 	// put scopes in the typemap so 'property access' knows about them
 	typeMap.string.scope = strr.scope
-	typeMap.array.scope = arr.scope
+	typeMap.array.scope = state.arr.scope
 
 	const intData = struct('intData', [
 		param('signed', typeMap.bool),
@@ -410,6 +411,13 @@ function coerceType(type, it) {
 			assert(it.len == 1)
 			it.type = typeMap.char
 		}
+	}
+
+	// implicit buffer -> array cast
+	if (type.tag == tag_array && it.type.tag == tag_buffer) {
+		assert(typeEqual(type.of, it.type.of))
+		const cast = { kind: 'implicit cast', type: type, expr: it, span: it.span }
+		return cast
 	}
 
 	// implicit *T -> ~>void cast
@@ -1154,10 +1162,10 @@ function bind(files) {
 				assert(list)
 
 				const isInt = list.type.type == 'int'
-				assert(isInt || list.type.type == 'array' || list.type.type == 'string' || list.kind == 'enum')
+				assert(isInt || list.type.type == 'buffer' || list.type.type == 'array' || list.type.type == 'string' || list.kind == 'enum')
 				if (list.kind == 'enum') {
 					item.type = list
-				} else if (list.type.type == 'array') {
+				} else if (list.type.type == 'array' || list.type.type == 'buffer') {
 					item.type = list.type.of
 				} else if (list.type.type == 'string') {
 					item.type = typeMap.char

@@ -2,7 +2,7 @@ import "./lib/standard" use standard
 
 proc main {
 	var number = random_range(0,100)
-	var guessbuffer:[5]char
+	var guessbuffer:[5]char #noinit
 
 	while true {
 		write("Please guess the number:")

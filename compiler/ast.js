@@ -195,13 +195,18 @@ const declareVar = (name, expr) => B({ kind: 'declareVar', name, expr, type: exp
 const assignVar = (varDec, expr) => B({ kind: 'assignVar', varDec, expr })
 const ref = symbol => B({ kind: 'reference', symbol, type: symbol.type })
 const readProp = (left, prop) => B({ kind: 'readProp', left, prop, type: prop.type })
-const indexedAccess = (left, index) => B({
-	kind: 'indexedAccess', left, index, type: (() => {
-		if (left.type.type == 'array') return left.type.of
-		if (left.type.type == 'string') return { type: 'char', size: 1 }
-		throw 'illegal type of offset access'
-	})()
-})
+const indexedAccess = (left, index) => {
+	let type
+	if (left.type.type == 'array' || left.type.type == 'buffer') type = left.type.of
+	else if (left.type.type == 'string') type = cloneType(typeMap.char)
+	else throw 'illegal type of offset access'
+
+	const indirect = left.type.type != 'buffer'
+
+	return B({
+		kind: 'indexedAccess', left, index, type, indirect
+	})
+}
 const binary = (op, a, b, type) => B({ kind: 'binary', op, a, b, type: type ?? a.type })
 const unary = (op, expr, type) => B({ kind: 'unary', op, expr, type })
 const ret = expr => B({ kind: 'return', expr })

@@ -162,8 +162,13 @@ function renderError(error, boring) {
 
 function formatType(t) {
 	switch (t.type) {
-		case 'u32':
-		case 'int':
+		case 'char':
+		case 'string': case 'cstring':
+		case 'u64': case 'i64':
+		case 'u32': case 'i32':
+		case 'u16': case 'i16':
+		case 'u8': case 'i8':
+		case 'uint': case 'int':
 			return chalk.red(t.type)
 		case 'buffer': return `[${chalk.yellow(t.count)}]${formatType(t.of)}`
 		case 'array': return `[]${formatType(t.of)}`

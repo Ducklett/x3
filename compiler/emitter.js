@@ -94,6 +94,58 @@ ${[...data.keys()]
 
 		// ==================
 
+		function pushFields(fields, size) {
+			// NOTE: size on stack is always rounded to 8 byte increments
+			size = roundToIncrement(size, 8)
+			lines.push(`sub rsp, ${size}`)
+			for (let field of fields) {
+				emitExpr(field)
+				const fieldSize = field.type.size
+				let exprSizeOnStack = roundToIncrement(field.type.size, 8)
+				const offset = field.offset
+				assert(offset !== undefined)
+
+				lines.push(`add rsp, ${exprSizeOnStack}`)
+
+
+				if (fieldSize >= 8) {
+					for (let j = 0; j < exprSizeOnStack; j += 8) {
+						lines.push(`mov rax, [rsp-${exprSizeOnStack - j}]`)
+						lines.push(`mov [rsp+${offset + j}], rax`)
+					}
+				} else {
+					// small values are always emitted as qwords
+					lines.push(`mov rax, [rsp-${exprSizeOnStack}]`)
+
+					if (fieldSize > 4) {
+						lines.push(`mov [rsp+${offset}], rax`)
+					} else if (fieldSize > 2) {
+						lines.push(`mov [rsp+${offset}], eax`)
+					} else if (fieldSize == 2) {
+						lines.push(`mov [rsp+${offset}], ax`)
+					} else {
+						lines.push(`mov [rsp+${offset}], al`)
+					}
+				}
+			}
+		}
+
+		// return double as array of two u32 values
+		function f64ToBytes(f) {
+			const buf = new Float64Array(1)
+			const a = new Uint32Array(buf.buffer)
+			buf[0] = f
+			return [a[0], a[1]]
+		}
+
+		// return float as u32
+		function f32ToBytes(f) {
+			const buf = new Float32Array(1)
+			const a = new Uint32Array(buf.buffer)
+			buf[0] = f
+			return a[0]
+		}
+
 		function emitArgs(args) {
 			// NOTE: we push the last item first, because the stack grows down
 			// TODO: evaluate the args from left to right while still keeping the proper stack position
@@ -633,48 +685,68 @@ ${[...data.keys()]
 				}
 				case 'indexedAccess': {
 					assert(node.left.kind == 'reference')
-					const legalTypes = ['array', 'pointer', 'string', 'cstring']
+					const indirect = node.indirect
+					assert(indirect !== undefined)
+					const legalTypes = ['array', 'buffer', 'pointer', 'string', 'cstring']
 					assert(node.left.type.kind == 'struct' || legalTypes.includes(node.left.type.type))
 
 					const elementType = node.type
 					let elementSize = elementType.size
 					assert(elementSize > 0)
 
-					// TODO: allow values of less than 8 bytes on the stack
-					// char hack
-					if (elementSize == 1) {
-						lines.push(`; ${node.left.symbol.name}[expr] CHAR`)
+					// // TODO: allow values of less than 8 bytes on the stack
+					// // char hack
+					// if (elementSize == 1) {
+					// 	lines.push(`; ${node.left.symbol.name}[expr] CHAR`)
 
-						// index on the stack
-						emitExpr(node.index)
-						lines.push(`pop r15`)
+					// 	// index on the stack
+					// 	emitExpr(node.index)
+					// 	lines.push(`pop r15`)
 
-						// NOTE: we follow the pointer to return the value instead of its address
-						// len
-						lines.push(`mov rax, ${emitVar(node.left.symbol)}`)
+					// 	// NOTE: we follow the pointer to return the value instead of its address
+					// 	// len
+					// 	lines.push(`mov rax, ${emitVar(node.left.symbol)}`)
 
-						// TODO: figure out how to properly push just one byte
-						lines.push(`mov rax, [rax+r15]`)
-						lines.push(`and rax, 0xFF`)
-						lines.push(`push qword rax`)
-						return
-					}
+					// 	// TODO: figure out how to properly push just one byte
+					// 	lines.push(`mov rax, [rax+r15]`)
+					// 	lines.push(`and rax, 0xFF`)
+					// 	lines.push(`push qword rax`)
+					// 	return
+					// }
 
-					assert(elementSize % 8 == 0)
 
 					lines.push(`; ${node.left.symbol.name}[expr]`)
 
 					// index on the stack
 					emitExpr(node.index)
 					lines.push(`pop r15`)
-					lines.push(`imul r15, ${elementSize}`)
+					if (elementSize > 1) {
+						lines.push(`imul r15, ${elementSize}`)
+					}
 
 					// NOTE: we follow the pointer to return the value instead of its address
 					// len
-					lines.push(`mov rax, ${emitVar(node.left.symbol)}`)
+					const load = indirect ? 'mov' : 'lea'
+					lines.push(`${load} rax, ${emitVar(node.left.symbol)}`)
 
-					for (let i = elementSize - 8; i >= 0; i -= 8) {
-						lines.push(`push qword [rax+r15+${i}]`)
+					if (elementSize >= 8) {
+						assert(elementSize % 8 == 0)
+						for (let i = elementSize - 8; i >= 0; i -= 8) {
+							lines.push(`push qword [rax+r15+${i}]`)
+						}
+					} else if (elementSize == 4) {
+						lines.push(`mov eax, [rax+r15]`)
+						lines.push(`push qword rax`)
+					} else if (elementSize == 2) {
+						lines.push(`mov eax, [rax+r15]`)
+						lines.push(`movzx rax, ax`)
+						lines.push(`push qword rax`)
+					} else if (elementSize == 1) {
+						lines.push(`mov eax, [rax+r15]`)
+						lines.push(`movzx rax, al`)
+						lines.push(`push qword rax`)
+					} else {
+						assert(false)
 					}
 					return
 				}
@@ -1094,8 +1166,14 @@ ${[...data.keys()]
 					return
 				}
 				case 'bufferLiteral': {
-					console.log(node)
-					assert(false)
+					let offset = 0
+					const entrySize = node.type.of.size
+					for (let i = 0; i < node.entries.length; i++) {
+						node.entries[i].offset = offset
+						offset += entrySize
+					}
+					assert(offset == node.type.size)
+					pushFields(node.entries, node.type.size)
 					return
 				}
 				case 'booleanLiteral': {
@@ -1200,6 +1278,10 @@ ${[...data.keys()]
 						assert(node.varDec.left.kind == 'reference', 'must be reference')
 						assert(node.varDec.left.symbol.kind == 'declareVar' || node.varDec.symbol.kind == 'parameter', 'must reference variable')
 						assert(!shouldReturn)
+						const indirect = node.varDec.indirect
+						assert(indirect !== undefined)
+
+						const load = indirect ? 'mov' : 'lea'
 
 						const varDec = node.varDec.left.symbol
 						const index = node.varDec.index
@@ -1218,7 +1300,7 @@ ${[...data.keys()]
 							emitExpr(node.expr)
 							lines.push(`; ${varDec.name}[${indexValue}] = expr`)
 
-							lines.push(`mov r15, ${emitVar(varDec)}`)
+							lines.push(`${load} r15, ${emitVar(varDec)}`)
 							lines.push(`add r15, ${indexValue}`)
 
 							lines.push(`pop rax`)
@@ -1228,14 +1310,14 @@ ${[...data.keys()]
 							return
 						}
 
-						assert(varDec.type.type == 'array')
+						assert(varDec.type.type == 'array' || varDec.type.type == 'buffer')
 						const size = varDec.type.of.size
 						assert(size % 8 == 0)
 
 						emitExpr(node.expr)
 						lines.push(`; ${varDec.name}[${indexValue}] = expr`)
 
-						lines.push(`mov r15, ${emitVar(varDec)}`)
+						lines.push(`${load} r15, ${emitVar(varDec)}`)
 						if (typeof indexValue == 'number') {
 							lines.push(`add r15, ${indexValue * size}`)
 						} else {
@@ -1260,13 +1342,15 @@ ${[...data.keys()]
 					emitExpr(node.expr)
 					lines.push(`; ${varDec.name} = expr`)
 					let size = varDec.type.size
-					// TODO: properly handle size 1
-					if (size == 1) {
-						size = 8
-					}
+					// // TODO: properly handle size 1
+					// if (size == 1) {
+					// 	size = 8
+					// }
 
+					size = roundToIncrement(size, 8)
 					assert(size % 8 == 0)
 
+					// TODO: rewrite to use add rsp instead of pop
 					let i = 0
 					while (i < size) {
 						lines.push(`pop rax`)
@@ -1288,22 +1372,6 @@ ${[...data.keys()]
 		}
 
 	}
-}
-
-// return double as array of two u32 values
-function f64ToBytes(f) {
-	const buf = new Float64Array(1)
-	const a = new Uint32Array(buf.buffer)
-	buf[0] = f
-	return [a[0], a[1]]
-}
-
-// return float as u32
-function f32ToBytes(f) {
-	const buf = new Float32Array(1)
-	const a = new Uint32Array(buf.buffer)
-	buf[0] = f
-	return a[0]
 }
 
 // https://chromium.googlesource.com/chromiumos/docs/+/master/constants/syscalls.md#x86_64-64_bit

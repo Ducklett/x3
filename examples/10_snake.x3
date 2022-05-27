@@ -25,7 +25,7 @@ proc play_snake {
 	var score = 0
 	var index = 0
 
-	var key:[2]char // NOTE: it's 2 characters because otherwise it will buffer and return the buffered character
+	var key:[2]char #noinit // NOTE: it's 2 characters because otherwise it will buffer and return the buffered character
 
 	proc random_position() -> int { return random_range(0,board_area) }
 

@@ -1,4 +1,4 @@
-const { tag_int, tag_float, tag_bool, typeMap, num, readProp, ref, label, goto, binary, cloneType, declareVar, assignVar, indexedAccess, unary, ctor, fn, struct, param, bool, } = require("./ast")
+const { tag_int, tag_float, tag_bool, typeMap, num, readProp, ref, label, goto, binary, cloneType, declareVar, assignVar, indexedAccess, unary, ctor, fn, struct, param, bool, tag_buffer, tag_array, } = require("./ast")
 const { typeInfoFor, state, typeEqual } = require("./binder")
 const { assert } = require("./util")
 
@@ -13,8 +13,9 @@ function structForEnumEntry(entry) {
 }
 
 function lower(ast) {
-	const { any } = state
-	assert(state.any)
+	const { any, arr } = state
+	assert(any)
+	assert(arr)
 
 	const labelCount = new Map()
 	let entrypoint
@@ -165,7 +166,7 @@ function lower(ast) {
 				const size = node.arg.size || node.arg.type.size
 				assert(size !== undefined)
 
-				const theSize = num(node.arg.size, node.type)
+				const theSize = num(size, node.type)
 				return lowerNode(theSize)
 			}
 			case 'spread': {
@@ -250,6 +251,20 @@ function lower(ast) {
 					return lowerNode(node.expr)
 				}
 
+				if (node.type.tag == tag_array && node.expr.type.tag == tag_buffer) {
+					// TODO: create temp variable if it's not a reference
+					assert(node.expr.kind == 'reference')
+					const count = node.expr.type.count
+					assert(count !== undefined)
+					const pointerType = cloneType(typeMap.pointer)
+					pointerType.to = node.expr.type.to
+					const pointerTo = unary('~>', node.expr, pointerType)
+					const length = num(count, cloneType(typeMap.int))
+					const c = ctor(arr, pointerTo, length)
+					return lowerNode(c)
+				}
+
+
 				if (node.type.type == 'any') {
 					const toReturn = []
 
@@ -328,16 +343,16 @@ function lower(ast) {
 					return lowerNode(bufferAccess)
 				}
 
-				if (node.type.size != node.expr.type.size) {
-					const padding = node.type.size - node.expr.type.size
-					assert(padding > 0)
-					const pad = {
-						kind: 'pad',
-						padding,
-						expr: node.expr,
-					}
-					return lowerNode(pad)
-				}
+				// if (node.type.size != node.expr.type.size) {
+				// 	const padding = node.type.size - node.expr.type.size
+				// 	assert(padding > 0)
+				// 	const pad = {
+				// 		kind: 'pad',
+				// 		padding,
+				// 		expr: node.expr,
+				// 	}
+				// 	return lowerNode(pad)
+				// }
 
 				throw `unhandled implicit cast from ${node.expr.type.type} to ${node.type.type}`
 				// return lowerNode(node.expr)
@@ -511,8 +526,14 @@ function lower(ast) {
 				let begin = label('begin')
 				let endLabel = label('end')
 				let cont = label('continue')
+				// NOTE: we are using the string length prop, even for arrays
+				// this means we assume the length prop is always located at offset 8
 				const lengthProp = typeMap.string.scope.symbols.get('length')
-				const readLength = readProp(ref(node.list), ref(lengthProp))
+
+				const readLength = node.list.type.tag == tag_buffer ?
+					num(node.list.type.count, typeMap.int)
+					: readProp(ref(node.list), ref(lengthProp))
+
 				let condition = goto(endLabel, binary('>=', ref(i), isInt
 					? ref(node.list)
 					: readLength
@@ -956,6 +977,13 @@ function lower(ast) {
 				return toReturn
 			}
 			case 'indexedAccess': {
+				node.indirect = true
+
+				if (node.left.type.tag == tag_buffer) {
+					// other index types need to follow a pointer, buffer does not
+					node.indirect = false
+				}
+
 				const expr = lowerNode(node.index)
 				assert(expr.length == 1)
 				node.index = expr[0]
