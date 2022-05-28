@@ -16,29 +16,23 @@ compile:
 	rm -f ./out/out
 	rm -f ./out/out.asm
 
-	node compiler
-	mkdir -p out
-	nasm -f elf64 out/out.asm -o out/out.o
-	ld out/out.o -o out/out
+	node --trace-uncaught compiler --compile
 run:
 	rm -f ./out/out
 	rm -f ./out/out.asm
 
 	node --trace-uncaught compiler
-	mkdir -p out
-	nasm -f elf64 out/out.asm -o out/out.o
-	ld out/out.o -o out/out
-	./out/out these are some args
+# mkdir -p out
+# nasm -f elf64 out/out.asm -o out/out.o
+# ld out/out.o -o out/out
+# ./out/out these are some args
 
 snake:
 	rm -f ./out/out
 	rm -f ./out/out.asm
-	node --trace-uncaught compiler
-	mkdir -p out
-	nasm -f elf64 out/out.asm -o out/out.o
-	ld out/out.o -o out/out
+	node --trace-uncaught compiler --compile
 	stty raw -echo
-	./out/out these are some args
+	./out/out
 	stty -raw echo
 
 clean:

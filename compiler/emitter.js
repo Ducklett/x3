@@ -5,6 +5,8 @@ const api = {
 	emitAsm(ast, { dest = 'out/out.asm', entrypoint = 'main' } = {}) {
 		let locals
 
+		const externs = []
+
 		// variable => label lookup
 		const globals = new Map()
 
@@ -63,7 +65,7 @@ mov rax, 0x3c
 mov rdi, 0
 syscall`
 
-		const source = `
+		const source = `${externs.map(name => `extern ${name}`).join('\n')}
 section .text
 global _start
 ${entrypoint == 'main' ? x3rt0 : ''}
@@ -92,6 +94,9 @@ ${[...data.keys()]
 `
 		write(dest, source)
 
+		function registerExtern(name) {
+			externs.push(name)
+		}
 		// ==================
 
 		function pushFields(fields, size) {
@@ -286,8 +291,8 @@ ${[...data.keys()]
 					return
 				}
 				case 'function': {
-					// extern declaration; don't emit
-					if (node.notes.has('syscall')) return
+					const isExtern = node.notes.has('syscall') || node.notes.has('extern')
+					if (isExtern) return
 
 					assert(node.instructions, `functions have a body`)
 
@@ -561,48 +566,78 @@ ${[...data.keys()]
 				}
 				case 'call': {
 					const isLambda = node.def.symbol.kind != 'function'
+					const isExtern = node.def.symbol.notes.has('extern')
+
 					lines.push(
 						`; ${node.def.symbol.name}(${isLambda ? '?' : node.def.symbol.params.map(n => n.name).join(', ')})`
 					)
-					const args = node.args ?? []
-					let argSize = args.reduce((acc, cur, i) => {
-						assert(cur.type, `has a type`)
-						// TODO: switch to C-style calling convention so we can have 1-byte arguments
-						const size = Math.ceil(cur.type.size / 8) * 8 // alignment hack
-						if (size <= 0) console.log(cur)
-						assert(size > 0, `type has size`)
-						return acc + size
-					}, 0)
 
+					let argSize
 					const returnSize = node.type.size
 					const returnByReference = returnSize > 8
 
-					if (returnByReference) {
-						assert(returnSize % 8 == 0)
-						lines.push(`sub rsp, ${returnSize} ; allocate returned struct`)
-					}
-					if (argSize) {
-						emitArgs(args)
-					}
+					const args = node.args ?? []
 
+					if (isExtern) {
+						// systemV call
+						registerExtern(node.def.symbol.name)
+						const registers = ['rdi', 'rsi', 'rdx', 'rcx', 'r8', 'r9']
+						assert(returnSize <= 8)
+						assert(args.length <= registers.length)
 
-					if (returnByReference) {
-						// push return value address
-						lines.push(`lea rax, [rsp+${argSize}] `)
-						lines.push(`push rax`)
-						argSize += 8
-					}
+						let i = 0
+						for (let arg of args) {
+							assert(arg.type.size <= 8)
+							emitExpr(arg)
+							lines.push(`pop ${registers[i]}`)
+							i++
+						}
 
-					if (isLambda) {
-						emitExpr(node.def)
-						lines.push(`pop rax`)
-						lines.push(`call rax`)
+						assert(!isLambda)
+						lines.push(`call ${node.def.symbol.name}`)
 					} else {
-						lines.push(`call _${node.def.symbol.name}`)
+						// our own hacky calling convention
+						// TODO: rewrite this into systemV call
+
+						argSize = args.reduce((acc, cur, i) => {
+							assert(cur.type, `has a type`)
+							// TODO: switch to C-style calling convention so we can have 1-byte arguments
+							const size = Math.ceil(cur.type.size / 8) * 8 // alignment hack
+							if (size <= 0) console.log(cur)
+							assert(size > 0, `type has size`)
+							return acc + size
+						}, 0)
+
+
+						if (returnByReference) {
+							assert(returnSize % 8 == 0)
+							lines.push(`sub rsp, ${returnSize} ; allocate returned struct`)
+						}
+						if (argSize) {
+							emitArgs(args)
+						}
+
+
+						if (returnByReference) {
+							// push return value address
+							lines.push(`lea rax, [rsp+${argSize}] `)
+							lines.push(`push rax`)
+							argSize += 8
+						}
+
+
+						if (isLambda) {
+							emitExpr(node.def)
+							lines.push(`pop rax`)
+							lines.push(`call rax`)
+						} else {
+							lines.push(`call _${node.def.symbol.name}`)
+						}
+						if (argSize) {
+							lines.push(`add rsp, ${argSize}`)
+						}
 					}
-					if (argSize) {
-						lines.push(`add rsp, ${argSize}`)
-					}
+
 					if (shouldReturn) {
 						if (returnByReference) {
 							// NOTE: we already allocated the struct!

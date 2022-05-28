@@ -1,0 +1,16 @@
+
+// to create this file:
+// echo "int add2(int a, int b) { return a + b; }" >> add2.c
+// gcc -c add2.c -o out/add2.o
+pragma inc "out/add2.o"
+
+proc add2(a:int, b:int) -> int #extern
+
+proc exit(code:int)            #syscall(0x3c)
+
+proc start #entrypoint {
+	var result = add2(34,35)
+	exit(result)
+}
+
+// TODO: don't emit x3rt0 for proc main marked as #entrypoint

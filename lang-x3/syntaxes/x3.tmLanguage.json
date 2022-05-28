@@ -31,6 +31,17 @@
 		"storage": {
 			"patterns": [
 				{
+					"match": "\\b(pragma)\\s*([a-zA-Z0-9\\x{7f}-\\x{fffff}_]+)\\b",
+					"captures": {
+						"1": {
+							"name": "storage.type.pragma.x3"
+						},
+						"2": {
+							"name": "variable.other.constant.x3"
+						}
+					}
+				},
+				{
 					"match": "\\b(use)\\s*([a-zA-Z0-9\\x{7f}-\\x{fffff}_]+)((\\.)([a-zA-Z0-9\\x{7f}-\\x{fffff}_]+))*\\b",
 					"captures": {
 						"1": {

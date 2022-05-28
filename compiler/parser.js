@@ -112,6 +112,8 @@ function parse(source) {
 			return { kind: 'file', declarations }
 		}
 
+		function parseStringLiteral() { return take('string') }
+
 		function parseExpression(noBinary = false) {
 			let lhs
 			if (currentIsPreUnaryOperator()) {
@@ -298,7 +300,7 @@ function parse(source) {
 						assert(false, `unexpected operator`)
 					}
 					case 'number': return take('number')
-					case 'string': return take('string')
+					case 'string': return parseStringLiteral()
 
 					case 'symbol': return parseSymbolExpression()
 					case 'keyword': {
@@ -363,10 +365,19 @@ function parse(source) {
 
 			switch (cur) {
 				case '{': return parseBlock(null, true, true)
+				case 'pragma': {
+					const keyword = take('keyword', 'pragma')
+					const option = parseSymbol()
+					const legalSymbols = new Set(['inc', 'lib', 'libpath'])
+					assert(legalSymbols.has(option.value), `illegal pragma option ${option.value}, legal options are ${[...legalSymbols]}`)
+					const name = parseStringLiteral()
+					const span = spanFromRange(keyword.span, name.span)
+					return { kind: 'pragma', keyword, option, name, span }
+				}
 				case 'import': {
 					assert(isTopLevel, `imports should only be at top level`)
 					const keyword = take('keyword', 'import')
-					const path = take('string')
+					const path = parseStringLiteral()
 					filesToImport.add(path)
 					return { kind: 'import', keyword, path }
 				}

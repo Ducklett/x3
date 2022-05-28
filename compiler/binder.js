@@ -2,6 +2,7 @@ const { typeMap, cloneType, typeInfoLabel, declareVar, num, binary, ref, readPro
 const { assert, spanFromRange } = require('./util')
 const { fileMap } = require('./parser')
 const { reportError, error } = require('./errors')
+const { includeObjInCompilation, includeLibInCompilation } = require('./compiler')
 
 const errorNode = (node = {}) => ({ ...node, kind: 'error', type: cloneType(typeMap.error) })
 
@@ -641,6 +642,20 @@ function bind(files) {
 
 	function bindDeclaration(node) {
 		switch (node.kind) {
+			case 'pragma': {
+				const option = node.option.value
+				const name = node.name.value
+
+				const it = { kind: 'pragma', option, span: node.span }
+
+				switch (option) {
+					case 'inc': includeObjInCompilation(name); break
+					case 'lib': includeLibInCompilation(name); break
+					default: throw `unhandled pragma option ${option}`
+				}
+
+				return it
+			}
 			case 'import': {
 				return { kind: 'import', path: node.path }
 			}

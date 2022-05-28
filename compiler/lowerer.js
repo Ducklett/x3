@@ -325,6 +325,7 @@ function lower(ast) {
 
 	function lowerNode(node, { makeBuffer = true, asTag = false } = {}) {
 		switch (node.kind) {
+			case 'pragma':
 			case 'import':
 			case 'type alias':
 			case 'enum':
@@ -767,7 +768,11 @@ function lower(ast) {
 			}
 			case 'function': {
 				// NOTE: we can't create a new copy because this would break the symbol
-				node.name = mangleName(node)
+
+				const isExtern = node.notes.has('extern')
+				if (!isExtern) {
+					node.name = mangleName(node)
+				}
 
 				// labdas need their own buffer, so store the previous buffer on the stack and restore it when we're done
 				let prevBuffer = buffers

@@ -1,5 +1,6 @@
 const chalk = require('chalk')
 const { tag_int, tag_float } = require('./ast')
+const { getFlag } = require('./compiler')
 const { assert, read } = require("./util")
 
 const error = {
@@ -26,7 +27,7 @@ function reportError(err) {
 function hasErrors() { return errors.length > 0 }
 
 function displayErrors() {
-	const boring = process.argv[2] == '--boring'
+	const boring = getFlag('boring')
 	if (!boring) console.log(`${'     compiler has errors:'.toUpperCase()}`)
 	for (let error of errors) {
 		assert(error.err)
