@@ -350,7 +350,6 @@ module.exports = {
 					str.push(_format(node.type))
 					return join(str)
 				}
-				case 'keyword': return mark('keyword', node.value)
 				// its color will change depending on context, the parent will color it
 				case 'symbol': return mark('symbol', node.value)
 				case 'operator': return mark(pseudoOperators.has(node.value) ? 'pseudo-operator' : 'operator', node.value)

@@ -1,7 +1,8 @@
 const { error, reportError } = require("./errors")
 const { assert } = require("./util")
 
-const keywords = new Set(["module", "pragma", "import", "use", "type", "struct", "union", "proc", "return", "break", "continue", "goto", "label", "var", "const", "for", "do", "while", "each", "enum", "if", "else", "match", "true", "false", "null"])
+// we're a keywordless parser now, but i'll keep these here as an overview
+// const keywords = new Set(["module", "pragma", "import", "use", "type", "struct", "union", "proc", "return", "break", "continue", "goto", "label", "var", "const", "for", "do", "while", "each", "enum", "if", "else", "match", "true", "false", "null"])
 const operators = new Set(["...", "<<=", ">>=", "&&=", "||=", "==", "!=", ">=", "<=", "<<", ">>", "<~", "~>", "<-", "->", "=>", "&&", "||", "++", "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "~=", "=", "!", ">", "<", "+", "-", "/", "*", "%", "^", "~", "&", "|", "(", ")", "[", "]", "{", "}", "?", ":", ";", ".", ","])
 const binaryOperators = new Set(["==", "!=", ">=", "<=", "<<", ">>", "&&", "||", "=>", ">", "<", "+", "-", "/", "*", "%", "^", "&", "|"])
 const preUnaryOperators = new Set(["++", "--", "!", "-", "~>", "<~"])
@@ -52,13 +53,9 @@ function lex(code, sourcePath = '<compiler>') {
 		return c == ' ' || c == "\n" || c == "\r" || c == '\t'
 	}
 
-	function isLegalKeyword(c) {
-		return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
-	}
-
 	function isLegalSymbol(c) {
 		const code = c.charCodeAt(0)
-		return c == '_' || isLegalKeyword(c) || (c >= '0' && c <= '9') || (code > 127)
+		return c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || (code > 127)
 	}
 
 	function isLegalNumber(c) {
@@ -93,6 +90,7 @@ function lex(code, sourcePath = '<compiler>') {
 			if (!from) from = lexerIndex
 			while (isLegalSymbol(current())) advance()
 
+			assert(lexerIndex > from)
 			let symbol = code.slice(from, lexerIndex)
 
 			return { kind: 'symbol', value: symbol, span: takeSpan() }
@@ -262,20 +260,18 @@ function lex(code, sourcePath = '<compiler>') {
 			}
 		}
 
-		// keyword and symbol
-		if (isLegalKeyword(current()) || isLegalSymbol(current())) {
-			let from = lexerIndex
-
-			while (isLegalKeyword(current())) advance()
-			if (!isLegalSymbol(current())) {
-				let potentialKeyword = code.slice(from, lexerIndex)
-				if (keywords.has(potentialKeyword)) {
-					tokens.push({ kind: 'keyword', value: potentialKeyword, span: takeSpan() })
-					continue
-				}
-			}
-
+		// escaped symbol
+		if (current() == '`') {
+			const from = lexerIndex
+			advance()
 			const value = lexSymbol(from)
+			tokens.push(value)
+			continue
+		}
+
+		// keyword and symbol
+		if (isLegalSymbol(current())) {
+			const value = lexSymbol()
 			tokens.push(value)
 			continue
 		}

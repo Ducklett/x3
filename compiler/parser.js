@@ -42,7 +42,9 @@ function parse(source) {
 		return files
 
 		function peek(n) { return tokens[tokenIndex + n] }
-		function current() { return peek(0) }
+		function current() {
+			return peek(0)
+		}
 
 		function isEndOfFile() {
 			return !current()
@@ -68,9 +70,9 @@ function parse(source) {
 			if (!cur) return false
 			return cur.kind == 'operator' && binaryOperators.has(cur.value)
 		}
-		function isAssignmentOperator() {
-			const cur = current()
-			return cur.kind == 'operator' && assignmentOperators.has(cur.value)
+		function isAssignmentOperator(it = null) {
+			if (!it) it = current()
+			return it.kind == 'operator' && assignmentOperators.has(it.value)
 		}
 		function expect(kind, value = null) {
 			const got = current()
@@ -113,6 +115,14 @@ function parse(source) {
 		}
 
 		function parseStringLiteral() { return take('string') }
+
+		function parseAssignment(symbol) {
+			if (!symbol) symbol = parseSymbol()
+			const operator = take('operator')
+			const expr = parseExpression()
+			const span = spanFromRange(symbol.span, expr.span)
+			return { kind: 'assignment', name: symbol, operator, expr, span }
+		}
 
 		function parseExpression(noBinary = false) {
 			let lhs
@@ -202,13 +212,7 @@ function parse(source) {
 						continue
 					}
 
-					if (isAssignmentOperator(current())) {
-						const operator = take('operator')
-						const expr = parseExpression()
-						const span = spanFromRange(lhs.span, expr.span)
-						lhs = { kind: 'assignment', name: lhs, operator, expr, span }
-						continue
-					}
+					if (isAssignmentOperator(current())) return parseAssignment(lhs)
 
 					break
 				}
@@ -239,7 +243,7 @@ function parse(source) {
 				if (is('operator', ')')) {
 					isLambda = true
 				} else {
-					if (is('symbol') || is('keyword')) {
+					if (is('symbol')) {
 						parseSymbol()
 						if (is('operator', ':')) {
 							take('operator', ':')
@@ -301,32 +305,18 @@ function parse(source) {
 					}
 					case 'number': return take('number')
 					case 'string': return parseStringLiteral()
-
-					case 'symbol': return parseSymbolExpression()
-					case 'keyword': {
+					case 'symbol': {
 						const keyword = current()
 						switch (keyword.value) {
 							case 'null':
-								take('keyword')
+								take('symbol')
 								return { kind: 'null literal', span: keyword.span }
 							case 'true':
-								take('keyword')
+								take('symbol')
 								return { kind: 'boolean literal', value: true, span: keyword.span }
 							case 'false':
-								take('keyword')
+								take('symbol')
 								return { kind: 'boolean literal', value: false, span: keyword.span }
-							case 'break':
-								take('keyword')
-								return { kind: 'break', span: keyword.span }
-							case 'continue':
-								take('keyword')
-								return { kind: 'continue', span: keyword.span }
-							case 'return': {
-								take('keyword')
-								const expr = parseExpression()
-								const span = spanFromRange(keyword.span, expr.span)
-								return { kind: 'return', keyword, expr, span }
-							}
 							default: {
 								return parseSymbolExpression()
 							}
@@ -360,13 +350,20 @@ function parse(source) {
 		}
 
 		function parseDeclaration(takeTerminator = true) {
+			const it = current()
 			const cur = current().value
 			if (cur != 'import') isTopLevel = false
+
+			// find assignment before we parse all the other declarations
+			// this allows us to assign variables with keyword names *without* escaping them 
+			if (it.kind == 'symbol' && isAssignmentOperator(peek(1))) {
+				return parseAssignment()
+			}
 
 			switch (cur) {
 				case '{': return parseBlock(null, true, true)
 				case 'pragma': {
-					const keyword = take('keyword', 'pragma')
+					const keyword = take('symbol', 'pragma')
 					const option = parseSymbol()
 					const legalSymbols = new Set(['inc', 'lib', 'libpath'])
 					assert(legalSymbols.has(option.value), `illegal pragma option ${option.value}, legal options are ${[...legalSymbols]}`)
@@ -376,19 +373,19 @@ function parse(source) {
 				}
 				case 'import': {
 					assert(isTopLevel, `imports should only be at top level`)
-					const keyword = take('keyword', 'import')
+					const keyword = take('symbol', 'import')
 					const path = parseStringLiteral()
 					filesToImport.add(path)
 					return { kind: 'import', keyword, path }
 				}
 				case 'use': {
-					const keyword = take('keyword', 'use')
+					const keyword = take('symbol', 'use')
 					const path = parsePath()
 					const it = { kind: 'use', keyword, path }
 					return it
 				}
 				case 'module': {
-					const keyword = take('keyword', 'module')
+					const keyword = take('symbol', 'module')
 					const name = take('symbol')
 					let block
 					if (is('operator', '{')) {
@@ -400,14 +397,14 @@ function parse(source) {
 					return { kind: 'module', keyword, name, block }
 				}
 				case 'type': {
-					const keyword = take('keyword', 'type')
+					const keyword = take('symbol', 'type')
 					const name = take('symbol')
 					const equals = take('operator', '=')
 					const type = parseType()
 					return { kind: 'type alias', keyword, name, equals, type }
 				}
 				case 'proc': {
-					const keyword = take('keyword', 'proc')
+					const keyword = take('symbol', 'proc')
 					const name = take('symbol')
 					let parameters
 					if (is('operator', '(')) {
@@ -428,12 +425,12 @@ function parse(source) {
 					return { kind: 'proc', keyword, name, parameters, arrow, returnType, body, tags }
 				}
 				case 'do': {
-					const keyword = take('keyword', 'do')
+					const keyword = take('symbol', 'do')
 					if (is('operator', '{')) {
 						// do-while
 						// TODO: don't allow 'real' declarations in do while statement block, just control flow stuff
 						const block = parseBlock('do while', true, true)
-						const whileKeyword = take('keyword', 'while')
+						const whileKeyword = take('symbol', 'while')
 						const condition = parseExpression()
 						return { kind: 'do while', keyword, block, whileKeyword, condition }
 					} else {
@@ -465,7 +462,7 @@ function parse(source) {
 						}
 						return { kind: 'enum entry', name, params, equals, value }
 					}
-					const keyword = take('keyword')
+					const keyword = take('symbol')
 					const name = parseSymbol()
 					let colon, type, params
 
@@ -484,7 +481,7 @@ function parse(source) {
 				}
 				case 'union':
 				case 'struct': {
-					const keyword = take('keyword')
+					const keyword = take('symbol')
 					const kind = keyword.value
 					assert(kind == 'struct' || kind == 'union')
 
@@ -495,7 +492,7 @@ function parse(source) {
 				}
 				case 'const':
 				case 'var': {
-					const keyword = take('keyword')
+					const keyword = take('symbol')
 					const name = take('symbol')
 					let colon, type
 					if (is('operator', ':')) {
@@ -520,7 +517,7 @@ function parse(source) {
 					return { kind: 'var', keyword, name, colon, type, equals, expr, terminator, tags, span }
 				}
 				case 'goto': {
-					const keyword = take('keyword', 'goto')
+					const keyword = take('symbol', 'goto')
 					const label = take('symbol')
 					let terminator
 					if (takeTerminator && is('operator', ';')) {
@@ -529,13 +526,13 @@ function parse(source) {
 					return { kind: 'goto', keyword, label, terminator }
 				}
 				case 'label': {
-					const keyword = take('keyword', 'label')
+					const keyword = take('symbol', 'label')
 					const label = take('symbol')
 					const colon = take('operator', ':')
 					return { kind: 'label', keyword, label, colon }
 				}
 				case 'match': {
-					const keyword = take('keyword', 'match')
+					const keyword = take('symbol', 'match')
 					const operand = parseExpression()
 					const begin = take('operator', '{')
 					const arms = []
@@ -562,11 +559,11 @@ function parse(source) {
 					return it
 				}
 				case 'if': {
-					const keyword = take('keyword', 'if')
+					const keyword = take('symbol', 'if')
 					const condition = parseExpression()
 
-					if (is('keyword', 'goto')) {
-						const gotoKeyword = take('keyword', 'goto')
+					if (is('symbol', 'goto')) {
+						const gotoKeyword = take('symbol', 'goto')
 						const label = take('symbol')
 						let terminator
 						if (takeTerminator && is('operator', ';')) {
@@ -576,10 +573,10 @@ function parse(source) {
 					} else {
 						const thenBlock = parseExpressionOrDeclaration()//('if', true, true)
 						let elseKeyword, elseBlock
-						if (is('keyword', 'else')) {
-							elseKeyword = take('keyword', 'else')
+						if (is('symbol', 'else')) {
+							elseKeyword = take('symbol', 'else')
 							elseBlock = parseExpressionOrDeclaration()
-							// if (is('keyword', 'if')) {
+							// if (is('symbol', 'if')) {
 							//	elseBlock = parseDeclaration()
 							// } else {
 							// 	// TODO: don't allow 'real' declarations in if statement block, just control flow stuff
@@ -591,7 +588,7 @@ function parse(source) {
 					}
 				}
 				case 'while': {
-					const keyword = take('keyword', 'while')
+					const keyword = take('symbol', 'while')
 					// NOTE: condition may be parenthesized which allows for C-like while() syntax
 					const condition = parseExpression()
 					// TODO: don't allow 'real' declarations in while statement block, just control flow stuff
@@ -599,7 +596,7 @@ function parse(source) {
 					return { kind: 'while', keyword, condition, block }
 				}
 				case 'for': {
-					const keyword = take('keyword', 'for')
+					const keyword = take('symbol', 'for')
 
 					let hasParens, begin, end
 					let preCondition, terminator1, condition, terminator2, postCondition
@@ -636,7 +633,7 @@ function parse(source) {
 					return { kind: 'for', keyword, begin, preCondition, terminator1, condition, terminator2, postCondition, end, block }
 				}
 				case 'each': {
-					const keyword = take('keyword', 'each')
+					const keyword = take('symbol', 'each')
 					let hasParens, begin, end
 					if (is('operator', '(')) {
 						hasParens = true
@@ -658,7 +655,7 @@ function parse(source) {
 					return { kind: 'each', keyword, begin, item, comma, index, from, list, end, block }
 				}
 				case 'return': {
-					const keyword = take('keyword', 'return')
+					const keyword = take('symbol', 'return')
 					let expr, terminator
 
 					if (is('operator', ';')) {
@@ -670,6 +667,14 @@ function parse(source) {
 
 					return { kind: 'return', keyword, expr, terminator }
 				}
+				case 'break': {
+					const keyword = take('symbol')
+					return { kind: 'break', span: keyword.span }
+				}
+				case 'continue': {
+					const keyword = take('symbol')
+					return { kind: 'continue', span: keyword.span }
+				}
 				default:
 					return false
 			}
@@ -680,19 +685,15 @@ function parse(source) {
 		}
 
 		function parseSymbol() {
-			let symbol
-
-			if (is('keyword')) {
-				symbol = take('keyword')
-				symbol.kind = 'symbol'
-
-			} else if (is('symbol')) {
-				symbol = take('symbol')
+			const symbol = take('symbol')
+			if (symbol.value.startsWith('`')) {
+				// TODO: keep the ` and ignore it while doing symbol lookups in the binder
+				// this would allow us to properly reconstruct source code from the ast
+				symbol.value = symbol.value.replace(/`/g, '')
 			}
-
-			assert(symbol)
 			return symbol
 		}
+
 		function parseTypedSymbol() {
 			let spread
 			if (is('operator', '...')) {
@@ -738,8 +739,7 @@ function parse(source) {
 					}
 				}
 				if (allowExpressions) {
-					// TODO: looks like i'm handling return twice; fix this?
-					const allowsTermination = new Set(['number', 'string', 'array literal', 'binary', 'unary', 'assignment', 'call', 'return', 'property access'])
+					const allowsTermination = new Set(['number', 'string', 'array literal', 'binary', 'unary', 'assignment', 'call', 'property access'])
 					let expr = parseExpression()
 					if (expr) {
 						if (is('operator', ';') && allowsTermination.has(expr.kind)) {
@@ -778,7 +778,7 @@ function parse(source) {
 			return lhs
 		}
 		function parseType() {
-			if (is('symbol') || is('keyword')) {
+			if (is('symbol')) {
 				const name = parseChain()
 				return { kind: 'type atom', name, span: name.span }
 			} else if (is('operator', '[')) {
