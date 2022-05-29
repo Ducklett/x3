@@ -4,6 +4,7 @@ function newOptions() {
 	return {
 		includeObjs: [],
 		includeLibs: [],
+		includeLibPaths: [],
 		flags: {
 			run: true,
 			boring: false,
@@ -22,6 +23,10 @@ function includeLibInCompilation(path) {
 	options.includeLibs.push(path)
 }
 
+function includeLibPathInCompilation(path) {
+	options.includeLibPaths.push(path)
+}
+
 function compile(filename) {
 	const { inspect } = require('util')
 	const { read, assert } = require('./util')
@@ -35,6 +40,10 @@ function compile(filename) {
 
 	function exec(cmd) {
 		try {
+			if (process.platform == 'win32') {
+				cmd = cmd.replace(/\//g, '\\')
+			}
+
 			execSync(cmd, { stdio: 'inherit' });
 		} catch (e) {
 			process.exit(e.status)
@@ -76,14 +85,20 @@ function compile(filename) {
 	// outputHtml(syntaxTree)
 
 	const outObj = 'out/out.o'
-	const outExecutable = 'out/out'
+	const outExecutable = process.platform == 'win32'
+		? 'out/out.exe'
+		: 'out/out'
+
 	includeObjInCompilation(outObj)
 
 	const objs = options.includeObjs.join(' ')
+	const libPaths = options.includeLibPaths.map(l => `-L${l}`).join(' ')
+	const libs = options.includeLibs.map(l => `-l${l}`).join(' ')
+	const linkerCommand = `ld ${libPaths} ${libs} ${objs} -o ${outExecutable}`
 	// console.log(inspect(ast, { depth: 2 }))
-	exec(`mkdir -p out`)
+	// exec(`mkdir -p out`)
 	exec(`nasm -f elf64 out/out.asm -o ${outObj}`)
-	exec(`ld ${objs} -o ${outExecutable}`)
+	exec(linkerCommand)
 
 	if (getFlag('run')) {
 		exec(`./${outExecutable} these are some args`)
@@ -93,6 +108,7 @@ function compile(filename) {
 module.exports = {
 	includeObjInCompilation,
 	includeLibInCompilation,
+	includeLibPathInCompilation,
 	getFlag,
 	setFlag,
 	compile,

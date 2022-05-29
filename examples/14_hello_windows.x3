@@ -1,0 +1,23 @@
+pragma lib "kernel32"
+
+#extern {
+	proc GetStdHandle(query:int) -> int
+	proc WriteFile(
+		fd:int,
+		content:~>void,
+		size:int,
+		bytesWritten:~>uint,
+		overlapped:~>void
+	) -> bool
+	proc ExitProcess(code:uint)
+}
+
+const stdoutQuery = -11
+
+const msg = "Hello windows\n"
+
+proc start() #entrypoint {
+	var stdout = GetStdHandle(stdoutQuery)
+	WriteFile(stdout, msg, msg.length, null, null)
+	ExitProcess(0)
+}

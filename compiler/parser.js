@@ -272,7 +272,7 @@ function parse(source) {
 						returnType = parseType()
 					}
 					const tags = parseTags()
-					let body = parseBlock('proc', true, true)
+					let body = parseBlock('proc')
 					const span = spanFromRange(parameters.span, body.span)
 					return { kind: 'lambda', parameters, arrow, returnType, body, tags, span }
 				} else {
@@ -288,7 +288,7 @@ function parse(source) {
 				switch (current().kind) {
 					case 'operator': {
 						const v = current().value
-						if (v == '{') return parseBlock('expression', true, true)
+						if (v == '{') return parseBlock('expression')
 						if (v == ';') return null
 						if (v == '}') return null
 						if (v == '(') {
@@ -365,7 +365,13 @@ function parse(source) {
 			}
 
 			switch (cur) {
-				case '{': return parseBlock(null, true, true)
+				case '#': {
+					// found tags *before* declaration
+					// this is only legal on blocks
+					const tags = parseTags()
+					return parseBlock(null, { tags })
+				}
+				case '{': return parseBlock(null)
 				case 'pragma': {
 					const keyword = take('symbol', 'pragma')
 					const option = parseSymbol()
@@ -393,10 +399,10 @@ function parse(source) {
 					const name = take('symbol')
 					let block
 					if (is('operator', '{')) {
-						block = parseBlock('module', true, false)
+						block = parseBlock('module')
 					} else {
 						// don't parse brackets; take every remaining declaraction in the file >:)
-						block = parseBlock('module', true, false, false)
+						block = parseBlock('module', { brackets: false })
 					}
 					return { kind: 'module', keyword, name, block }
 				}
@@ -422,7 +428,7 @@ function parse(source) {
 					const tags = parseTags()
 					let body
 					if (is('operator', '{')) {
-						body = parseBlock('proc', true, true)
+						body = parseBlock('proc')
 					} else if (is('operator', ';')) {
 						body = take('operator', ';')
 					}
@@ -432,8 +438,7 @@ function parse(source) {
 					const keyword = take('symbol', 'do')
 					if (is('operator', '{')) {
 						// do-while
-						// TODO: don't allow 'real' declarations in do while statement block, just control flow stuff
-						const block = parseBlock('do while', true, true)
+						const block = parseBlock('do while')
 						const whileKeyword = take('symbol', 'while')
 						const condition = parseExpression()
 						return { kind: 'do while', keyword, block, whileKeyword, condition }
@@ -445,7 +450,7 @@ function parse(source) {
 							parameters = parseList(parseTypedSymbol)
 						}
 						const tags = parseTags()
-						let body = parseBlock('proc', true, true)
+						let body = parseBlock('proc')
 						return { kind: 'do', keyword, name, parameters, body, tags }
 					}
 				}
@@ -580,12 +585,6 @@ function parse(source) {
 						if (is('symbol', 'else')) {
 							elseKeyword = take('symbol', 'else')
 							elseBlock = parseExpressionOrDeclaration()
-							// if (is('symbol', 'if')) {
-							//	elseBlock = parseDeclaration()
-							// } else {
-							// 	// TODO: don't allow 'real' declarations in if statement block, just control flow stuff
-							// 	elseBlock = parseBlock('if', true, true)
-							// }
 						}
 
 						return { kind: 'if', keyword, condition, thenBlock, elseKeyword, elseBlock }
@@ -595,8 +594,7 @@ function parse(source) {
 					const keyword = take('symbol', 'while')
 					// NOTE: condition may be parenthesized which allows for C-like while() syntax
 					const condition = parseExpression()
-					// TODO: don't allow 'real' declarations in while statement block, just control flow stuff
-					const block = parseBlock('while', true, true)
+					const block = parseBlock('while')
 					return { kind: 'while', keyword, condition, block }
 				}
 				case 'for': {
@@ -633,7 +631,7 @@ function parse(source) {
 					}
 
 					// TODO: don't allow 'real' declarations in for statement block, just control flow stuff
-					const block = parseBlock('for', true, true)
+					const block = parseBlock('for')
 					return { kind: 'for', keyword, begin, preCondition, terminator1, condition, terminator2, postCondition, end, block }
 				}
 				case 'each': {
@@ -654,7 +652,7 @@ function parse(source) {
 					if (hasParens) {
 						end = take('operator', ')')
 					}
-					const block = parseBlock('each', true, true)
+					const block = parseBlock('each')
 
 					return { kind: 'each', keyword, begin, item, comma, index, from, list, end, block }
 				}
@@ -729,35 +727,39 @@ function parse(source) {
 			return { kind: 'list', begin, items, end, span }
 		}
 
-		function parseBlock(scope, allowDeclarations, allowExpressions, withBrackets = true) {
+		function parseBlock(scope, options = {}) {
+			const defaults = { withBrackets: true, tags: null }
+			options = { ...defaults, ...options }
+
 			const statements = []
+
+			const { withBrackets, tags } = options
+
 			let begin
 			if (withBrackets) begin = take('operator', '{')
 
 			while (!isEndOfFile() && !is('operator', '}')) {
-				if (allowDeclarations) {
-					const stmt = parseDeclaration(scope)
-					if (stmt) {
-						statements.push(stmt)
-						continue
-					}
+				const stmt = parseDeclaration(scope)
+				if (stmt) {
+					statements.push(stmt)
+					continue
 				}
-				if (allowExpressions) {
-					const allowsTermination = new Set(['number', 'string', 'array literal', 'binary', 'unary', 'assignment', 'call', 'property access'])
-					let expr = parseExpression()
-					if (expr) {
-						if (is('operator', ';') && allowsTermination.has(expr.kind)) {
-							expr = { kind: 'terminated expression', expr, terminator: take('operator', ';') }
-						}
 
-						statements.push(expr)
-						continue
+				const allowsTermination = new Set(['number', 'string', 'array literal', 'binary', 'unary', 'assignment', 'call', 'property access'])
+				let expr = parseExpression()
+				if (expr) {
+					if (is('operator', ';') && allowsTermination.has(expr.kind)) {
+						expr = { kind: 'terminated expression', expr, terminator: take('operator', ';') }
 					}
+
+					statements.push(expr)
+					continue
 				}
 
 				console.log(current())
 				throw 'failed to parse statement or expression in block'
 			}
+
 			let end
 			if (withBrackets) end = take('operator', '}')
 
@@ -767,7 +769,7 @@ function parse(source) {
 				span = spanFromRange(begin.span, end.span)
 			}
 
-			return { kind: 'block', begin, statements, end, span }
+			return { kind: 'block', tags, begin, statements, end, span }
 		}
 
 		function parseChain() {

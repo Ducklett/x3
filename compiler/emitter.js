@@ -1,8 +1,19 @@
 const { tag_int, tag_float, tag_bool, roundToIncrement } = require("./ast")
+const { includeLibPathInCompilation } = require("./compiler")
 const { assert, write, escapeString } = require("./util")
 
 const api = {
 	emitAsm(ast, { dest = 'out/out.asm', entrypoint = 'main' } = {}) {
+		const platform = process.platform
+
+		if (platform != 'linux' && platform != 'win32') {
+			assert(false, `unsupported platform ${platform}`)
+		}
+
+		if (platform == 'win32') {
+			includeLibPathInCompilation('C:\\Windows\\System32')
+		}
+
 		let locals
 
 		const externs = []
@@ -274,8 +285,8 @@ ${[...data.keys()]
 		function emitTop(node) {
 			switch (node.kind) {
 				case 'declareVar': {
-					const notes = node.notes ?? new Set()
-					assert(notes.has('const'), 'top level variables are constant')
+					const tags = node.tags ?? new Set()
+					assert(tags.has('const'), 'top level variables are constant')
 					if (!node.expr) {
 						console.log(node)
 					}
@@ -291,12 +302,12 @@ ${[...data.keys()]
 					return
 				}
 				case 'function': {
-					const isExtern = node.notes.has('syscall') || node.notes.has('extern')
+					const isExtern = node.tags.has('syscall') || node.tags.has('extern')
 					if (isExtern) return
 
 					assert(node.instructions, `functions have a body`)
 
-					let optimizations = node.notes ?? new Set()
+					let optimizations = node.tags ?? new Set()
 					let removeAlloc = optimizations.has('doesNotAllocate')
 
 					returnLabel = label()
@@ -307,7 +318,7 @@ ${[...data.keys()]
 						assert(!hasEntrypoint, `only has one entrypoint`)
 						hasEntrypoint = true
 						// custom entrypoints skip x3rt0
-						if (name != 'main') lines.push(`_start:`)
+						if (name != 'main' && name != 'start') lines.push(`_start:`)
 					}
 
 					const vars = node.instructions.filter(n => n.kind === 'declareVar' || n.kind == 'buffer')
@@ -418,7 +429,7 @@ ${[...data.keys()]
 								// console.log(`array = ${emitVar(node)}`)
 							}
 						} else {
-							if (vr.notes.has('const')) {
+							if (vr.tags.has('const')) {
 								//hoist that bitch!
 								emitTop(vr)
 								// console.log(`const ${vr.name} = ${emitVar(vr)}`)
@@ -566,7 +577,7 @@ ${[...data.keys()]
 				}
 				case 'call': {
 					const isLambda = node.def.symbol.kind != 'function'
-					const isExtern = node.def.symbol.notes.has('extern')
+					const isExtern = node.def.symbol.tags.has('extern')
 
 					lines.push(
 						`; ${node.def.symbol.name}(${isLambda ? '?' : node.def.symbol.params.map(n => n.name).join(', ')})`
@@ -579,22 +590,50 @@ ${[...data.keys()]
 					const args = node.args ?? []
 
 					if (isExtern) {
-						// systemV call
 						registerExtern(node.def.symbol.name)
-						const registers = ['rdi', 'rsi', 'rdx', 'rcx', 'r8', 'r9']
-						assert(returnSize <= 8)
-						assert(args.length <= registers.length)
 
-						let i = 0
-						for (let arg of args) {
-							assert(arg.type.size <= 8)
-							emitExpr(arg)
-							lines.push(`pop ${registers[i]}`)
-							i++
+						if (platform == 'win32') {
+							// win64 fastcall
+							const registers = ['rcx', 'rdx', 'r8', 'r9']
+
+							assert(returnSize <= 8)
+
+							let i = 0
+							for (let arg of args) {
+								assert(arg.type.size <= 8)
+								emitExpr(arg)
+								if (i < registers.length) {
+									lines.push(`pop ${registers[i]}`)
+								} else {
+									// normally we would need to push it onto the stack
+									// but it already is
+									// so do nothing ¯\_(ツ)_/¯
+								}
+								i++
+							}
+
+							assert(!isLambda)
+							lines.push(`call ${node.def.symbol.name}`)
+
+						} else {
+							assert(platform == 'linux')
+
+							// systemV call
+							const registers = ['rdi', 'rsi', 'rdx', 'rcx', 'r8', 'r9']
+							assert(returnSize <= 8)
+							assert(args.length <= registers.length)
+
+							let i = 0
+							for (let arg of args) {
+								assert(arg.type.size <= 8)
+								emitExpr(arg)
+								lines.push(`pop ${registers[i]}`)
+								i++
+							}
+
+							assert(!isLambda)
+							lines.push(`call ${node.def.symbol.name}`)
 						}
-
-						assert(!isLambda)
-						lines.push(`call ${node.def.symbol.name}`)
 					} else {
 						// our own hacky calling convention
 						// TODO: rewrite this into systemV call

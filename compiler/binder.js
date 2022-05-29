@@ -709,14 +709,14 @@ function bind(files) {
 					kind: 'declareVar',
 					name: node.name.value,
 					expr: undefined,
-					notes: new Map(),
+					tags: new Map(),
 					scope: currentScope()
 				}
 				const isConst = node.keyword.value == 'const'
-				if (isConst) it.notes.set('const', [])
+				if (isConst) it.tags.set('const', [])
 
 				for (let n of node.tags) {
-					it.notes.set(...bindTag(n))
+					it.tags.set(...bindTag(n))
 				}
 
 				if (node.type) {
@@ -740,7 +740,7 @@ function bind(files) {
 				}
 
 				const isSizedArray = it.type.tag == tag_array && it.type.count
-				const noInit = it.notes.has('noinit')
+				const noInit = it.tags.has('noinit')
 				if (noInit && node.expr) {
 					const err = reportError(error.noInitOnVariableWithInitializer(node))
 					return errorNode(it, err)
@@ -791,7 +791,7 @@ function bind(files) {
 						value,
 						params,
 						scope,
-						notes: new Map(),
+						tags: new Map(),
 						span: node.name.span
 					}
 					addSymbol(name, it)
@@ -812,7 +812,7 @@ function bind(files) {
 					entries: null,
 					backingType: null,
 					size: null,//backingType.size,
-					notes: new Map()
+					tags: new Map()
 				}
 
 
@@ -853,7 +853,7 @@ function bind(files) {
 				})
 
 				for (let n of node.tags) {
-					it.notes.set(...bindTag(n))
+					it.tags.set(...bindTag(n))
 				}
 
 				it.scope = scope
@@ -878,11 +878,11 @@ function bind(files) {
 					type: name,
 					fields: bindParameters(node.parameters),
 					scope,
-					notes: new Map(),
+					tags: new Map(),
 					span: spanFromRange(node.keyword.span, node.parameters.end.span)
 				}
 				for (let n of node.tags) {
-					it.notes.set(...bindTag(n))
+					it.tags.set(...bindTag(n))
 				}
 
 				popScope(scope)
@@ -911,10 +911,10 @@ function bind(files) {
 					kind: 'do',
 					name: node.name.value,
 					instructions: undefined,
-					notes: new Map()
+					tags: new Map()
 				}
 				for (let n of node.tags) {
-					it.notes.set(...bindTag(n))
+					it.tags.set(...bindTag(n))
 				}
 
 				it.scope = pushScope(null, it.name, 'do')
@@ -939,12 +939,12 @@ function bind(files) {
 					name: node.name.value,
 					instructions: undefined,
 					returnType,
-					notes: new Map()
+					tags: new Map()
 				}
 
 
 				for (let n of node.tags) {
-					it.notes.set(...bindTag(n))
+					it.tags.set(...bindTag(n))
 				}
 
 				addSymbol(it.name, it)
@@ -1160,7 +1160,7 @@ function bind(files) {
 					kind: 'declareVar',
 					name: node.item.value,
 					expr: undefined,
-					notes: new Map(),
+					tags: new Map(),
 					scope: currentScope()
 				}
 
@@ -1172,7 +1172,7 @@ function bind(files) {
 						kind: 'declareVar',
 						name: node.index.value,
 						expr: undefined,
-						notes: new Map(),
+						tags: new Map(),
 						scope: currentScope(),
 						type: typeMap.int
 					}
@@ -1669,9 +1669,9 @@ function bind(files) {
 
 				const type = isStruct ? def.symbol : isEnumCtor ? def.symbol.type : def.symbol.returnType
 
-				const isSyscall = def.symbol.notes.has('syscall')
+				const isSyscall = def.symbol.tags.has('syscall')
 
-				// NOTE: as of right now lambas only record parameter types, no notes or spreads
+				// NOTE: as of right now lambas only record parameter types, no tags or spreads
 				if (isLambda) {
 					const paramTypes = def.symbol.type.params
 					const args = bindList(node.argumentList.items, bindExpression)
@@ -1739,7 +1739,7 @@ function bind(files) {
 					const params = def.symbol.params
 					const it = {
 						kind: 'syscall',
-						code: def.symbol.notes.get('syscall')[0],
+						code: def.symbol.tags.get('syscall')[0],
 						args: bindList(node.argumentList.items, bindPossiblyNamedExpression),
 						type,
 						span: spanFromRange(node.name.span, node.argumentList.end.span)
@@ -1871,7 +1871,7 @@ function bind(files) {
 					if (typeEqual(a, b)) {
 						if (a.type.tag == tag_enum) {
 							if (op != '==' && op != '!=') {
-								assert(a.symbol.type.notes.has('bitfield'), 'enum arithmetic is only executed on enums marked as #bitfield')
+								assert(a.symbol.type.tags.has('bitfield'), 'enum arithmetic is only executed on enums marked as #bitfield')
 							}
 							return a.type.backingType
 						}
@@ -1908,7 +1908,7 @@ function bind(files) {
 
 						assert(a.kind == 'reference')
 						assert((a.kind == 'readProp' && a.prop.kind == 'reference') || a.kind == 'reference')
-						assert(a.symbol.type.notes.has('bitfield'), 'enum arithmetic is only executed on enums marked as #bitfield')
+						assert(a.symbol.type.tags.has('bitfield'), 'enum arithmetic is only executed on enums marked as #bitfield')
 						// allow it
 
 						return b.type
@@ -1917,7 +1917,7 @@ function bind(files) {
 					if (b.type.kind == 'enum' && a.type.type == 'int') {
 
 						assert((b.kind == 'readProp' && b.prop.kind == 'reference') || b.kind == 'reference')
-						assert(b.symbol.type.notes.has('bitfield'), 'enum arithmetic is only executed on enums marked as #bitfield')
+						assert(b.symbol.type.tags.has('bitfield'), 'enum arithmetic is only executed on enums marked as #bitfield')
 						// allow it
 
 						return a.type
@@ -2007,12 +2007,12 @@ function bind(files) {
 					instructions: undefined,
 					type,
 					returnType,
-					notes: new Map(),
+					tags: new Map(),
 				}
 
 
 				for (let n of node.tags) {
-					it.notes.set(...bindTag(n))
+					it.tags.set(...bindTag(n))
 				}
 
 				addSymbol(it.name, it)
@@ -2040,7 +2040,7 @@ function bind(files) {
 		for (let i = 0; i < params.length; i++) {
 			const param = params[i]
 
-			for (let [note, context] of param.notes.entries()) {
+			for (let [note, context] of param.tags.entries()) {
 				switch (note) {
 					case 'callerspan': {
 						assert(context.length == 1)
@@ -2067,8 +2067,8 @@ function bind(files) {
 						}
 					} break
 					default: {
-						console.log('unhandled notes?')
-						console.log(param.notes)
+						console.log('unhandled tags?')
+						console.log(param.tags)
 						assert(false)
 					} break
 				}
@@ -2131,7 +2131,7 @@ function bind(files) {
 				name: p.name.value,
 				spread,
 				type: bindType(p.type),
-				notes: new Map(),
+				tags: new Map(),
 			}
 
 			it.span = spanFromRange(spread ? p.spread.span : p.name.span, it.type.span)
@@ -2140,7 +2140,7 @@ function bind(files) {
 		}).map(([p, it]) => {
 			// tags may reference other parameters, so we bind them in a second pass
 			for (let n of p.tags) {
-				it.notes.set(...bindTag(n))
+				it.tags.set(...bindTag(n))
 			}
 			return it
 		})
@@ -2178,10 +2178,12 @@ function bind(files) {
 	function bindBlock(body, isExpression = false) {
 		let boundStatements = new Array(body.statements.length)
 
+		const priority = new Set(['label', 'proc', 'type', 'struct', 'enum'])
+
 		// first pass: declarations
 		for (let i in body.statements) {
 			const stmt = body.statements[i]
-			if (stmt.kind == 'label') {
+			if (priority.has(stmt.kind)) {
 				boundStatements[i] = bindDeclaration(stmt)
 			}
 		}
@@ -2194,12 +2196,16 @@ function bind(files) {
 			}
 		}
 
+
+		const tags = new Map(bindList(body.tags, bindTag))
+
 		// blocks may not have brackets (for file-level modules)
 		// TODO: proper span based on declaration spans
 		const span = body.begin ? spanFromRange(body.begin.span, body.end.span) : spanFromRange(boundStatements[0], boundStatements[boundStatements.length - 1])
 		return {
 			kind: 'block',
 			isExpression,
+			tags,
 			statements: boundStatements,
 			span
 		}

@@ -707,7 +707,7 @@ function lower(ast) {
 				let expr
 
 				if (!node.expr && node.type.type == 'array' && node.type.count) {
-					const shouldZeroInitialize = !node.notes.has('noinit')
+					const shouldZeroInitialize = !node.tags.has('noinit')
 					node.expr = {
 						kind: 'arrayLiteral',
 						// when entries are null the x64 backend will zero initialize the memory block
@@ -717,7 +717,7 @@ function lower(ast) {
 					}
 				}
 
-				if (node.notes.has('const')) {
+				if (node.tags.has('const')) {
 					assert(node.expr)
 					// NOTE: we DONT want to split string into a buffer because it's a true constant
 					// it should end up in the data section instead.
@@ -769,7 +769,7 @@ function lower(ast) {
 			case 'function': {
 				// NOTE: we can't create a new copy because this would break the symbol
 
-				const isExtern = node.notes.has('extern')
+				const isExtern = node.tags.has('extern')
 				if (!isExtern) {
 					node.name = mangleName(node)
 				}
@@ -778,7 +778,7 @@ function lower(ast) {
 				let prevBuffer = buffers
 				buffers = []
 
-				const isEntrypoint = node.notes.has('entrypoint')
+				const isEntrypoint = node.tags.has('entrypoint')
 				if (isEntrypoint) {
 					assert(!entrypoint)
 					entrypoint = node;
@@ -821,7 +821,32 @@ function lower(ast) {
 				return []
 			}
 
-			case 'block': return lowerNodeList(node.statements)
+			case 'block': {
+
+				function applyTagsToStatement(stmt, parent) {
+					if (!stmt.tags) {
+						console.log(parent)
+						console.log(stmt)
+					}
+					assert(stmt.tags, 'node should have a tag list')
+					for (let [k, v] of parent.tags.entries()) {
+						if (!stmt.tags.set) {
+							console.log(stmt)
+							assert(false)
+						}
+						stmt.tags.set(k, v)
+					}
+				}
+
+				// a block marked with tags will propagate its tags to all members
+				if (node.tags.size) {
+					for (let stmt of node.statements) {
+						applyTagsToStatement(stmt, node)
+					}
+				}
+
+				return lowerNodeList(node.statements)
+			}
 
 			case 'binary': {
 				if (node.b.alias) {
@@ -830,7 +855,7 @@ function lower(ast) {
 				}
 
 				if (node.type?.kind == 'struct') {
-					assert(node.type.notes.has('arithmetic'),
+					assert(node.type.tags.has('arithmetic'),
 						'operators are only implemented for #arithmetic structs')
 
 					// apply the operator piecewise, the only valid use case ;)
@@ -913,7 +938,7 @@ function lower(ast) {
 						return lowerNode(ref(node.symbol.of))
 					}
 					case 'declareVar': {
-						if (node.symbol.notes.has('const') && node.symbol.expr) {
+						if (node.symbol.tags.has('const') && node.symbol.expr) {
 							// HACK: typeinfo is stored as pointer and should not be inlined
 							// (typeinfo will be of size 8 since pointer has size 8)
 							if (node.type.type != 'pointer') {

@@ -128,12 +128,12 @@ function alignUnionFields(fields) {
 // compiler boilerplate injector
 function B(node) {
 	if (!node.span) node.span = { file: '<compiler>', from: 0, to: 0 }
-	if (!node.notes) node.notes = new Map()
+	if (!node.tags) node.tags = new Map()
 	return node
 }
 
 const nop = () => B({ kind: 'nop' })
-const MARK = (...notes) => node => ({ ...node, notes: new Set(notes) })
+const MARK = (...tags) => node => ({ ...node, tags: new Set(tags) })
 const fn = (name, params, returnType, instructions, type) => B({
 	kind: 'function',
 	name,
