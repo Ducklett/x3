@@ -1,13 +1,36 @@
-const { tag_int, num } = require("./ast")
+const { tag_int, num, block } = require("./ast")
 const { assert } = require("./util")
 
 function evaluate(node) {
 	const targetType = node.type
-	const value = evaluateRaw(node)
-	assert(typeof value == 'number')
-	assert(targetType.tag == tag_int)
-	assert(Math.floor(value) == value)
-	return num(value, targetType)
+	const value = evaluateRaw(node.run)
+
+	// special case:
+	// unlike expression, the if statement conditionally emits a block of declarations
+	// we will add a 'use' to the returned block in the parent scope so it can find the symbols
+	if (node.run.kind == 'if') {
+		if (value) {
+			if (!value.statements?.length) return value
+			const fst = value.statements[0]
+			const scope = fst.scope
+			const parent = scope.parent
+			assert(parent, `if block scope should have a parent`)
+
+			// kinda hacky, whatever
+			value.scope = scope
+			parent.used.add(value)
+
+			return value
+		}
+		//  we must have hit an else block that didn't exist
+		// emit a dummy block
+		return block()
+	} else {
+		assert(typeof value == 'number')
+		assert(targetType.tag == tag_int)
+		assert(Math.floor(value) == value)
+		return num(value, targetType)
+	}
 }
 
 function evaluateRaw(node) {
@@ -26,17 +49,45 @@ function evaluateRaw(node) {
 				case '/': return left / right
 				case '*': return left * right
 				case '%': return left % right
+				case '==': return left == right
+				case '!=': return left != right
+				case '<=': return left <= right
+				case '>=': return left >= right
+				case '<': return left < right
+				case '>': return left > right
 				default: throw `unhandled operator ${node.op}`
 			}
-			assert(false)
 		}
 		case 'numberLiteral': {
 			// TODO: clamp to type
 			return node.n
 		}
+		case 'booleanLiteral': return node.value
+		case 'reference': {
+			const s = node.symbol
+			assert(node.symbol)
+			switch (s.kind) {
+				case 'declareVar': {
+					assert(s.tags.has('const'))
+					assert(s.expr)
+					return evaluateRaw(s.expr)
+				}
+				default: throw `unhandled symbol kind ${s.kind}`
+			}
+		}
+		case 'if': {
+			const condition = evaluateRaw(node.cond)
+			assert(typeof condition == 'boolean')
+			if (condition) return node.then
+			if (!node.els) return null
+			if (node.els.kind == 'if') return evaluateRaw(node.els)
+
+			assert(node.els.kind == 'block')
+			return node.els
+		}
 		default:
 			console.log(node)
-			throw `unhandled node in evaluator ${node.kind}`
+			throw `unhandled node in evaluator: ${node.kind}`
 	}
 }
 

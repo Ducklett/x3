@@ -1076,9 +1076,14 @@ function bind(files) {
 
 				let els = null
 				if (node.elseBlock) {
-					pushScope()
-					els = bindDeclaration(node.elseBlock)
-					popScope()
+					if (node.elseBlock.kind == 'if') {
+						// the if statement will create a new scope, we don't want to double up!
+						els = bindDeclaration(node.elseBlock)
+					} else {
+						pushScope()
+						els = bindDeclaration(node.elseBlock)
+						popScope()
+					}
 				}
 
 				const it = {
@@ -1236,6 +1241,7 @@ function bind(files) {
 			case 'call':
 			case 'pre unary':
 			case 'post unary':
+			case 'comptime':
 				{
 					return bindExpression(node)
 				}
@@ -1382,7 +1388,9 @@ function bind(files) {
 			case 'comptime': {
 				const it = {
 					kind: 'comptime',
-					run: bindExpression(node.run),
+					run: node.run.kind == 'if'
+						? bindDeclaration(node.run)
+						: bindExpression(node.run),
 					span: node.span
 				}
 

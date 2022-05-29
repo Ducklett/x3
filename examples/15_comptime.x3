@@ -1,6 +1,13 @@
 import "./lib/standard" use standard
 
 proc main() {
-	var number = @10 / 2 * 3 + 0
+	const v = 9 
+	@if v == 0 {
+		var number = @10 / 2 * 3 + 0
+	} else if v == 1 {
+		var number = 3*3
+	} else {
+		var number = 4
+	}
 	printf("number: %\n", number)
 }

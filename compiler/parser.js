@@ -376,12 +376,47 @@ function parse(source) {
 				return parseAssignment()
 			}
 
+			function parseIfOrGoto() {
+				const keyword = take('symbol', 'if')
+				const condition = parseExpression()
+
+				if (is('symbol', 'goto')) {
+					const gotoKeyword = take('symbol', 'goto')
+					const label = take('symbol')
+					let terminator
+					if (takeTerminator && is('operator', ';')) {
+						terminator = take('operator', ';')
+					}
+					return { kind: 'goto', keyword: gotoKeyword, label, ifKeyword: keyword, condition, terminator }
+				} else {
+					const thenBlock = parseExpressionOrDeclaration()//('if', true, true)
+					let elseKeyword, elseBlock
+					if (is('symbol', 'else')) {
+						elseKeyword = take('symbol', 'else')
+						elseBlock = parseExpressionOrDeclaration()
+					}
+
+					const end = elseBlock?.span || thenBlock.span
+					const span = spanFromRange(keyword.span, end)
+
+					return { kind: 'if', keyword, condition, thenBlock, elseKeyword, elseBlock, span }
+				}
+			}
+
 			switch (cur) {
 				case '#': {
 					// found tags *before* declaration
 					// this is only legal on blocks
 					const tags = parseTags()
 					return parseBlock(null, { tags })
+				}
+				case '@': {
+					const at = take('operator', '@')
+					const run = parseIfOrGoto()
+					assert(run.kind == 'if')
+					const span = spanFromRange(at.span, run.span)
+					const it = { kind: 'comptime', at, run, span }
+					return it
 				}
 				case '{': return parseBlock(null)
 				case 'pragma': {
@@ -579,29 +614,7 @@ function parse(source) {
 					const it = { kind: 'match', keyword, operand, begin, arms, end }
 					return it
 				}
-				case 'if': {
-					const keyword = take('symbol', 'if')
-					const condition = parseExpression()
-
-					if (is('symbol', 'goto')) {
-						const gotoKeyword = take('symbol', 'goto')
-						const label = take('symbol')
-						let terminator
-						if (takeTerminator && is('operator', ';')) {
-							terminator = take('operator', ';')
-						}
-						return { kind: 'goto', keyword: gotoKeyword, label, ifKeyword: keyword, condition, terminator }
-					} else {
-						const thenBlock = parseExpressionOrDeclaration()//('if', true, true)
-						let elseKeyword, elseBlock
-						if (is('symbol', 'else')) {
-							elseKeyword = take('symbol', 'else')
-							elseBlock = parseExpressionOrDeclaration()
-						}
-
-						return { kind: 'if', keyword, condition, thenBlock, elseKeyword, elseBlock }
-					}
-				}
+				case 'if': return parseIfOrGoto()
 				case 'while': {
 					const keyword = take('symbol', 'while')
 					// NOTE: condition may be parenthesized which allows for C-like while() syntax

@@ -194,6 +194,8 @@ const union = (name, fields) => {
 
 	return B({ kind: 'union', name, type: name, fields, size, scope })
 }
+
+const block = (statements = []) => B({ kind: 'block', statements })
 const If = (cond, then, els = null) => B({ kind: 'if', cond, then, els })
 const call = (def, ...args) => B({ kind: 'call', def, args })
 const ctor = (def, ...args) => B({ kind: 'ctorcall', def, type: def, args })
@@ -241,6 +243,7 @@ module.exports = {
 	alignStructFields,
 	alignUnionFields,
 
+	block,
 	nop,
 	MARK,
 	fn,
