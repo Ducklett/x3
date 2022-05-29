@@ -331,10 +331,7 @@ function lower(ast) {
 			case 'enum':
 			case 'use': return []
 
-			case 'comptime': {
-				assert(node.result)
-				return lowerNode(node.result)
-			}
+			case 'comptime': return node.result ? lowerNode(node.result) : []
 			case 'unary':
 			case 'numberLiteral':
 			case 'booleanLiteral':

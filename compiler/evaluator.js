@@ -25,11 +25,12 @@ function evaluate(node) {
 		//  we must have hit an else block that didn't exist
 		// emit a dummy block
 		return block()
-	} else {
-		assert(typeof value == 'number')
+	} else if (typeof value == 'number') {
 		assert(targetType.tag == tag_int)
 		assert(Math.floor(value) == value)
 		return num(value, targetType)
+	} else {
+		return null
 	}
 }
 
@@ -68,12 +69,25 @@ function evaluateRaw(node) {
 			assert(node.symbol)
 			switch (s.kind) {
 				case 'declareVar': {
-					assert(s.tags.has('const'))
+					// TODO: fix constants so we can also force it to be const
+					//assert(s.tags.has('const') || s.expr)
 					assert(s.expr)
 					return evaluateRaw(s.expr)
 				}
 				default: throw `unhandled symbol kind ${s.kind}`
 			}
+		}
+		case 'call': {
+			assert(node.def.symbol.name == 'assert', `can only call assert at compile time for now`)
+			assert(node.args.length == 3)
+			const [condition, message, callsite] = node.args
+			const success = evaluateRaw(condition)
+
+			if (!success) {
+				console.log(`${callsite.value} assertion failed: ${message.value}`)
+				process.exit(1)
+			}
+			return null
 		}
 		case 'if': {
 			const condition = evaluateRaw(node.cond)

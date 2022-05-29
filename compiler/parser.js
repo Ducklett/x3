@@ -411,12 +411,15 @@ function parse(source) {
 					return parseBlock(null, { tags })
 				}
 				case '@': {
-					const at = take('operator', '@')
-					const run = parseIfOrGoto()
-					assert(run.kind == 'if')
-					const span = spanFromRange(at.span, run.span)
-					const it = { kind: 'comptime', at, run, span }
-					return it
+					if (peek(1).value == 'if') {
+						const at = take('operator', '@')
+						const run = parseIfOrGoto()
+						assert(run.kind == 'if')
+						const span = spanFromRange(at.span, run.span)
+						const it = { kind: 'comptime', at, run, span }
+						return it
+					}
+					return parseExpression()
 				}
 				case '{': return parseBlock(null)
 				case 'pragma': {
