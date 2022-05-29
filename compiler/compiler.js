@@ -53,16 +53,21 @@ function compile(filename) {
 			case '--human': setFlag('boring', false); break
 			// opposite of --run
 			case '--compile': setFlag('run', false); break
+			case '--typecheck':
+				setFlag('boring', true)
+				setFlag('noemit', true)
+				break
 			default: throw `unsupported arg ${arg}`
 		}
 	}
-
 	const file = ({ path: filename, code: read(filename) })
 	const syntaxTree = parse(file)
 	if (hasErrors()) displayErrors()
 
 	const ast = bind(syntaxTree)
 	if (hasErrors()) displayErrors()
+
+	if (getFlag('noemit')) return
 
 	const [loweredAst, meta] = lower(ast)
 	const entrypoint = meta.entrypoint?.name || 'main'

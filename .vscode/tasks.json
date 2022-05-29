@@ -6,7 +6,7 @@
 		{
 			"label": "compile",
 			"type": "shell",
-			"command": "node --trace-uncaught compiler --boring",
+			"command": "node --trace-uncaught compiler --typecheck",
 			"problemMatcher": {
                 "owner": "x3",
                 "fileLocation": "relative",

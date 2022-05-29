@@ -1,10 +1,10 @@
 const { typeMap, cloneType, typeInfoLabel, declareVar, num, binary, ref, readProp, unary, label, goto, assignVar, indexedAccess, nop, call, ctor, struct, param, fn, str, MARK, union, bool, roundToIncrement, tag_void, tag_pointer, tag_int, tag_float, tag_string, tag_array, tag_char, tag_bool, tag_function, tag_struct, tag_enum, alignStructFields, alignUnionFields, tag_error, tag_buffer } = require('./ast')
 const { assert, spanFromRange } = require('./util')
 const { fileMap } = require('./parser')
-const { reportError, error } = require('./errors')
+const { reportError, error, errorKindForIndex, upgradeError } = require('./errors')
 const { includeObjInCompilation, includeLibInCompilation } = require('./compiler')
 
-const errorNode = (node = {}) => ({ ...node, kind: 'error', type: cloneType(typeMap.error) })
+const errorNode = (node = {}, error = null) => ({ ...node, kind: 'error', error, type: cloneType(typeMap.error) })
 
 const state = {
 	fileScopes: null,
@@ -520,8 +520,11 @@ function coerceType(type, it) {
 		// console.log(type)
 		// console.log("got:")
 		// console.log(it)
-		reportError(error.typeMismatch(type, it))
-		return errorNode(it)
+		let err
+		if (type.type != 'error' && it.type.type != 'error') {
+			err = reportError(error.typeMismatch(type, it))
+		}
+		return errorNode(it, err)
 	}
 	// assert(equal, 'it matches type after coersion')
 
@@ -739,11 +742,12 @@ function bind(files) {
 				const isSizedArray = it.type.tag == tag_array && it.type.count
 				const noInit = it.notes.has('noinit')
 				if (noInit && node.expr) {
-					reportError(error.noInitOnVariableWithInitializer(node))
+					const err = reportError(error.noInitOnVariableWithInitializer(node))
+					return errorNode(it, err)
 				} else if (!noInit && !node.expr && !isSizedArray) {
-					reportError(error.variableWithoutInitializer(node))
+					const err = reportError(error.variableWithoutInitializer(node))
+					return errorNode(it, err)
 				}
-
 
 				return it
 			}
@@ -1238,13 +1242,14 @@ function bind(files) {
 				// if we get to this point it must be an expression that's illegal as a declaration
 				// bind the expression to get some more information out of it, then report the error
 				const expr = bindExpression(node)
+				let err
 				if (expr.kind != 'error') {
-					reportError(error.expectedDeclaration(expr))
+					err = reportError(error.expectedDeclaration(expr))
 				}
 				// console.log(node)
 				// throw node
 				// assert(false, `unhandled kind "${node.kind}"`)
-				return errorNode(expr)
+				return errorNode(expr, err)
 		}
 	}
 
@@ -1481,11 +1486,12 @@ function bind(files) {
 			}
 			case 'symbol': {
 				const symbol = findSymbol(node.value, inScope)
+
 				if (!symbol) {
-					reportError(error.symbolNotFound(node))
-					return errorNode(node)
+					const err = reportError(error.symbolNotFound(node))
+					return errorNode(node, err)
 				}
-				assert(symbol, `symbol "${node.value}" is defined`)
+
 				const type = symbol.type
 				const it = {
 					kind: 'reference',
@@ -1493,7 +1499,6 @@ function bind(files) {
 					type,
 					span: node.span
 				}
-
 
 				return it
 			}
@@ -1524,6 +1529,8 @@ function bind(files) {
 			}
 			case 'offset access': {
 				let isError = false
+				let err
+
 				const left = bindExpression(node.name)
 				assert(left)
 				const symbol = left.symbol
@@ -1533,7 +1540,7 @@ function bind(files) {
 				const typeIsLegal = legalTypes.includes(symbol.type.type)
 
 				if (!typeIsLegal) {
-					reportError(error.unsupportedTypeForIndexing(left))
+					err = reportError(error.unsupportedTypeForIndexing(left))
 				}
 				// assert(legalTypes.includes(left.symbol.type.type), `can only access offset of arrays, strings,cstrings, pointers`)
 
@@ -1559,7 +1566,7 @@ function bind(files) {
 					}
 				}
 
-				return isError ? errorNode(it) : it
+				return isError ? errorNode(it, err) : it
 			}
 			case 'property access': {
 				const left = bindExpression(node.scope, inScope)
@@ -1948,7 +1955,13 @@ function bind(files) {
 			}
 			case 'assignment': {
 				const varDec = bindExpression(node.name, inScope)
-				assert(varDec, `symbol "${node.name.value}" is defined`)
+
+				function isError(it, ofKind = null) {
+					if (it.kind != 'error') return false
+					if (!ofKind) return false
+					assert(it.error !== null)
+					return errorKindForIndex(it.error) == ofKind
+				}
 
 				let expr = bindExpression(node.expr)
 
@@ -1961,6 +1974,12 @@ function bind(files) {
 					expr,
 					span: spanFromRange(node.name.span, expr.span)
 				}
+
+				if (isError(varDec, 'symbolNotFound')) {
+					const err = upgradeError(varDec.error, error.symbolForAssignmentNotFound(it))
+					return errorNode(it, err)
+				}
+
 				return it
 			}
 			case 'lambda': {

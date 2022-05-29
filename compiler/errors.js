@@ -13,6 +13,7 @@ const error = {
 	// binder
 	expectedDeclaration(node) { return { err: 'expectedDeclaration', node } },
 	symbolNotFound(token) { return { err: 'symbolNotFound', token } },
+	symbolForAssignmentNotFound(node) { return { err: 'symbolForAssignmentNotFound', node } },
 	noInitOnVariableWithInitializer(node) { return { err: 'noInitOnVariableWithInitializer', node } },
 	variableWithoutInitializer(node) { return { err: 'variableWithoutInitializer', node } },
 	typeMismatch(type, node) { return { err: 'typeMismatch', type, node } },
@@ -22,8 +23,22 @@ const error = {
 const errors = []
 
 function reportError(err) {
+	const index = errors.length
 	errors.push(err)
+	return index
 }
+
+function errorKindForIndex(index) {
+	if (index >= errors.length) throw 'out of bounds'
+	return errors[index].err
+}
+
+function upgradeError(index, newError) {
+	if (index >= errors.length) throw 'out of bounds'
+	errors[index] = newError
+	return index
+}
+
 function hasErrors() { return errors.length > 0 }
 
 function displayErrors() {
@@ -133,10 +148,28 @@ function renderError(error, boring) {
 				default: throw `unhandled kind ${error.node.kind}`
 			}
 			break
-		case 'symbolNotFound':
-			reason(`could not resolve symbol of name '${error.token.value}'.`)
+		case 'symbolNotFound': {
+			const name = error.token.value
+			reason(`could not resolve symbol of name '${chalk.red(name)}'.`)
 			help(`perhaps you are missing a '${chalk.magenta('use')}' statement or made a typo`)
-			break
+		} break
+		case 'symbolForAssignmentNotFound': {
+			// var x = foo
+			//     |
+			//     they forgot the name, so the statement was reinterpreted as 'var = foo'
+			const probablyMissingName = new Set(['type', 'var', 'const'])
+			const name = error.node.varDec.value
+			const expr = textFromSpan(error.node.expr.span)
+
+			reason(`could not resolve symbol '${chalk.red(name)}' in assignment.`)
+			if (probablyMissingName.has(name)) {
+				help(`perhaps you were trying to create a ${name} declaration?`)
+				help(`${chalk.magenta(name)} ${chalk.underline.red('foo')} ${chalk.cyan('=')} ${chalk.yellow(expr)}`)
+			} else {
+				help(`perhaps you want to declare a new ${chalk.magenta('var')} instead:`)
+				help(`${chalk.underline.magenta('var')} ${chalk.red(name)} ${chalk.cyan('=')} ${chalk.yellow(expr)}`)
+			}
+		} break
 		case 'noInitOnVariableWithInitializer':
 			reason(`'${chalk.red(error.node.name.value)}' is marked as ${chalk.yellow('#noinit')} but it has an initializer.`)
 			help(`either remove the ${chalk.yellow('#noinit')} tag or remove the inititalizer`)
@@ -176,4 +209,4 @@ function formatType(t) {
 		default: throw `unhandled ${t.type}`
 	}
 }
-module.exports = { error, reportError, hasErrors, displayErrors }
+module.exports = { error, reportError, errorKindForIndex, upgradeError, hasErrors, displayErrors }
