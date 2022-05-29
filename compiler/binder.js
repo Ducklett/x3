@@ -3,6 +3,7 @@ const { assert, spanFromRange } = require('./util')
 const { fileMap } = require('./parser')
 const { reportError, error, errorKindForIndex, upgradeError } = require('./errors')
 const { includeObjInCompilation, includeLibInCompilation } = require('./compiler')
+const { evaluate } = require('./evaluator')
 
 const errorNode = (node = {}, error = null) => ({ ...node, kind: 'error', error, type: cloneType(typeMap.error) })
 
@@ -20,6 +21,13 @@ const state = {
 	enumEntryData: null,
 	arrayData: null,
 	arr: null,
+}
+
+function isError(it, ofKind = null) {
+	if (it.kind != 'error') return false
+	if (!ofKind) return true
+	assert(it.error !== null)
+	return errorKindForIndex(it.error) == ofKind
 }
 
 function compilerSpan() { return { file: '<compiler>', from: 0, to: 0 } }
@@ -1371,6 +1379,21 @@ function bind(files) {
 
 	function bindExpression(node, inScope) {
 		switch (node.kind) {
+			case 'comptime': {
+				const it = {
+					kind: 'comptime',
+					run: bindExpression(node.run),
+					span: node.span
+				}
+
+				it.type = it.run.type
+
+				if (!isError(it.run)) {
+					// TODO: figure out *when* to actually run this
+					it.result = evaluate(it)
+				}
+				return it
+			}
 			case 'null literal': return { kind: 'nullLiteral', value: null, span: node.span, type: typeMap.null }
 			case 'boolean literal':
 				return { kind: 'booleanLiteral', value: node.value, span: node.span, type: typeMap.bool }
@@ -1968,13 +1991,6 @@ function bind(files) {
 			case 'assignment': {
 				const varDec = bindExpression(node.name, inScope)
 
-				function isError(it, ofKind = null) {
-					if (it.kind != 'error') return false
-					if (!ofKind) return false
-					assert(it.error !== null)
-					return errorKindForIndex(it.error) == ofKind
-				}
-
 				let expr = bindExpression(node.expr)
 
 				expr = coerceType(varDec.type, expr)
@@ -2178,7 +2194,7 @@ function bind(files) {
 	function bindBlock(body, isExpression = false) {
 		let boundStatements = new Array(body.statements.length)
 
-		const priority = new Set(['label', 'proc', 'type', 'struct', 'enum'])
+		const priority = new Set(['label', 'proc', 'type alias', 'struct', 'enum'])
 
 		// first pass: declarations
 		for (let i in body.statements) {

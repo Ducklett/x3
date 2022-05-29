@@ -1,0 +1,6 @@
+import "./lib/standard" use standard
+
+proc main() {
+	var number = @10 / 2 * 3 + 0
+	printf("number: %\n", number)
+}

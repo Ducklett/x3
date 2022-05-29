@@ -125,6 +125,18 @@ function parse(source) {
 		}
 
 		function parseExpression(noBinary = false) {
+			if (is('operator', '@')) {
+				const at = take('operator', '@')
+				const run = parseRuntimeExpression(noBinary)
+				const span = spanFromRange(at.span, run.span)
+				const it = { kind: 'comptime', at, run, span }
+				return it
+			}
+
+			return parseRuntimeExpression(noBinary)
+		}
+
+		function parseRuntimeExpression(noBinary = false) {
 			let lhs
 			if (currentIsPreUnaryOperator()) {
 				const op = take('operator')
@@ -402,7 +414,7 @@ function parse(source) {
 						block = parseBlock('module')
 					} else {
 						// don't parse brackets; take every remaining declaraction in the file >:)
-						block = parseBlock('module', { brackets: false })
+						block = parseBlock('module', { withBrackets: false })
 					}
 					return { kind: 'module', keyword, name, block }
 				}
