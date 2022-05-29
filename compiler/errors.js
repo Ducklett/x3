@@ -17,6 +17,7 @@ const error = {
 	noInitOnVariableWithInitializer(node) { return { err: 'noInitOnVariableWithInitializer', node } },
 	variableWithoutInitializer(node) { return { err: 'variableWithoutInitializer', node } },
 	typeMismatch(type, node) { return { err: 'typeMismatch', type, node } },
+	typeDispute(lhs, rhs, span, unescapedName = null) { return { err: 'typeDispute', lhs, rhs, span, unescapedName } },
 	unsupportedTypeForIndexing(node) { return { err: 'unsupportedTypeForIndexing', node } },
 }
 
@@ -184,6 +185,15 @@ function renderError(error, boring) {
 			// console.log(error)
 			reason(`expected an expression of type ${formatType(expected)} but got ${formatType(got)}`)
 			break
+		case 'typeDispute': {
+			const { lhs, rhs, unescapedName } = error
+			reason(`incompatible types ${formatType(lhs.type)}, ${formatType(rhs.type)}`)
+			if (unescapedName) {
+				help(`a variable named ${chalk.red(unescapedName)} was found in scope, pehaps you meant to escape it.`)
+				const expr = textFromSpan(span).replace(unescapedName, '`' + unescapedName)
+				help(`${chalk.yellow(expr)}`)
+			}
+		} break
 		case 'unsupportedTypeForIndexing':
 			const indexableTypes = ['string', 'cstring', 'array', 'buffer', 'pointer']
 			const typesFormatted = indexableTypes.map(t => chalk.bold.yellow(t)).join(', ')
@@ -197,6 +207,7 @@ function renderError(error, boring) {
 function formatType(t) {
 	switch (t.type) {
 		case 'char':
+		case 'bool':
 		case 'string': case 'cstring':
 		case 'u64': case 'i64':
 		case 'u32': case 'i32':

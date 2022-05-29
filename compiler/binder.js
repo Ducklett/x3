@@ -1371,7 +1371,7 @@ function bind(files) {
 
 	function bindExpression(node, inScope) {
 		switch (node.kind) {
-			case 'null literal': return { kind: 'nullLiteral', span: node.span, type: typeMap.null }
+			case 'null literal': return { kind: 'nullLiteral', value: null, span: node.span, type: typeMap.null }
 			case 'boolean literal':
 				return { kind: 'booleanLiteral', value: node.value, span: node.span, type: typeMap.bool }
 			case 'number':
@@ -1935,10 +1935,22 @@ function bind(files) {
 					} else {
 						const equal = typeEqual(a.type, b.type)
 						if (!equal) {
-							console.log(a)
-							console.log(b)
+							// user might do something like 'x>true'
+							// is a variable named 'true' is in scope we will notfiy them that they have to escape it
+							function possiblyUnescapedName(literal) {
+								if (literal.kind != 'booleanLiteral' && literal.kind != 'nullLiteral') {
+									return false
+								}
+
+								const name = literal.value?.toString()
+								const s = findSymbol(name)
+								return s ? name : null
+							}
+
+							const unescapedName = possiblyUnescapedName(a) || possiblyUnescapedName(b)
+							const err = reportError(error.typeDispute(a, b, node.span, unescapedName))
+							return typeMap.error
 						}
-						assert(equal)
 					}
 				}
 
