@@ -4,9 +4,6 @@ const { getFlag } = require('./compiler')
 const { assert, read } = require("./util")
 
 const error = {
-	// lexer
-	expectedSymbol(char, span) { return { err: 'expectedSymbol', char, span } },
-
 	// parser
 	expectedStatement(token) { return { err: 'expectedStatement', token } },
 
@@ -91,11 +88,6 @@ function renderError(error, boring) {
 	}
 
 	switch (error.err) {
-		// lexer
-		case 'expectedSymbol':
-			reason(`expected an identifier but got character '${error.char}'.`)
-			break
-
 		// parser
 		case 'expectedStatement':
 			reason(`expected a statement but got ${error.token.kind} '${error.token.value}'.`)

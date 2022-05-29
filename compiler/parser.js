@@ -252,7 +252,7 @@ function parse(source) {
 								isLambda = true
 							} else if (is('operator', ')')) {
 								take('operator', ')')
-								if (is('tag') || is('operator', '->') || is('operator', '{')) {
+								if (is('operator', '#') || is('operator', '->') || is('operator', '{')) {
 									isLambda = true
 								}
 							}
@@ -329,13 +329,17 @@ function parse(source) {
 
 		function parseTags() {
 			const tags = []
-			while (is('tag')) {
-				const tag = take('tag')
+			while (is('operator', '#')) {
+				const hash = take('operator', '#')
+				const tag = take('symbol')
 				// TODO: maybe make this less gross
 				let list
 				if (is('operator', '(')) list = parseList(parseExpression)
-				tag.list = list
-				tags.push(tag)
+
+				const last = list?.end.span ?? tag.span
+				const span = spanFromRange(hash.span, last)
+				const it = { kind: 'tag', hash, tag, value: tag.value, list, span }
+				tags.push(it)
 			}
 			return tags
 		}

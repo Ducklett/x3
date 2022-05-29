@@ -3,7 +3,7 @@ const { assert } = require("./util")
 
 // we're a keywordless parser now, but i'll keep these here as an overview
 // const keywords = new Set(["module", "pragma", "import", "use", "type", "struct", "union", "proc", "return", "break", "continue", "goto", "label", "var", "const", "for", "do", "while", "each", "enum", "if", "else", "match", "true", "false", "null"])
-const operators = new Set(["...", "<<=", ">>=", "&&=", "||=", "==", "!=", ">=", "<=", "<<", ">>", "<~", "~>", "<-", "->", "=>", "&&", "||", "++", "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "~=", "=", "!", ">", "<", "+", "-", "/", "*", "%", "^", "~", "&", "|", "(", ")", "[", "]", "{", "}", "?", ":", ";", ".", ","])
+const operators = new Set(["...", "<<=", ">>=", "&&=", "||=", "==", "!=", ">=", "<=", "<<", ">>", "<~", "~>", "<-", "->", "=>", "&&", "||", "++", "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "~=", "=", "!", ">", "<", "+", "-", "/", "*", "%", "^", "~", "&", "|", "(", ")", "[", "]", "{", "}", "?", ":", ";", ".", ",", "#"])
 const binaryOperators = new Set(["==", "!=", ">=", "<=", "<<", ">>", "&&", "||", "=>", ">", "<", "+", "-", "/", "*", "%", "^", "&", "|"])
 const preUnaryOperators = new Set(["++", "--", "!", "-", "~>", "<~"])
 const postUnaryOperators = new Set(["++", "--"])
@@ -134,23 +134,6 @@ function lex(code, sourcePath = '<compiler>') {
 			while (!(current() == '\n')) lexerIndex++
 			const comment = code.slice(from, lexerIndex)
 			tokens.push({ kind: 'comment', value: comment, span: takeSpan() })
-			continue
-		}
-
-		// tag
-		if (current() == '#') {
-			advance()
-			const smb = lexSymbol()
-			const span = takeSpan()
-			if (!smb || !smb.value) {
-				startSpan()
-				// TODO: take span without advancing the lexer
-				advance()
-				const illegalSpan = takeSpan()
-				reportError(error.expectedSymbol(current(), illegalSpan))
-			}
-			const value = smb?.value
-			tokens.push({ kind: 'tag', value, span })
 			continue
 		}
 
