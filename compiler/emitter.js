@@ -285,8 +285,6 @@ ${[...data.keys()]
 		function emitTop(node) {
 			switch (node.kind) {
 				case 'declareVar': {
-					const tags = node.tags ?? new Set()
-					assert(tags.has('const'), 'top level variables are constant')
 					if (!node.expr) {
 						console.log(node)
 					}

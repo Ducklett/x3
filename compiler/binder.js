@@ -3,7 +3,7 @@ const { assert, spanFromRange } = require('./util')
 const { fileMap } = require('./parser')
 const { reportError, error, errorKindForIndex, upgradeError } = require('./errors')
 const { includeObjInCompilation, includeLibInCompilation } = require('./compiler')
-const { evaluate } = require('./evaluator')
+const { evaluate, evaluateRaw } = require('./evaluator')
 
 const errorNode = (node = {}, error = null) => ({ ...node, kind: 'error', error, type: cloneType(typeMap.error) })
 
@@ -1403,23 +1403,41 @@ function bind(files) {
 		return it
 	}
 
+	function bindCompileTimeIf(node) {
+		// TODO: don't discard the other block so we can fully reconstruct source code
+		assert(node.kind == 'if')
+
+		const condition = bindExpression(node.condition)
+		const result = evaluateRaw(condition)
+		const toBind = result ? node.thenBlock : node.elseBlock
+
+		if (!toBind) return null
+		if (toBind.kind == 'if') return bindCompileTimeIf(toBind)
+		assert(toBind.kind == 'block')
+		return bindBlock(toBind)
+	}
+
 	function bindExpression(node, inScope) {
 		switch (node.kind) {
 			case 'comptime': {
+				const isIf = node.run.kind == 'if'
 				const it = {
 					kind: 'comptime',
-					run: node.run.kind == 'if'
-						? bindDeclaration(node.run)
+					run: isIf
+						? node.run
 						: bindExpression(node.run),
 					span: node.span
 				}
 
-				it.type = it.run.type
+				it.type = it.run?.type
 
-				if (!isError(it.run)) {
+				if (isIf) {
+					it.result = bindCompileTimeIf(node.run)
+				} else if (!isError(it.run)) {
 					// TODO: figure out *when* to actually run this
 					it.result = evaluate(it)
 				}
+
 				return it
 			}
 			case 'null literal': return { kind: 'nullLiteral', value: null, span: node.span, type: typeMap.null }

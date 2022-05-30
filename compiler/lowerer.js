@@ -704,6 +704,9 @@ function lower(ast) {
 			case 'declareVar': {
 				const toReturn = []
 
+				const isTopLevel = !node.scope || node.scope.kind == 'file' || node.scope.kind == 'global'
+				const isConst = node.tags.has('const')
+
 				node.name = mangleName(node)
 				let expr
 
@@ -718,7 +721,7 @@ function lower(ast) {
 					}
 				}
 
-				if (node.tags.has('const')) {
+				if (isConst || isTopLevel) {
 					assert(node.expr)
 					// NOTE: we DONT want to split string into a buffer because it's a true constant
 					// it should end up in the data section instead.
@@ -726,14 +729,16 @@ function lower(ast) {
 					assert(expr.length == 1)
 					node.expr = expr[0]
 
-					// inlined
-					// TODO: still add some comment to nasm so we know what the number represents
-					if (node.expr.kind == 'numberLiteral') {
-						return []
+					if (isConst) {
+						// inlined
+						// TODO: still add some comment to nasm so we know what the number represents
+						if (node.expr.kind == 'numberLiteral') {
+							return []
+						}
 					}
 
-					const isTrueConstant = new Set(['stringLiteral', 'boolLiteral', 'arrayLiteral', 'ctorcall'])
-					if (isTrueConstant.has(node.expr.kind)) {
+					const isJustData = new Set(['numberLiteral', 'stringLiteral', 'boolLiteral', 'arrayLiteral', 'ctorcall'])
+					if (isJustData.has(node.expr.kind)) {
 						return [node]
 					}
 

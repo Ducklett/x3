@@ -1,23 +1,21 @@
-@assert(on_linux)
-
 @if on_windows {
 
-// pragma lib "kernel32"
+pragma lib "kernel32"
 
-// #extern {
-// 	proc GetStdHandle(query:int) -> int
-// 	proc WriteFile(
-// 		fd:int,
-// 		content:~>void,
-// 		size:int,
-// 		bytesWritten:~>uint,
-// 		overlapped:~>void
-// 	) -> bool
-// 	proc ExitProcess(code:uint)
-// }
+#extern {
+	proc GetStdHandle(query:int) -> int
+	proc WriteFile(
+		fd:int,
+		content:~>void,
+		size:int,
+		bytesWritten:~>uint,
+		overlapped:~>void
+	) -> bool
+	proc ExitProcess(code:uint)
+}
 
-// const stdoutQuery = -11
-// var stdout = 0
+const stdoutQuery = -11
+var stdout = 0
 } else { @assert(on_linux)
 
 proc sysWrite(fd:int,buf:~>void,count:uint) -> int #syscall(0x001)
@@ -28,7 +26,7 @@ const stdout = 1
 
 proc print(msg:string) {
 	@if on_windows {
-		// WriteFile(stdout,msg,msg.length,null,null)
+		WriteFile(stdout,msg,msg.length,null,null)
 	} else { @assert(on_linux)
 		sysWrite(stdout,msg,msg.length)
 	}
@@ -36,18 +34,20 @@ proc print(msg:string) {
 
 proc exit(code:int) {
 	@if on_windows {
-		// ExitProcess(code)
+		ExitProcess(code)
 	} else { @assert(on_linux)
 		sysExit(code)
 	}
 }
 
+const msg = "Hello cross platform!\n"
+
 proc start #entrypoint {
 	@if on_windows {
-		// stdout = GetStdHandle(stdoutQuery)
+		stdout = GetStdHandle(stdoutQuery)
 	}
 
-	print("Hello cross platform!\n")
+	print(msg)
 	exit(0)
 }
 
