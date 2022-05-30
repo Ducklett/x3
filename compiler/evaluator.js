@@ -10,15 +10,9 @@ function evaluate(node) {
 	// we will add a 'use' to the returned block in the parent scope so it can find the symbols
 	if (node.run.kind == 'if') {
 		if (value) {
-			if (!value.statements?.length) return value
-			const fst = value.statements[0]
-			const scope = fst.scope
-			const parent = scope.parent
-			assert(parent, `if block scope should have a parent`)
-
-			// kinda hacky, whatever
-			value.scope = scope
-			parent.used.add(value)
+			assert(value.scope)
+			assert(value.scope.parent)
+			value.scope.parent.used.add(value)
 
 			return value
 		}

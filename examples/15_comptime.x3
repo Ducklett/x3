@@ -1,16 +1,69 @@
-import "./lib/standard" use standard
+@assert(on_linux)
 
-proc main() {
-	const v = 0 
-	@if v == 0 {
-		var number = @10 / 2 * 3 + 0
-	} else if v == 1 {
-		var number = 3*3
-	} else {
-		var number = 4
+@if on_windows {
+
+// pragma lib "kernel32"
+
+// #extern {
+// 	proc GetStdHandle(query:int) -> int
+// 	proc WriteFile(
+// 		fd:int,
+// 		content:~>void,
+// 		size:int,
+// 		bytesWritten:~>uint,
+// 		overlapped:~>void
+// 	) -> bool
+// 	proc ExitProcess(code:uint)
+// }
+
+// const stdoutQuery = -11
+// var stdout = 0
+} else { @assert(on_linux)
+
+proc sysWrite(fd:int,buf:~>void,count:uint) -> int #syscall(0x001)
+proc sysExit(code:int)                             #syscall(0x03c)
+
+const stdout = 1
+}
+
+proc print(msg:string) {
+	@if on_windows {
+		// WriteFile(stdout,msg,msg.length,null,null)
+	} else { @assert(on_linux)
+		sysWrite(stdout,msg,msg.length)
+	}
+}
+
+proc exit(code:int) {
+	@if on_windows {
+		// ExitProcess(code)
+	} else { @assert(on_linux)
+		sysExit(code)
+	}
+}
+
+proc start #entrypoint {
+	@if on_windows {
+		// stdout = GetStdHandle(stdoutQuery)
 	}
 
-	@assert(number == 4)
-
-	printf("number: %\n", number)
+	print("Hello cross platform!\n")
+	exit(0)
 }
+
+// import "./lib/standard" use standard
+
+// proc main() {
+// 	const v = 0 
+// 	@if v == 0 {
+// 		var number = @10 / 2 * 3 + 0
+// 	} else if v == 1 {
+// 		var number = 3*3
+// 	} else {
+// 		var number = 4
+// 	}
+
+// 	@assert(number == 4)
+
+// 	printf("number: %\n", number)
+// }

@@ -139,6 +139,26 @@ function declareBuiltins() {
 	])
 	addSymbol('any', state.any)
 
+	const platform = process.platform
+	const platforms = [
+		{ name: 'windows', key: 'win32' },
+		{ name: 'linux', key: 'linux' },
+	]
+	for (let os of platforms) {
+		const varName = `on_${os.name}`
+		// NOTE: platform determined by node.js runtime
+		// cross-compiling not supported yet
+		const on_platform = MARK(['const'])(declareVar(varName, bool(platform == os.key)))
+		addSymbol(varName, on_platform)
+	}
+
+	const assertParamMessage = param('message', typeMap.string)
+	addSymbol('assert', fn('assert', [
+		MARK(['callerspan', [ref(assertParamMessage)]])(param('expr', typeMap.bool)),
+		assertParamMessage,
+		MARK(['callsite'])(param('callsite', typeMap.string))
+	], typeMap.void))
+
 	const tagsToSkip = new Set([tag_array, tag_struct, tag_pointer, tag_buffer, tag_error])
 	// add type infos
 	for (let [name, type] of Object.entries(typeMap)) {
@@ -154,7 +174,7 @@ function declareBuiltins() {
 
 		const t = ctor(typeInfo, ...args)
 		const infoName = typeInfoLabel(type)
-		const decl = MARK('const',)(declareVar(infoName, t))
+		const decl = MARK(['const'])(declareVar(infoName, t))
 		addSymbol(infoName, decl)
 		// NOTE: as of right now we need the actual declaration for it to be emitted
 		// TODO: perhaps just read the symbol table instead..
@@ -282,7 +302,7 @@ function typeInfoFor(type) {
 				// TODO: rewrite this so it stores pointer to reference of type
 				// (currently it just stored the declarevar directly)
 
-				const type = typeInfoFor(field.type)//findSymbol(typeInfoLabel(field.type), globalScope, false)
+				const type = typeInfoFor(field.type)
 				if (!type) console.log(typeInfoLabel(field.type))
 				assert(type)
 
@@ -291,12 +311,6 @@ function typeInfoFor(type) {
 					num(field.offset, typeMap.int),
 					type
 				)
-
-				// const decl = MARK('const',)(declareVar(fieldName, f))
-				// addSymbol(fieldName, decl)
-				// NOTE: as of right now we need the actual declaration for it to be emitted
-				// TODO: perhaps just read the symbol table instead..
-				// ast.push(decl)
 
 				return f
 			}
@@ -345,8 +359,10 @@ function findSymbol(name, scope = null, recurse = true) {
 	if (symbol) return symbol;
 	for (let u of scope.used) {
 		if (u.name == name) return u
-		if (u.scope && recurse) {
-			symbol = findSymbol(name, u.scope, false)
+
+		const scope = u.scope
+		if (scope && recurse) {
+			symbol = findSymbol(name, scope, false)
 			if (symbol) return symbol
 		}
 	}
@@ -1069,9 +1085,11 @@ function bind(files) {
 				return it
 			}
 			case 'if': {
-				pushScope()
+				const thenScope = pushScope()
 				const cond = bindExpression(node.condition)
 				const then = node.thenBlock ? bindDeclaration(node.thenBlock) : null
+				assert(!then.scope)
+				then.scope = thenScope
 				popScope()
 
 				let els = null
@@ -1080,9 +1098,11 @@ function bind(files) {
 						// the if statement will create a new scope, we don't want to double up!
 						els = bindDeclaration(node.elseBlock)
 					} else {
-						pushScope()
+						const elseScope = pushScope()
 						els = bindDeclaration(node.elseBlock)
+						assert(!els.scope)
 						popScope()
+						els.scope = elseScope
 					}
 				}
 
@@ -1685,6 +1705,8 @@ function bind(files) {
 				}
 
 				const def = bindExpression(node.name, inScope)
+
+				if (isError(def)) return errorNode({ span: node.span })
 
 				const isStruct = def.symbol.kind == 'struct'
 				const isEnumCtor = def.symbol.kind == 'enum entry'

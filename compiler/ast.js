@@ -133,7 +133,12 @@ function B(node) {
 }
 
 const nop = () => B({ kind: 'nop' })
-const MARK = (...tags) => node => ({ ...node, tags: new Set(tags) })
+const MARK = (...tags) => node => {
+	// make value an empty array if not provided
+	tags = tags.map(([k, v]) => [k, v ?? []])
+	const it = { ...node, tags: new Map(tags) }
+	return it
+}
 const fn = (name, params, returnType, instructions, type) => B({
 	kind: 'function',
 	name,
@@ -222,7 +227,7 @@ const unary = (op, expr, type) => B({ kind: 'unary', op, expr, type })
 const ret = expr => B({ kind: 'return', expr })
 const goto = (label, condition) => B({ kind: 'goto', condition, label })
 const label = (name) => B({ kind: 'label', name })
-const bool = (value, type) => B({ kind: 'booleanLiteral', value, type })
+const bool = (value, type) => B({ kind: 'booleanLiteral', value, type: type ?? typeMap.bool })
 const num = (n, type) => {
 	if (!type) throw 'num needs type'
 	return B({ kind: 'numberLiteral', n, type })
