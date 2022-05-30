@@ -1,30 +1,22 @@
-import "./sys"
+import "./platform"
 
 module standard
 
-proc exit(code:int)
-{
-	sys.exit(code)
-}
+// TODO: some forwarding mechanism
+const stdin:int = platform.stdin
+const stdout:int = platform.stdout
+const stderr:int = platform.stderr
 
-proc sleep(seconds:f64) {
-	assert(seconds >= 0)
-	const nanoseconds_in_second:f64 = 10_0000_0000
-	var full_seconds = seconds:int
-	var full_nanos = (nanoseconds_in_second * (seconds - full_seconds:f64)):s64
+proc exit(code:int) { platform.exit(code) }
+proc write(msg:string) { platform.write(msg) }
+proc read(buffer:![]char) -> string { return platform.read(buffer) }
+proc random() -> uint { return platform.random() }
+proc sleep(seconds:f64) { return platform.sleep(seconds) }
 
-	var t = sys.timespec(full_seconds, full_nanos)
-	sys.nanosleep(~>t, null)
-}
-
-proc write(msg:string)
-{
-	sys.write(sys.stdout, msg, msg.length)
-}
 
 proc write_char(c:char)
 {
-	sys.write(sys.stdout, ~>c, 1)
+	write(string(~>c,1))
 }
 
 proc write_number(number:int)
@@ -79,7 +71,7 @@ proc strlen(str:cstring) -> int
 }
 
 proc write_cstring(str:cstring) {
-	sys.write(sys.stdout, str, strlen(str))
+	write(string(str, strlen(str)))
 }
 
 proc assert(
@@ -123,42 +115,34 @@ proc TODO(callsite:string #callsite)
 	exit(1)
 }
 
-// reads into the input buffer from stdin
-// returns a string containing the input
-proc read(buffer:![]char) -> string
-{
-	var len = sys.read(sys.stdin, buffer, buffer.length)
-	return string(buffer, len)
-}
+// TODO: bring back file IO
+// proc write_file_text_base(filename:cstring, content:string, flags:int, mode: sys.mode_t) #private
+// {
+// 	var fd = sys.open(filename, flags, mode)
+// 	assert(fd>=0)
 
+// 	sys.write(fd,content,content.length)
 
-proc write_file_text_base(filename:cstring, content:string, flags:int, mode: sys.mode_t) #private
-{
-	var fd = sys.open(filename, flags, mode)
-	assert(fd>=0)
+// 	var error = sys.close(fd)
+// 	assert(error == 0)
+// }
 
-	sys.write(fd,content,content.length)
+// proc write_all_text(filename:cstring, content:string)
+// {
+// 	const flags = sys.O_CREAT|sys.O_WRONLY
+// 	const mode = sys.S_IRUSR|sys.S_IWUSR
 
-	var error = sys.close(fd)
-	assert(error == 0)
-}
+// 	sys.unlink(filename)
+// 	write_file_text_base(filename, content, flags, mode)
+// }
 
-proc write_all_text(filename:cstring, content:string)
-{
-	const flags = sys.O_CREAT|sys.O_WRONLY
-	const mode = sys.S_IRUSR|sys.S_IWUSR
+// proc append_text(filename:cstring, content:string)
+// {
+// 	const flags = sys.O_CREAT|sys.O_WRONLY|sys.O_APPEND
+// 	const mode = sys.S_IRUSR|sys.S_IWUSR
 
-	sys.unlink(filename)
-	write_file_text_base(filename, content, flags, mode)
-}
-
-proc append_text(filename:cstring, content:string)
-{
-	const flags = sys.O_CREAT|sys.O_WRONLY|sys.O_APPEND
-	const mode = sys.S_IRUSR|sys.S_IWUSR
-
-	write_file_text_base(filename, content, flags, mode)
-}
+// 	write_file_text_base(filename, content, flags, mode)
+// }
 
 proc strequal(a:string,b:string) {
 	if a.length != b.length {
@@ -552,16 +536,10 @@ proc parse_int(s:string) -> int {
 	return num
 }
 
-proc random_range(from:int,to:int) -> int
-{
-	var value:int #noinit
-	// TODO: pass proper flag?
-	sys.getrandom(~>value,sizeof(int),0)
-
-	// TODO: make unsigned int work and remove this
-	if value < 0 { value = -value }
-
-	return (value % (to-from)) + from
+proc random_range(from:int,to:int) -> int {
+	var rand = random()
+	var range = to-from
+	return rand % range + from
 }
 
 module tui {

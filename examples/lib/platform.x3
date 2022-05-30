@@ -1,0 +1,14 @@
+/*
+platform is the low level "libc-esque" library
+it implements the bare minimum to write useful software
+each operating system defines its own platform library
+
+the goal of platform is to provide a *cross platform* base
+so we can build higher level libraries on top of it
+*/
+@if on_windows {
+	import "./windows/platform.x3"
+} else {
+	@assert(on_linux)
+	import "./linux/platform.x3"
+}

@@ -34,11 +34,6 @@ proc fcntl(fd:int,cmd:int, arg:u64) -> int                   #syscall(0x048)
 proc unlink(path:cstring)                                    #syscall(0x057)
 proc getrandom(buf:~>!void,buflen:size_t,flags:uint) -> ssize_t  #syscall(0x13e)
 
-// IO file descriptors
-const stdin:int = 0
-const stdout:int = 1
-const stderr:int = 2
-
 // fcntl options
 const F_GETFL = 3
 const F_SETFL = 4

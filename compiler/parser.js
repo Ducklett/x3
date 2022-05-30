@@ -14,7 +14,6 @@ function parse(source) {
 	return statements
 
 	function _parse(tokens) {
-		let isTopLevel = true
 		const filesToImport = new Set()
 		// let lastSymbol = null
 		tokens = tokens.filter((t) => t.kind !== 'whitespace' && t.kind !== 'comment')
@@ -368,7 +367,6 @@ function parse(source) {
 		function parseDeclaration(takeTerminator = true) {
 			const it = current()
 			const cur = current().value
-			if (cur != 'import') isTopLevel = false
 
 			// find assignment before we parse all the other declarations
 			// this allows us to assign variables with keyword names *without* escaping them 
@@ -432,7 +430,6 @@ function parse(source) {
 					return { kind: 'pragma', keyword, option, name, span }
 				}
 				case 'import': {
-					assert(isTopLevel, `imports should only be at top level`)
 					const keyword = take('symbol', 'import')
 					const path = parseStringLiteral()
 					filesToImport.add(path)

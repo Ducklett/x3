@@ -704,7 +704,8 @@ function lower(ast) {
 			case 'declareVar': {
 				const toReturn = []
 
-				const isTopLevel = !node.scope || node.scope.kind == 'file' || node.scope.kind == 'global'
+				assert(node.scope)
+				const isTopLevel = node.scope.kind == 'file' || node.scope.kind == 'global'
 				const isConst = node.tags.has('const')
 
 				node.name = mangleName(node)

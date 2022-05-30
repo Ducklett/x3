@@ -206,7 +206,19 @@ const call = (def, ...args) => B({ kind: 'call', def, args })
 const ctor = (def, ...args) => B({ kind: 'ctorcall', def, type: def, args })
 const syscall = (code, ...args) => B({ kind: 'syscall', code, args })
 const param = (name, type) => B({ kind: 'parameter', name, type })
-const declareVar = (name, expr) => B({ kind: 'declareVar', name, expr, type: expr.type })
+
+const declareVar = (name, expr, scope) => {
+	// HACK: add a fake scope so the expression gets lowered into a separate declaration
+	if (!scope) scope = { kind: 'fake' }
+	return B({
+		kind: 'declareVar',
+		name,
+		expr,
+		type: expr.type,
+		scope
+	})
+}
+
 const assignVar = (varDec, expr) => B({ kind: 'assignVar', varDec, expr })
 const ref = symbol => B({ kind: 'reference', symbol, type: symbol.type })
 const readProp = (left, prop) => B({ kind: 'readProp', left, prop, type: prop.type })

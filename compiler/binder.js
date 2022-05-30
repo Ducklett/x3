@@ -335,7 +335,7 @@ function typeInfoFor(type) {
 		const t = ctor(typeInfo, ...args)
 		// already declared above
 		// const infoName = typeInfoLabel(type)
-		const decl = MARK('const',)(declareVar(infoName, t))
+		const decl = MARK(['const'])(declareVar(infoName, t))
 		addSymbol(infoName, decl)
 		// NOTE: as of right now we need the actual declaration for it to be emitted
 		// TODO: perhaps just read the symbol table instead..
