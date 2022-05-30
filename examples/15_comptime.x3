@@ -17,7 +17,6 @@ pragma lib "kernel32"
 const stdoutQuery = -11
 var stdout = 0
 } else { @assert(on_linux)
-
 proc sysWrite(fd:int,buf:~>void,count:uint) -> int #syscall(0x001)
 proc sysExit(code:int)                             #syscall(0x03c)
 
@@ -26,6 +25,9 @@ const stdout = 1
 
 proc print(msg:string) {
 	@if on_windows {
+		// HACK: function calls need to be 16-byte aligned
+		// manually fix the alignment for now
+		var alignment:[3]int #noinit
 		WriteFile(stdout,msg,msg.length,null,null)
 	} else { @assert(on_linux)
 		sysWrite(stdout,msg,msg.length)
@@ -40,13 +42,12 @@ proc exit(code:int) {
 	}
 }
 
-const msg = "Hello cross platform!\n"
-
 proc start #entrypoint {
 	@if on_windows {
 		stdout = GetStdHandle(stdoutQuery)
 	}
 
+	const msg = "Hello cross platform!\n"
 	print(msg)
 	exit(0)
 }

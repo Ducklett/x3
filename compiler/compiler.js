@@ -94,7 +94,7 @@ function compile(filename) {
 	const objs = options.includeObjs.join(' ')
 	const libPaths = options.includeLibPaths.map(l => `-L${l}`).join(' ')
 	const libs = options.includeLibs.map(l => `-l${l}`).join(' ')
-	const linkerCommand = `ld ${libPaths} ${libs} ${objs} -o ${outExecutable}`
+	const linkerCommand = `ld -e _start ${libPaths} ${libs} ${objs} -o ${outExecutable}`
 	// console.log(inspect(ast, { depth: 2 }))
 	// exec(`mkdir -p out`)
 	exec(`nasm -f elf64 out/out.asm -o ${outObj}`)
