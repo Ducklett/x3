@@ -1,12 +1,9 @@
-const path = require("path")
 const { assert, read, spanFromRange } = require('./util')
 const { lex, preUnaryOperators, postUnaryOperators, binaryOperators, assignmentOperators } = require('./lexer')
 const { error, reportError } = require("./errors")
 
-const fileMap = new Map()
 
 function parse(source) {
-	fileMap.set(source.path, source.code)
 	const code = source.code
 
 	const tokens = lex(code, source.path)
@@ -14,31 +11,13 @@ function parse(source) {
 	return statements
 
 	function _parse(tokens) {
-		const filesToImport = new Set()
 		// let lastSymbol = null
 		tokens = tokens.filter((t) => t.kind !== 'whitespace' && t.kind !== 'comment')
 		let tokenIndex = 0
 
 		let contents = parseFile()
-		const files = [contents]
-		for (let filePath of filesToImport) {
-			const goesBack = filePath.value.startsWith('../')
-			assert(filePath.value.startsWith('./') || goesBack, `import file path always starts with ./ or ../`)
-			let p = goesBack ? filePath.value : filePath.value.slice(2)
-			if (!p.endsWith('.x3')) p += '.x3'
-
-			const sourcePath = path.join(path.parse(source.path).dir, p)
-			if (fileMap.has(sourcePath)) {
-				console.log('NOTE: file already imported! skipping')
-				continue
-			}
-			const importedSource = { path: sourcePath, code: read(sourcePath) }
-			const parsedSource = parse(importedSource, fileMap)
-			for (const file of parsedSource) {
-				files.push(file)
-			}
-		}
-		return files
+		source.syntax = contents
+		return source
 
 		function peek(n) { return tokens[tokenIndex + n] }
 		function current() {
@@ -432,7 +411,6 @@ function parse(source) {
 				case 'import': {
 					const keyword = take('symbol', 'import')
 					const path = parseStringLiteral()
-					filesToImport.add(path)
 					return { kind: 'import', keyword, path }
 				}
 				case 'use': {
@@ -855,4 +833,4 @@ function parse(source) {
 	}
 }
 
-module.exports = { parse, fileMap }
+module.exports = { parse }

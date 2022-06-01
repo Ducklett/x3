@@ -1,9 +1,10 @@
 const { typeMap, cloneType, typeInfoLabel, declareVar, num, binary, ref, readProp, unary, label, goto, assignVar, indexedAccess, nop, call, ctor, struct, param, fn, str, MARK, union, bool, roundToIncrement, tag_void, tag_pointer, tag_int, tag_float, tag_string, tag_array, tag_char, tag_bool, tag_function, tag_struct, tag_enum, alignStructFields, alignUnionFields, tag_error, tag_buffer } = require('./ast')
-const { assert, spanFromRange } = require('./util')
-const { fileMap } = require('./parser')
-const { reportError, error, errorKindForIndex, upgradeError } = require('./errors')
+const { assert, spanFromRange, read } = require('./util')
+const { parse } = require('./parser')
+const { reportError, error, errorKindForIndex, upgradeError, hasErrors, displayErrors } = require('./errors')
 const { includeObjInCompilation, includeLibInCompilation } = require('./compiler')
 const { evaluate, evaluateRaw } = require('./evaluator')
+const path = require('path')
 
 const errorNode = (node = {}, error = null) => ({ ...node, kind: 'error', error, type: cloneType(typeMap.error) })
 
@@ -572,12 +573,15 @@ function coerceType(type, it) {
 }
 function bind(files) {
 
+	const fileMap = new Map()
+
 	/*
 	our compiler binds declarations in passes:
-	- pass 0 binds types, structs, globals, function signatures etc.
-	- pass 1 binds using statements, function bodies etc.
+	- pass 0 binds imports (including imports in @if blocks)
+	- pass 1 binds types, structs, globals, function signatures etc.
+	- pass 2 binds using statements, function bodies etc.
 
-	we do this because if we try to bind a using statement in pass 0 the module may not exist yet
+	we do this because if we try to bind a using statement in pass 1 the module may not exist yet
 	this isn't perfect since functions may still refer to custom types in their signature;
 	in this case the struct should be declared *before* the function
 
@@ -598,18 +602,84 @@ function bind(files) {
 	 *            pass 0             *
 	 *********************************/
 
+	for (let file of files) {
+		fileMap.set(file.path, file.code)
+
+		for (let decl of file.syntax.declarations) {
+			// use statements are allowed in between imports
+			// this lets us write stuff like import "foo" use foo
+			if (decl.kind == 'use') continue
+			if (decl.kind == 'comptime' && decl.run.kind == 'if') {
+				console.log(decl.run)
+				assert(false)
+			}
+			if (decl.kind != 'import') {
+				// no more imports allowed beyond this point
+				break
+			}
+
+			const filePath = decl.path.value
+			// filesToImport.add()
+			const goesBack = filePath.startsWith('../')
+			assert(filePath.startsWith('./') || goesBack, `import file path always starts with ./ or ../`)
+			let p = goesBack ? filePath : filePath.slice(2)
+			if (!p.endsWith('.x3')) p += '.x3'
+
+			const sourcePath = path.join(path.parse(file.path).dir, p)
+			if (fileMap.has(sourcePath)) {
+				console.log('NOTE: file already imported! skipping')
+				continue
+			}
+			console.log('importing ' + sourcePath)
+			const importedSource = { path: sourcePath, code: read(sourcePath) }
+			const parsedSource = parse(importedSource, fileMap)
+			files.push(parsedSource)
+		}
+	}
+
+	// const files = [contents]
+	// for (let filePath of filesToImport) {
+	// 	const goesBack = filePath.value.startsWith('../')
+	// 	assert(filePath.value.startsWith('./') || goesBack, `import file path always starts with ./ or ../`)
+	// 	let p = goesBack ? filePath.value : filePath.value.slice(2)
+	// 	if (!p.endsWith('.x3')) p += '.x3'
+
+	// 	const sourcePath = path.join(path.parse(source.path).dir, p)
+	// 	if (fileMap.has(sourcePath)) {
+	// 		console.log('NOTE: file already imported! skipping')
+	// 		continue
+	// 	}
+	// 	const importedSource = { path: sourcePath, code: read(sourcePath) }
+	// 	const parsedSource = parse(importedSource, fileMap)
+	// 	for (const file of parsedSource) {
+	// 		files.push(file)
+	// 	}
+	// }
+	// return files
+
+	// at this point all the files are loaded, so we check for parser errors
+	if (hasErrors()) displayErrors()
+
+
+	/*********************************
+	 *            pass 1             *
+	 *********************************/
+
+	pass = 1
+
 	// TODO: proper order-independent lookups
 	// pretty sure reverse is still a good idea for performance (becaue imports don't rely on main, but main relies on imports)
-	for (let root of [...files].reverse()) {
+	for (let file of [...files].reverse()) {
+		const root = file.syntax
 		assert(root.kind == 'file')
 		// bind declarations in file
 		bindFile(root)
 	}
 
 	/*********************************
-	 *            pass 1             *
+	 *            pass 2             *
 	 *********************************/
-	pass = 1
+	pass = 2
 
 	for (let [scope, node, it] of usings) {
 		pushScope(scope)
@@ -689,7 +759,7 @@ function bind(files) {
 			case 'use': {
 				assert(node.path.kind == 'symbol')
 
-				if (pass == 0) {
+				if (pass == 1) {
 					// modules may not yet be bound, delay binding
 					const it = { kind: 'use' }
 					usings.push([currentScope(), node, it])
@@ -2214,7 +2284,7 @@ function bind(files) {
 			addSymbol(it.name, it)
 			return [p, it]
 		}).map(([p, it]) => {
-			// tags may reference other parameters, so we bind them in a second pass
+			// tags may reference other parameters, so we bind them in a pass 2
 			for (let n of p.tags) {
 				it.tags.set(...bindTag(n))
 			}

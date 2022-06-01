@@ -70,10 +70,9 @@ function compile(filename) {
 		}
 	}
 	const file = ({ path: filename, code: read(filename) })
-	const syntaxTree = parse(file)
-	if (hasErrors()) displayErrors()
+	const syntax = parse(file)
 
-	const ast = bind(syntaxTree)
+	const ast = bind([syntax])
 	if (hasErrors()) displayErrors()
 
 	if (getFlag('noemit')) return
