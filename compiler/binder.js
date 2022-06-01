@@ -763,12 +763,16 @@ function bind(files) {
 					it.expr = coerceType(it.type, it.expr)
 				}
 
-				const isSizedArray = it.type.tag == tag_array && it.type.count
+				const isBuffer = it.type.tag == tag_buffer
 				const noInit = it.tags.has('noinit')
-				if (noInit && node.expr) {
+				const lateInit = it.tags.has('lateinit')
+				if (lateInit && node.expr) {
+					const err = reportError(error.lateInitOnVariableWithInitializer(node))
+					return errorNode(it, err)
+				} else if (noInit && node.expr) {
 					const err = reportError(error.noInitOnVariableWithInitializer(node))
 					return errorNode(it, err)
-				} else if (!noInit && !node.expr && !isSizedArray) {
+				} else if (!lateInit && !noInit && !node.expr && !isBuffer) {
 					const err = reportError(error.variableWithoutInitializer(node))
 					return errorNode(it, err)
 				}
@@ -1845,6 +1849,9 @@ function bind(files) {
 						it.type = ptr
 						return it
 					} else {
+
+						const isConstructor = def.symbol.tags.has('constructor')
+
 						const it = {
 							kind: 'call',
 							def,
@@ -1854,6 +1861,11 @@ function bind(files) {
 						}
 
 						it.args = validateArguments(it.args, params, callsite(node.name.span))
+
+						if (isConstructor) {
+							reportError(error.manualConstructorCall(it))
+							return errorNode(it)
+						}
 
 						return it
 					}

@@ -445,13 +445,14 @@ function parse(source) {
 					const keyword = take('symbol', 'module')
 					const name = take('symbol')
 					let block
+					const tags = parseTags()
 					if (is('operator', '{')) {
 						block = parseBlock('module')
 					} else {
 						// don't parse brackets; take every remaining declaraction in the file >:)
 						block = parseBlock('module', { withBrackets: false })
 					}
-					return { kind: 'module', keyword, name, block }
+					return { kind: 'module', keyword, name, tags, block }
 				}
 				case 'type': {
 					const keyword = take('symbol', 'type')

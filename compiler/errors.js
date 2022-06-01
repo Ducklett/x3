@@ -12,6 +12,8 @@ const error = {
 	symbolNotFound(token) { return { err: 'symbolNotFound', token } },
 	symbolForAssignmentNotFound(node) { return { err: 'symbolForAssignmentNotFound', node } },
 	noInitOnVariableWithInitializer(node) { return { err: 'noInitOnVariableWithInitializer', node } },
+	lateInitOnVariableWithInitializer(node) { return { err: 'lateInitOnVariableWithInitializer', node } },
+	manualConstructorCall(node) { return { err: 'manualConstructorCall', node } },
 	variableWithoutInitializer(node) { return { err: 'variableWithoutInitializer', node } },
 	typeMismatch(type, node) { return { err: 'typeMismatch', type, node } },
 	typeDispute(lhs, rhs, span, unescapedName = null) { return { err: 'typeDispute', lhs, rhs, span, unescapedName } },
@@ -167,6 +169,14 @@ function renderError(error, boring) {
 			reason(`'${chalk.red(error.node.name.value)}' is marked as ${chalk.yellow('#noinit')} but it has an initializer.`)
 			help(`either remove the ${chalk.yellow('#noinit')} tag or remove the inititalizer`)
 			break
+		case 'lateInitOnVariableWithInitializer':
+			reason(`'${chalk.red(error.node.name.value)}' is marked as ${chalk.yellow('#lateinit')} but it has an initializer.`)
+			help(`either remove the ${chalk.yellow('#lateinit')} tag or remove the inititalizer`)
+			break
+		case 'manualConstructorCall':
+			reason(`tried to call '${chalk.blue(error.node.def.symbol.name)}' but it is marked as ${chalk.yellow('#constructor')}.`)
+			help(`constructors are procedures that automatically get called before ${chalk.blue('main')}, they should not be called manually.`)
+			break
 		case 'variableWithoutInitializer':
 			reason(`'${chalk.red(error.node.name.value)}' is not initialized`)
 			help(`either initialize it or add the ${chalk.yellow('#noinit')} tag`)
@@ -206,9 +216,11 @@ function formatType(t) {
 		case 'u16': case 'i16':
 		case 'u8': case 'i8':
 		case 'uint': case 'int':
+		case 'f64': case 'f32':
 			return chalk.red(t.type)
 		case 'buffer': return `[${chalk.yellow(t.count)}]${formatType(t.of)}`
 		case 'array': return `[]${formatType(t.of)}`
+		case 'pointer': return `${chalk.cyan('~>')}${formatType(t.to)}`
 		default: throw `unhandled ${t.type}`
 	}
 }

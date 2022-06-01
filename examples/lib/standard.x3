@@ -2,10 +2,10 @@ import "./platform"
 
 module standard
 
-// TODO: some forwarding mechanism
-const stdin:int = platform.stdin
-const stdout:int = platform.stdout
-const stderr:int = platform.stderr
+// TODO: some forwarding mechanism so we can access all of 'platform' from the standard module
+// const stdin:int = platform.stdin
+// const stdout:int = platform.stdout
+// const stderr:int = platform.stderr
 
 proc exit(code:int) { platform.exit(code) }
 proc write(msg:string) { platform.write(msg) }

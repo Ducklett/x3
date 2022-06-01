@@ -9,8 +9,8 @@ proc main {
 // we can't control that yet.
 // for now the `make snake` is used to start the game
 proc play_snake {
-	var termState = sys.fcntl(stdin, sys.F_GETFL,0)
-	sys.fcntl(stdin, sys.F_SETFL, termState | sys.O_NONBLOCK)
+	var termState = sys.fcntl(platform.stdin, sys.F_GETFL,0)
+	sys.fcntl(platform.stdin, sys.F_SETFL, termState | sys.O_NONBLOCK)
 
 	const board_size = 16
 	const board_area = board_size * board_size
@@ -113,6 +113,6 @@ proc play_snake {
 	sleep(1)
 	read(key)
 
-	sys.fcntl(stdin, sys.F_SETFL, termState)
+	sys.fcntl(platform.stdin, sys.F_SETFL, termState)
 
 }

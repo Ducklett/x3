@@ -1,0 +1,64 @@
+module platform
+
+pragma lib "kernel32"
+
+module kernel #private {
+#extern {
+	proc GetStdHandle(query:int) -> int
+	proc WriteFile(
+		fd:int,
+		content:~>void,
+		size:int,
+		bytesWritten:~>uint,
+		overlapped:~>void
+	) -> bool
+	proc ReadFile(
+		fd:int,
+		buffer:~>void,
+		size:u32,
+		bytesRead:~>u32,
+		overlapped:~>void,
+	) -> bool
+	proc ExitProcess(code:uint)
+	proc Sleep(ms:u32);
+}
+} 
+
+const stdinQuery  = -10
+const stdoutQuery = -11
+const stderrQuery = -12
+
+proc initializeStdHandles #constructor {
+	stdin  = kernel.GetStdHandle(stdinQuery)
+	stdout = kernel.GetStdHandle(stdoutQuery)
+	stderr = kernel.GetStdHandle(stderrQuery)
+}
+
+var stdin :int #lateinit
+var stdout:int #lateinit
+var stderr:int #lateinit
+
+proc exit(code:int) {
+	kernel.ExitProcess(0)
+}
+
+proc write(msg:string) {
+	kernel.WriteFile(stdout,msg,msg.length,null,null)
+}
+
+proc read(buffer:![]char) -> string {
+	var len:u32 = 0
+	kernel.ReadFile(stdin, buffer, buffer.length:u32,~>len,null)
+	return string(buffer, len:int)
+}
+
+proc random() -> uint {
+	// TODO: implement it
+	return 0
+}
+
+proc sleep(seconds:f64) {
+	var ms = (seconds/1000):u32
+	// FIXME: kernel.sleep (lowercase) finds platform.sleep function, it should find function in the kernel module.
+	kernel.Sleep(ms)
+}

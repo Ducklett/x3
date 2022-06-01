@@ -7,8 +7,9 @@ the goal of platform is to provide a *cross platform* base
 so we can build higher level libraries on top of it
 */
 @if on_windows {
-	import "./windows/platform.x3"
+	// import "./windows/platform.x3"
 } else {
 	@assert(on_linux)
+	// FIXME: don't import until the @if block is matched
 	import "./linux/platform.x3"
 }

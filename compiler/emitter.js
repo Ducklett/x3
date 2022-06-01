@@ -25,6 +25,7 @@ const api = {
 		const datalut = new Map()
 		// label => data lookup
 		const data = new Map()
+		const constructors = []
 
 		const label = (content = null) => {
 			if (!global.labelIndex) global.labelIndex = 0
@@ -60,21 +61,27 @@ const api = {
 		}
 
 		assert(hasEntrypoint, 'the program defines a main function')
+		const constructorCalls = constructors.map(name => `call _${name}`).join('\n')
+		const exitCall = platform == 'linux' ?
+			`; call exit(0)
+mov rax, 0x3c
+mov rdi, 0
+syscall`:
+			`; call exit(0)
+xor rcx,rcx
+call ExitProcess`
+
 		const x3rt0 = `
 ; x3rt0
 _start:
 xor rbp, rbp
-
+${constructorCalls}
 ; call main(args: []cstring)
 lea rax, [rsp+8]    ; load argv first, because push will move rsp
 push qword [rsp]    ; argc
 push rax            ; argv
 call _main
-
-; call exit(0)
-mov rax, 0x3c
-mov rdi, 0
-syscall`
+${exitCall}`
 
 		const source = `${externs.map(name => `extern ${name}`).join('\n')}
 section .text
@@ -285,22 +292,34 @@ ${[...data.keys()]
 		function emitTop(node) {
 			switch (node.kind) {
 				case 'declareVar': {
-					if (!node.expr) {
-						console.log(node)
+					const lateInit = node.tags.has('lateinit')
+					if (!lateInit) {
+						assert(node.expr)
+						const data = emitStatic(node.expr)
+
+						// create a label for this data
+						// then we can do [l] for the data or l for the pointer
+
+						const l = label(data)
+						globals.set(node, l)
+
+						assert(node.expr, 'top level variable is intialized')
+					} else {
+						assert(node.type.tag == tag_int)
+						const data = []
+						data.push(0)
+						const l = label(data)
+						globals.set(node, l)
 					}
-					assert(node.expr, 'top level variable is intialized')
-					const data = emitStatic(node.expr)
-
-					// create a label for this data
-					// then we can do [l] for the data or l for the pointer
-
-					const l = label(data)
-					globals.set(node, l)
 
 					return
 				}
 				case 'function': {
 					const isExtern = node.tags.has('syscall') || node.tags.has('extern')
+					const isConstructor = node.tags.has('constructor')
+					if (isConstructor) {
+						constructors.push(node.name)
+					}
 					if (isExtern) return
 
 					assert(node.instructions, `functions have a body`)
@@ -1299,6 +1318,26 @@ ${[...data.keys()]
 							case 'int': break /* do nothing, just like c... */
 							default: throw node.expr.type
 						} break
+						case 'u32': switch (node.expr.type.type) {
+							case 'int': break /* do nothing, just like c... */
+							case 'f64': {
+								// pop into xmm0
+								lines.push(`pop rax`)
+								lines.push(`movq xmm0, rax`)
+
+								lines.push(`cvttsd2si eax, xmm0 ; cast f64 -> u32`)
+								lines.push(`push qword rax`)
+							} break
+							default: throw node.expr.type
+						} break
+						case 'u8': switch (node.expr.type.type) {
+							case 'void': {
+								// lines.push(`pop rax`)
+								// lines.push(`movzx rax, al`)
+								// lines.push(`push rax`)
+							} break
+							default: throw node.expr.type
+						} break
 						case 's64':
 						case 'int': switch (node.expr.type.type) {
 							case 'f64': {
@@ -1340,14 +1379,6 @@ ${[...data.keys()]
 						// 	} break
 						// 	default: throw node.expr.type
 						// } break
-						case 'u8': switch (node.expr.type.type) {
-							case 'void': {
-								// lines.push(`pop rax`)
-								// lines.push(`movzx rax, al`)
-								// lines.push(`push rax`)
-							} break
-							default: throw node.expr.type
-						} break
 						default: throw node.type
 					}
 
