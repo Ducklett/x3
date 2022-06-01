@@ -25,9 +25,6 @@ const stdout = 1
 
 proc print(msg:string) {
 	@if on_windows {
-		// HACK: function calls need to be 16-byte aligned
-		// manually fix the alignment for now
-		var alignment:[3]int #noinit
 		WriteFile(stdout,msg,msg.length,null,null)
 	} else { @assert(on_linux)
 		sysWrite(stdout,msg,msg.length)

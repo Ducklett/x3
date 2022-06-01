@@ -593,22 +593,28 @@ ${[...data.keys()]
 						if (platform == 'win32') {
 							// win64 fastcall
 							const registers = ['rcx', 'rdx', 'r8', 'r9']
+							const shadowSpace = 32
+							const registerArgs = Math.min(args.length, registers.length)
+							const stackArgs = Math.max(0, args.length - registers.length)
 
 							assert(returnSize <= 8)
 
-							let i = 0
-							for (let arg of args) {
+							for (let i = 0; i < registerArgs; i++) {
+								const arg = args[i]
 								assert(arg.type.size <= 8)
 								emitExpr(arg)
-								if (i < registers.length) {
-									lines.push(`pop ${registers[i]}`)
-								} else {
-									// normally we would need to push it onto the stack
-									// but it already is
-									// so do nothing ¯\_(ツ)_/¯
-								}
-								i++
+								lines.push(`pop ${registers[i]}`)
 							}
+
+							for (let i = 0; i < stackArgs; i++) {
+								const arg = args[registerArgs + i]
+								assert(arg.type.size <= 8)
+								// pushed it onto the stack; do nothing else to it
+								emitExpr(arg)
+							}
+
+							// shadow space
+							lines.push(`sub rsp, ${shadowSpace}`)
 
 							assert(!isLambda)
 							lines.push(`call ${node.def.symbol.name}`)
