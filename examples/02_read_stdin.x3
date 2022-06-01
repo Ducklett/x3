@@ -1,26 +1,9 @@
-import "./lib/sys" use sys
+import "./lib/standard" use standard
 
 proc main {
-	// var name:[40]char
-	var name = "                "
-	var len:int
+	var nameBuffer:[40]char
 
-	do prompt_user_for_name {
-		const msg = "What's your name?\n"
-		write(stdout, msg, msg.length)
-	}
-
-	// TODO: maybe indicate that len is mutated
-	// that way we know it should be passed by reference when refactored into a proc
-	do read_name(name:string,len:int) {
-		len = read(stdin, name, name.length) - 1
-	}
-
-	do greet_user(name:string,len:int) {
-		const greet = "hello "
-		const end = "!\n"
-		write(stdout, greet, greet.length)
-		write(stdout, name, len)
-		write(stdout, end, end.length)
-	}
+	write("What's your name?\n")
+	var name = read(nameBuffer)
+	printf("Hello %!\n", name)
 }

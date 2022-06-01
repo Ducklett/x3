@@ -49,6 +49,8 @@ proc write(msg:string) {
 proc read(buffer:![]char) -> string {
 	var len:u32 = 0
 	kernel.ReadFile(stdin, buffer, buffer.length:u32,~>len,null)
+	// remove \r\n
+	len -= 2
 	return string(buffer, len:int)
 }
 

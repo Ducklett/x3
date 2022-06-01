@@ -15,7 +15,8 @@ proc write(msg:string) {
 }
 
 proc read(buffer:![]char) -> string {
-	var len = sys.read(stdin, buffer, buffer.length)
+	//                                              remove \n
+	var len = sys.read(stdin, buffer, buffer.length) - 1
 	return string(buffer, len)
 }
 

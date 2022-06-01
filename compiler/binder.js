@@ -605,13 +605,28 @@ function bind(files) {
 	for (let file of files) {
 		fileMap.set(file.path, file.code)
 
-		for (let decl of file.syntax.declarations) {
+		const declarations = [...file.syntax.declarations]
+		for (let decl of declarations) {
 			// use statements are allowed in between imports
 			// this lets us write stuff like import "foo" use foo
 			if (decl.kind == 'use') continue
-			if (decl.kind == 'comptime' && decl.run.kind == 'if') {
-				console.log(decl.run)
-				assert(false)
+			if (decl.kind == 'comptime') {
+				// allow compile-time constants before import, these will be statements like @assert(someConstant)
+				if (decl.run.kind != 'if') continue
+
+				const condition = bindExpression(decl.run.condition)
+				assert(!isError(condition))
+				const result = evaluateRaw(condition)
+				const blockToBind = result ? decl.run.thenBlock : decl.run.elseBlock
+				if (blockToBind) {
+					// TODO: handle else if
+					assert(blockToBind.kind == 'block')
+					for (let blockDecl of blockToBind.statements) {
+						declarations.push(blockDecl)
+					}
+				}
+
+				continue
 			}
 			if (decl.kind != 'import') {
 				// no more imports allowed beyond this point
@@ -630,32 +645,11 @@ function bind(files) {
 				console.log('NOTE: file already imported! skipping')
 				continue
 			}
-			console.log('importing ' + sourcePath)
 			const importedSource = { path: sourcePath, code: read(sourcePath) }
 			const parsedSource = parse(importedSource, fileMap)
 			files.push(parsedSource)
 		}
 	}
-
-	// const files = [contents]
-	// for (let filePath of filesToImport) {
-	// 	const goesBack = filePath.value.startsWith('../')
-	// 	assert(filePath.value.startsWith('./') || goesBack, `import file path always starts with ./ or ../`)
-	// 	let p = goesBack ? filePath.value : filePath.value.slice(2)
-	// 	if (!p.endsWith('.x3')) p += '.x3'
-
-	// 	const sourcePath = path.join(path.parse(source.path).dir, p)
-	// 	if (fileMap.has(sourcePath)) {
-	// 		console.log('NOTE: file already imported! skipping')
-	// 		continue
-	// 	}
-	// 	const importedSource = { path: sourcePath, code: read(sourcePath) }
-	// 	const parsedSource = parse(importedSource, fileMap)
-	// 	for (const file of parsedSource) {
-	// 		files.push(file)
-	// 	}
-	// }
-	// return files
 
 	// at this point all the files are loaded, so we check for parser errors
 	if (hasErrors()) displayErrors()

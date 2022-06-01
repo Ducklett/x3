@@ -1,6 +1,7 @@
 const { compile } = require("./compiler");
 
 compile('examples/00_hello_world.x3')
+// compile('examples/02_read_stdin.x3')
 // compile('examples/08_guess.x3')
 // compile('examples/09_rtti.x3')
 // compile('examples/10_snake.x3')
