@@ -44,6 +44,7 @@ function compile(filename) {
 				cmd = cmd.replace(/\//g, '\\')
 			}
 
+			console.log(cmd)
 			execSync(cmd, { stdio: 'inherit' });
 		} catch (e) {
 			process.exit(e.status)
@@ -93,7 +94,7 @@ function compile(filename) {
 	const objs = options.includeObjs.join(' ')
 	const libPaths = options.includeLibPaths.map(l => `-L${l}`).join(' ')
 	const libs = options.includeLibs.map(l => `-l${l}`).join(' ')
-	const linkerCommand = `ld -e _start ${libPaths} ${libs} ${objs} -o ${outExecutable}`
+	const linkerCommand = `ld -e _start ${objs} ${libPaths} ${libs}  -o ${outExecutable}`
 	// console.log(inspect(ast, { depth: 2 }))
 	// exec(`mkdir -p out`)
 	exec(`nasm -f elf64 out/out.asm -o ${outObj}`)

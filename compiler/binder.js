@@ -2,7 +2,7 @@ const { typeMap, cloneType, typeInfoLabel, declareVar, num, binary, ref, readPro
 const { assert, spanFromRange, read } = require('./util')
 const { parse } = require('./parser')
 const { reportError, error, errorKindForIndex, upgradeError, hasErrors, displayErrors } = require('./errors')
-const { includeObjInCompilation, includeLibInCompilation } = require('./compiler')
+const { includeObjInCompilation, includeLibInCompilation, includeLibPathInCompilation } = require('./compiler')
 const { evaluate, evaluateRaw } = require('./evaluator')
 const path = require('path')
 
@@ -742,6 +742,7 @@ function bind(files) {
 				switch (option) {
 					case 'inc': includeObjInCompilation(name); break
 					case 'lib': includeLibInCompilation(name); break
+					case 'libpath': includeLibPathInCompilation(name); break
 					default: throw `unhandled pragma option ${option}`
 				}
 
@@ -2232,22 +2233,24 @@ function bind(files) {
 				args.push(it)
 			}
 
-			assert(args[i], `argument supplied for each parameter`)
-
 			let arg = args[i]
-
-			if (arg.kind == 'named argument') {
-				if (arg.name != param.name) {
-					console.log(`its name should be '${param.name}', but got '${arg.name}' (${JSON.stringify(arg.span)})`)
+			if (!arg) {
+				const err = reportError(error.missingArgumentParam(param))
+				args[i] = errorNode({}, err)
+			} else {
+				if (arg.kind == 'named argument') {
+					if (arg.name != param.name) {
+						console.log(`its name should be '${param.name}', but got '${arg.name}' (${JSON.stringify(arg.span)})`)
+					}
+					assert(arg.name == param.name)
 				}
-				assert(arg.name == param.name)
+
+				assert(param.type, `param has a type`)
+				assert(arg.type, `arument has a type`)
+
+				arg = coerceType(param.type, arg)
+				args[i] = arg
 			}
-
-			assert(param.type, `param has a type`)
-			assert(arg.type, `arument has a type`)
-
-			arg = coerceType(param.type, arg)
-			args[i] = arg
 		}
 
 		assert(params.length == args.length)

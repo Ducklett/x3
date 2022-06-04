@@ -60,7 +60,7 @@ proc random() -> uint {
 }
 
 proc sleep(seconds:f64) {
-	var ms = (seconds/1000):u32
+	var ms = (seconds*1000):u32
 	// FIXME: kernel.sleep (lowercase) finds platform.sleep function, it should find function in the kernel module.
 	kernel.Sleep(ms)
 }

@@ -18,6 +18,7 @@ const error = {
 	typeMismatch(type, node) { return { err: 'typeMismatch', type, node } },
 	typeDispute(lhs, rhs, span, unescapedName = null) { return { err: 'typeDispute', lhs, rhs, span, unescapedName } },
 	unsupportedTypeForIndexing(node) { return { err: 'unsupportedTypeForIndexing', node } },
+	missingArgumentParam(node) { return { err: 'missingArgumentParam', node } },
 }
 
 const errors = []
@@ -201,6 +202,11 @@ function renderError(error, boring) {
 			const typesFormatted = indexableTypes.map(t => chalk.bold.yellow(t)).join(', ')
 			reason(`expression is of type ${formatType(error.node.type)}, it cannot be indexed.`)
 			help(`the types that can be indexed are: ${typesFormatted}`)
+			break
+		case 'missingArgumentParam':
+			const param = error.node
+			reason(`missing argument for parameter '${chalk.red(param.name)}'`)
+			//help(`the types that can be indexed are: ${typesFormatted}`)
 			break
 		default: throw `unhandled error code ${error.err}`
 	}

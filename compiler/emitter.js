@@ -16,7 +16,7 @@ const api = {
 
 		let locals
 
-		const externs = []
+		const externs = new Set()
 
 		// variable => label lookup
 		const globals = new Map()
@@ -83,7 +83,7 @@ push rax            ; argv
 call _main
 ${exitCall}`
 
-		const source = `${externs.map(name => `extern ${name}`).join('\n')}
+		const source = `${[...externs].map(name => `extern ${name}`).join('\n')}
 section .text
 global _start
 ${entrypoint == 'main' ? x3rt0 : ''}
@@ -113,7 +113,7 @@ ${[...data.keys()]
 		write(dest, source)
 
 		function registerExtern(name) {
-			externs.push(name)
+			externs.add(name)
 		}
 		// ==================
 
@@ -1138,13 +1138,22 @@ ${[...data.keys()]
 					assert(shouldReturn, 'number should not be called at top level')
 					const size = node.type.size
 					if (node.type.tag == tag_float) {
-						assert(size == 8)
-						const [a, b] = f64ToBytes(node.n)
-						const fullNumber = '0x' + (b.toString(16).padStart(8, '0')) + a.toString(16).padStart(8, '0')
+						if (size == 8) {
+							const [a, b] = f64ToBytes(node.n)
+							const fullNumber = '0x' + (b.toString(16).padStart(8, '0')) + a.toString(16).padStart(8, '0')
 
-						// NOTE: we put it into rax first, because pushing a number into the stack directly causes it to be sign extended
-						lines.push(`mov rax, ${fullNumber} ; ${node.n}`)
-						lines.push(`push rax`)
+							// NOTE: we put it into rax first, because pushing a number into the stack directly causes it to be sign extended
+							lines.push(`mov rax, ${fullNumber} ; ${node.n}`)
+							lines.push(`push rax`)
+						} else {
+							assert(size == 4)
+							const a = f32ToBytes(node.n)
+							const fullNumber = '0x' + a.toString(16).padStart(8, '0')
+
+							// NOTE: we put it into rax first, because pushing a number into the stack directly causes it to be sign extended
+							lines.push(`mov rax, ${fullNumber} ; ${node.n}`)
+							lines.push(`push rax`)
+						}
 					} else {
 						if (node.type.tag != tag_int) {
 							console.log(node)
